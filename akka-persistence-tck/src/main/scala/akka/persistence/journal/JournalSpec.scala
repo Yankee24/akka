@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2024 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.journal
@@ -13,7 +13,6 @@ import akka.persistence._
 import akka.persistence.JournalProtocol._
 import akka.persistence.scalatest.{ MayVerb, OptionalTests }
 import akka.testkit._
-import akka.util.unused
 
 object JournalSpec {
   val config: Config = ConfigFactory.parseString(s"""
@@ -69,7 +68,7 @@ abstract class JournalSpec(config: Config)
    * test case. `pid` is the `persistenceId` that will be used in the test.
    * This method may be needed to clean pre-existing events from the log.
    */
-  def preparePersistenceId(@unused pid: String): Unit = ()
+  def preparePersistenceId(pid: String): Unit = ()
 
   /**
    * Implementation may override and return false if it does not

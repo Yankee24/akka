@@ -14,12 +14,12 @@ project.description: Use of Akka Persistence with Event Sourcing enables actors 
 * [persistence-style](persistence-style.md)
 * [persistence-snapshot](persistence-snapshot.md)
 * [persistence-testing.md](persistence-testing.md)
-* [persistence-fsm.md](persistence-fsm.md)
 * [persistence-schema-evolution](../persistence-schema-evolution.md)
 * [persistence-query](../persistence-query.md)
 * [persistence-query-leveldb](../persistence-query-leveldb.md)
 * [persistence-plugins](../persistence-plugins.md)
 * [persistence-journals](../persistence-journals.md)
+* [replicated-eventsourcing-db-transport](replicated-eventsourcing-db-transport.md)
 * [replicated-eventsourcing-examples](replicated-eventsourcing-examples.md)
 
 @@@

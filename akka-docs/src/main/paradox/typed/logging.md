@@ -10,6 +10,16 @@ You are viewing the documentation for the new actor APIs, to view the Akka Class
 To use Logging, you must at least use the Akka actors dependency in your project, and configure logging
 via the SLF4J backend, such as Logback configuration.
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
+Additionally, add the dependency as below.
+
 @@dependency[sbt,Maven,Gradle] {
   bomGroup=com.typesafe.akka bomArtifact=akka-bom_$scala.binary.version$ bomVersionSymbols=AkkaVersion
   symbol1=AkkaVersion
@@ -88,33 +98,6 @@ It can be good to know that 3 or more arguments will result in the relatively sm
 an array (vararg parameter) also when the log level is disabled. The methods with 1 or 2 arguments
 don't allocate the vararg array.
 
-@@@ div { .group-scala }
-
-When using the methods for 2 argument placeholders the compiler will often not be able to select the
-right method and report compiler error "ambiguous reference to overloaded definition". To work around this
-problem you can use the `trace2`, `debug2`, `info2`, `warn2` or `error2` extension methods that are added
-by `import akka.actor.typed.scaladsl.LoggerOps` or `import akka.actor.typed.scaladsl._`.
-
-Scala
-:  @@snip [LoggingDocExamples.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/LoggingDocExamples.scala) { #info2 }
-
-When using the methods for 3 or more argument placeholders, the compiler will not be able to convert
-the method parameters to the vararg array when they contain primitive values such as `Int`,
-and report compiler error "overloaded method value info with alternatives".
-To work around this problem you can use the `traceN`, `debugN`, `infoN`, `warnN` or `errorN` extension
-methods that are added by the same `LoggerOps` import.
-
-Scala
-:  @@snip [LoggingDocExamples.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/LoggingDocExamples.scala) { #infoN }
-
-If you find it tedious to add the import of `LoggerOps` at many places you can make those additional methods
-available with a single implicit conversion placed in a root package object of your code:
-
-Scala
-:  @@snip [package.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/myapp/package.scala) { #loggerops-package-implicit }
-
-@@@
-
 ### Behaviors.logMessages
 
 If you want very detailed logging of messages and signals you can decorate a @apidoc[Behavior]
@@ -161,6 +144,12 @@ The entire MDC is cleared, including attributes that you add yourself to the MDC
 MDC is not cleared automatically if you use a [Logger](https://www.slf4j.org/api/org/slf4j/Logger.html) via [LoggerFactory](https://www.slf4j.org/api/org/slf4j/LoggerFactory.html) or not touch @scala[`log`]@java[`getLog()`]
 in the `ActorContext`.
 
+## SLF4J API compatibility
+
+Since Akka 2.10.0, only SLF4j version `2.0` is supported. 
+
+It is not possible to mix a logger backend supporting one version with SLF4J API of older versions.
+
 ## SLF4J backend
 
 To ensure that logging has minimal performance impact it's important that you configure an
@@ -170,7 +159,7 @@ which can slow down the operations of your code if it was performed synchronousl
 @@@ warning
 
 For production the SLF4J backend should be configured with an asynchronous appender as described here.
-Otherwise there is a risk of reduced performance and thread starvation problems of the dispatchers
+Otherwise, there is a risk of reduced performance and thread starvation problems of the dispatchers
 that are running actors and other tasks.
 
 @@@
@@ -199,7 +188,7 @@ A starting point for configuration of `logback.xml` for production:
 
 @@snip [logback.xml](/akka-actor-typed-tests/src/test/resources/logback-doc-prod.xml)
 
-Note that the [AsyncAppender](https://logback.qos.ch/apidocs/ch/qos/logback/classic/AsyncAppender.html) may drop log events if the queue becomes full, which may happen if the
+Note that the [AsyncAppender](https://logback.qos.ch/apidocs/ch.qos.logback.classic/ch/qos/logback/classic/AsyncAppender.html) may drop log events if the queue becomes full, which may happen if the
 logging backend can't keep up with the throughput of produced log events. Dropping log events is necessary
 if you want to gracefully degrade your application if only your logging backend or filesystem is experiencing
 issues. 
@@ -323,7 +312,7 @@ akka {
 ```
 
 To customize the logging further or take other actions for dead letters you can subscribe
-to the @ref:[Event Stream](../event-bus.md#event-stream).
+to the @ref:[Event Stream](event-stream.md).
 
 ### Auxiliary logging options
 

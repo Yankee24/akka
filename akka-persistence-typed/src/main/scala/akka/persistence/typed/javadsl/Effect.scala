@@ -1,8 +1,12 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2024 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.javadsl
+
+import java.util.concurrent.CompletionStage
+
+import scala.concurrent.ExecutionContext
 
 import akka.actor.typed.ActorRef
 import akka.annotation.DoNotInherit
@@ -10,7 +14,7 @@ import akka.annotation.InternalApi
 import akka.japi.function
 import akka.persistence.typed.internal._
 import akka.persistence.typed.internal.SideEffect
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
  * INTERNAL API: see `class EffectFactories`
@@ -102,6 +106,27 @@ import akka.util.ccompat.JavaConverters._
    */
   def noReply(): ReplyEffect[Event, State] =
     none().thenNoReply()
+
+  /**
+   * Asynchronous command handling. The effect is run when the `CompletionStage` has been completed.
+   * Any incoming commands are stashed and processed later, after current command, when the `CompletionStage` has
+   * been completed.
+   *
+   * This can for example be used for retrieval of external information before validating the command.
+   */
+  def async(effect: CompletionStage[Effect[Event, State]]): Effect[Event, State] = {
+    import scala.jdk.FutureConverters._
+    AsyncEffect[Event, State](effect.asScala.map(_.asInstanceOf[EffectImpl[Event, State]])(ExecutionContext.parasitic))
+  }
+
+  /**
+   * Same as [[EffectFactories.async]] when the `EventSourcedBehavior` is created with
+   * [[EventSourcedBehaviorWithEnforcedReplies]].
+   */
+  def asyncReply(effect: CompletionStage[ReplyEffect[Event, State]]): ReplyEffect[Event, State] = {
+    import scala.jdk.FutureConverters._
+    AsyncEffect[Event, State](effect.asScala.map(_.asInstanceOf[EffectImpl[Event, State]])(ExecutionContext.parasitic))
+  }
 }
 
 /**
@@ -199,4 +224,7 @@ import akka.util.ccompat.JavaConverters._
    * by another `unstashAll`.
    */
   def thenUnstashAll(): ReplyEffect[Event, State]
+
+  /** Stops the actor as a side effect */
+  def thenStop(): ReplyEffect[Event, State]
 }

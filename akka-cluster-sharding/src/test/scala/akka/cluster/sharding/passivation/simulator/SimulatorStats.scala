@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2024 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.passivation.simulator
 
-import akka.stream.scaladsl.Sink
-
 import scala.concurrent.Future
+
+import akka.stream.scaladsl.Sink
 
 object SimulatorStats {
   def apply(): Sink[Simulator.Event, Future[ShardingStats]] =

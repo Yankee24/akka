@@ -63,7 +63,6 @@ These built-in sinks are available from @scala[`akka.stream.scaladsl.Sink`] @jav
 |Sink|<a name="fold"></a>@ref[fold](Sink/fold.md)|Fold over emitted element with a function, where each invocation will get the new element and the result from the previous fold invocation.|
 |Sink|<a name="foreach"></a>@ref[foreach](Sink/foreach.md)|Invoke a given procedure for each element received.|
 |Sink|<a name="foreachasync"></a>@ref[foreachAsync](Sink/foreachAsync.md)|Invoke a given procedure asynchronously for each element received.|
-|Sink|<a name="foreachparallel"></a>@ref[foreachParallel](Sink/foreachParallel.md)|Like `foreach` but allows up to `parallellism` procedure calls to happen in parallel.|
 |Sink|<a name="frommaterializer"></a>@ref[fromMaterializer](Sink/fromMaterializer.md)|Defer the creation of a `Sink` until materialization and access `Materializer` and `Attributes`|
 |Sink|<a name="fromsubscriber"></a>@ref[fromSubscriber](Sink/fromSubscriber.md)|Integration with Reactive Streams, wraps a `org.reactivestreams.Subscriber` as a sink.|
 |Sink|<a name="futuresink"></a>@ref[futureSink](Sink/futureSink.md)|Streams the elements to the given future sink once it successfully completes. |
@@ -146,6 +145,7 @@ depending on being backpressured by downstream or not.
 |Source/Flow|<a name="collect"></a>@ref[collect](Source-or-Flow/collect.md)|Apply a partial function to each incoming element, if the partial function is defined for a value the returned value is passed downstream.|
 |Source/Flow|<a name="collecttype"></a>@ref[collectType](Source-or-Flow/collectType.md)|Transform this stream by testing the type of each of the elements on which the element is an instance of the provided type as they pass through this processing step.|
 |Flow|<a name="completionstageflow"></a>@ref[completionStageFlow](Flow/completionStageFlow.md)|Streams the elements through the given future flow once it successfully completes.|
+|Flow|<a name="contramap"></a>@ref[contramap](Flow/contramap.md)|Transform this Flow by applying a function to each *incoming* upstream element before it is passed to the Flow.|
 |Source/Flow|<a name="detach"></a>@ref[detach](Source-or-Flow/detach.md)|Detach upstream demand from downstream demand without detaching the stream rates.|
 |Source/Flow|<a name="drop"></a>@ref[drop](Source-or-Flow/drop.md)|Drop `n` elements and then pass any subsequent element downstream.|
 |Source/Flow|<a name="dropwhile"></a>@ref[dropWhile](Source-or-Flow/dropWhile.md)|Drop elements as long as a predicate function return true for the element|
@@ -199,6 +199,7 @@ operation at the same time (usually handling the completion of a @scala[`Future`
 | |Operator|Description|
 |--|--|--|
 |Source/Flow|<a name="mapasync"></a>@ref[mapAsync](Source-or-Flow/mapAsync.md)|Pass incoming elements to a function that return a @scala[`Future`] @java[`CompletionStage`] result.|
+|Source/Flow|<a name="mapasyncpartitioned"></a>@ref[mapAsyncPartitioned](Source-or-Flow/mapAsyncPartitioned.md)|Pass incoming elements to a function that extracts a partitioning key from the element, then to a function that returns a @scala[`Future`] @java[`CompletionStage`] result, bounding the number of incomplete @scala[Futures] @java[CompletionStages] per partitioning key.|
 |Source/Flow|<a name="mapasyncunordered"></a>@ref[mapAsyncUnordered](Source-or-Flow/mapAsyncUnordered.md)|Like `mapAsync` but @scala[`Future`] @java[`CompletionStage`] results are passed downstream as they arrive regardless of the order of the elements that triggered them.|
 
 ## Timer driven operators
@@ -361,6 +362,7 @@ For more background see the @ref[Error Handling in Streams](../stream-error.md) 
 | |Operator|Description|
 |--|--|--|
 |Source/Flow|<a name="maperror"></a>@ref[mapError](Source-or-Flow/mapError.md)|While similar to `recover` this operators can be used to transform an error signal to a different one *without* logging it as an error in the process.|
+|Source/Flow|<a name="onerrorcomplete"></a>@ref[onErrorComplete](Source-or-Flow/onErrorComplete.md)|Allows completing the stream when an upstream error occurs.|
 |RestartSource|<a name="onfailureswithbackoff"></a>@ref[onFailuresWithBackoff](RestartSource/onFailuresWithBackoff.md)|Wrap the given @apidoc[Source] with a @apidoc[Source] that will restart it when it fails using an exponential backoff. Notice that this @apidoc[Source] will not restart on completion of the wrapped flow.|
 |RestartFlow|<a name="onfailureswithbackoff"></a>@ref[onFailuresWithBackoff](RestartFlow/onFailuresWithBackoff.md)|Wrap the given @apidoc[Flow] with a @apidoc[Flow] that will restart it when it fails using an exponential backoff. Notice that this @apidoc[Flow] will not restart on completion of the wrapped flow.|
 |Source/Flow|<a name="recover"></a>@ref[recover](Source-or-Flow/recover.md)|Allow sending of one last element downstream when a failure has happened upstream.|
@@ -420,6 +422,7 @@ For more background see the @ref[Error Handling in Streams](../stream-error.md) 
 * [concatLazy](Source-or-Flow/concatLazy.md)
 * [conflate](Source-or-Flow/conflate.md)
 * [conflateWithSeed](Source-or-Flow/conflateWithSeed.md)
+* [contramap](Flow/contramap.md)
 * [cycle](Source/cycle.md)
 * [deflate](Compression/deflate.md)
 * [delay](Source-or-Flow/delay.md)
@@ -444,7 +447,6 @@ For more background see the @ref[Error Handling in Streams](../stream-error.md) 
 * [foldAsync](Source-or-Flow/foldAsync.md)
 * [foreach](Sink/foreach.md)
 * [foreachAsync](Sink/foreachAsync.md)
-* [foreachParallel](Sink/foreachParallel.md)
 * [from](Source/from.md)
 * [fromCompletionStage](Source/fromCompletionStage.md)
 * [fromFile](FileIO/fromFile.md)
@@ -511,6 +513,7 @@ For more background see the @ref[Error Handling in Streams](../stream-error.md) 
 * [logWithMarker](Source-or-Flow/logWithMarker.md)
 * [map](Source-or-Flow/map.md)
 * [mapAsync](Source-or-Flow/mapAsync.md)
+* [mapAsyncPartitioned](Source-or-Flow/mapAsyncPartitioned.md)
 * [mapAsyncUnordered](Source-or-Flow/mapAsyncUnordered.md)
 * [mapConcat](Source-or-Flow/mapConcat.md)
 * [mapError](Source-or-Flow/mapError.md)
@@ -528,6 +531,7 @@ For more background see the @ref[Error Handling in Streams](../stream-error.md) 
 * [never](Source/never.md)
 * [never](Sink/never.md)
 * [onComplete](Sink/onComplete.md)
+* [onErrorComplete](Source-or-Flow/onErrorComplete.md)
 * [onFailuresWithBackoff](RestartSource/onFailuresWithBackoff.md)
 * [onFailuresWithBackoff](RestartFlow/onFailuresWithBackoff.md)
 * [orElse](Source-or-Flow/orElse.md)

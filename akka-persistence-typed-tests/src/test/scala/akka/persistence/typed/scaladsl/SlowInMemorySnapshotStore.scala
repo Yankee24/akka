@@ -1,16 +1,16 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2024 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
 
+import scala.concurrent.Future
+
+import akka.persistence.{ SnapshotMetadata => ClassicSnapshotMetadata }
+import akka.persistence.{ SnapshotSelectionCriteria => ClassicSnapshotSelectionCriteria }
 import akka.persistence.SelectedSnapshot
 import akka.persistence.snapshot.SnapshotStore
 import akka.persistence.typed.scaladsl.SnapshotMutableStateSpec.MutableState
-import akka.persistence.{ SnapshotMetadata => ClassicSnapshotMetadata }
-import akka.persistence.{ SnapshotSelectionCriteria => ClassicSnapshotSelectionCriteria }
-
-import scala.concurrent.Future
 
 class SlowInMemorySnapshotStore extends SnapshotStore {
 

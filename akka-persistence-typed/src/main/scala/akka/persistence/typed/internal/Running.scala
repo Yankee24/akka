@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2024 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.internal
@@ -9,13 +9,19 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicReference
+
 import scala.annotation.tailrec
 import scala.collection.immutable
+import scala.concurrent.Future
+import scala.util.Failure
+import scala.util.Success
+import akka.Done
 import akka.actor.UnhandledMessage
-import akka.actor.typed.eventstream.EventStream
 import akka.actor.typed.{ Behavior, Signal }
+import akka.actor.typed.ActorRef
+import akka.actor.typed.eventstream.EventStream
 import akka.actor.typed.internal.PoisonPill
-import akka.actor.typed.scaladsl.{ AbstractBehavior, ActorContext, Behaviors, LoggerOps }
+import akka.actor.typed.scaladsl.{ AbstractBehavior, ActorContext, Behaviors }
 import akka.annotation.{ InternalApi, InternalStableApi }
 import akka.event.Logging
 import akka.persistence.DeleteMessagesFailure
@@ -33,8 +39,8 @@ import akka.persistence.SnapshotProtocol
 import akka.persistence.journal.Tagged
 import akka.persistence.query.{ EventEnvelope, PersistenceQuery }
 import akka.persistence.query.scaladsl.EventsByPersistenceIdQuery
-import akka.persistence.typed.ReplicaId
-import akka.persistence.typed.ReplicationId
+import akka.persistence.typed.PersistFailed
+import akka.persistence.typed.PersistRejected
 import akka.persistence.typed.{
   DeleteEventsCompleted,
   DeleteEventsFailed,
@@ -48,18 +54,21 @@ import akka.persistence.typed.{
   SnapshotMetadata,
   SnapshotSelectionCriteria
 }
+import akka.persistence.typed.ReplicaId
+import akka.persistence.typed.ReplicationId
 import akka.persistence.typed.internal.EventSourcedBehaviorImpl.{ GetSeenSequenceNr, GetState, GetStateReply }
 import akka.persistence.typed.internal.InternalProtocol.ReplicatedEventEnvelope
 import akka.persistence.typed.internal.JournalInteractions.EventToPersist
+import akka.persistence.typed.internal.Running.MaxRecursiveUnstash
 import akka.persistence.typed.internal.Running.WithSeqNrAccessible
 import akka.persistence.typed.scaladsl.Effect
-import akka.stream.scaladsl.Keep
+import akka.persistence.typed.telemetry.EventSourcedBehaviorInstrumentation
 import akka.stream.{ RestartSettings, SystemMaterializer, WatchedActorTerminatedException }
-import akka.stream.scaladsl.Source
 import akka.stream.scaladsl.{ RestartSource, Sink }
+import akka.stream.scaladsl.Keep
+import akka.stream.scaladsl.Source
 import akka.stream.typed.scaladsl.ActorFlow
 import akka.util.OptionVal
-import akka.util.unused
 import akka.util.Timeout
 
 /**
@@ -83,6 +92,8 @@ import akka.util.Timeout
 @InternalApi
 private[akka] object Running {
 
+  private val MaxRecursiveUnstash = 100
+
   trait WithSeqNrAccessible {
     def currentSequenceNumber: Long
   }
@@ -93,7 +104,8 @@ private[akka] object Running {
       receivedPoisonPill: Boolean,
       version: VersionVector,
       seenPerReplica: Map[ReplicaId, Long],
-      replicationControl: Map[ReplicaId, ReplicationStreamControl]) {
+      replicationControl: Map[ReplicaId, ReplicationStreamControl],
+      instrumentationContexts: Map[Long, EventSourcedBehaviorInstrumentation.Context]) {
 
     def nextSequenceNr(): RunningState[State] =
       copy(seqNr = seqNr + 1)
@@ -105,6 +117,24 @@ private[akka] object Running {
       val updated = setup.eventHandler(state, event)
       copy(state = updated)
     }
+
+    def getInstrumentationContext(seqNr: Long): EventSourcedBehaviorInstrumentation.Context =
+      instrumentationContexts.get(seqNr) match {
+        case Some(ctx) => ctx
+        case None      => EventSourcedBehaviorInstrumentation.EmptyContext
+      }
+
+    def updateInstrumentationContext(
+        seqNr: Long,
+        instrumentationContext: EventSourcedBehaviorInstrumentation.Context): RunningState[State] = {
+      if (instrumentationContext eq EventSourcedBehaviorInstrumentation.EmptyContext)
+        this // avoid instance creation for EmptyContext
+      else copy(instrumentationContexts = instrumentationContexts.updated(seqNr, instrumentationContext))
+    }
+
+    def clearInstrumentationContext: RunningState[State] =
+      if (instrumentationContexts.isEmpty) this
+      else copy(instrumentationContexts = Map.empty)
   }
 
   def startReplicationStream[C, E, S](
@@ -138,17 +168,22 @@ private[akka] object Running {
               setup.context.self.ask[Long](replyTo => GetSeenSequenceNr(replicaId, replyTo)).map { seqNr =>
                 replication
                   .eventsByPersistenceId(pid.persistenceId.id, seqNr + 1, Long.MaxValue)
-                  // from each replica, only get the events that originated there, this prevents most of the event filtering
-                  // the downside is that events can't be received via other replicas in the event of an uneven network partition
-                  .filter(event =>
-                    event.eventMetadata match {
-                      case Some(replicatedMeta: ReplicatedEventMetadata) => replicatedMeta.originReplica == replicaId
+                  .mapConcat(eventEnvelope =>
+                    eventEnvelope.eventMetadata match {
+                      case Some(replicatedMeta: ReplicatedEventMetadata) =>
+                        // skip events originating from self replica (break the cycle)
+                        if (replicatedMeta.originReplica == replicationSetup.replicaId)
+                          Nil
+                        else
+                          eventEnvelope :: Nil
                       case _ =>
-                        throw new IllegalArgumentException(
-                          s"Replication stream from replica ${replicaId} for ${setup.persistenceId} contains event " +
-                          s"(sequence nr ${event.sequenceNr}) without replication metadata. " +
-                          s"Is the persistence id used by a regular event sourced actor there or the journal for that replica (${queryPluginId}) " +
-                          "used that does not support Replicated Event Sourcing?")
+                        // migrated from non-replicated, fill in metadata
+                        val metadata = ReplicatedEventMetadata(
+                          originReplica = replicaId,
+                          originSequenceNr = eventEnvelope.sequenceNr,
+                          version = VersionVector(replicaId.id, eventEnvelope.sequenceNr),
+                          concurrent = false)
+                        eventEnvelope.withMetadata(metadata) :: Nil
                     })
                   .viaMat(new FastForwardingFilter)(Keep.right)
                   .mapMaterializedValue(streamControl => controlRef.set(streamControl))
@@ -158,8 +193,8 @@ private[akka] object Running {
           // needs to be outside of the restart source so that it actually cancels when terminating the replica
           .via(ActorFlow
             .ask[EventEnvelope, ReplicatedEventEnvelope[E], ReplicatedEventAck.type](ref) { (eventEnvelope, replyTo) =>
-              // Need to handle this not being available migration from non-replicated is supported
               val meta = eventEnvelope.eventMetadata.get.asInstanceOf[ReplicatedEventMetadata]
+
               val re =
                 ReplicatedEvent[E](
                   eventEnvelope.event.asInstanceOf[E],
@@ -226,6 +261,8 @@ private[akka] object Running {
   // Needed for WithSeqNrAccessible, when unstashing
   private var _currentSequenceNumber = 0L
 
+  private var recursiveUnstashOne = 0
+
   final class HandlingCommands(state: RunningState[S])
       extends AbstractBehavior[InternalProtocol](setup.context)
       with WithSeqNrAccessible {
@@ -258,27 +295,51 @@ private[akka] object Running {
 
     def onCommand(state: RunningState[S], cmd: C): Behavior[InternalProtocol] = {
       val effect = setup.commandHandler(state.state, cmd)
-      val (next, doUnstash) = applyEffects(cmd, state, effect.asInstanceOf[EffectImpl[E, S]]) // TODO can we avoid the cast?
+      runEffect(cmd, effect)
+    }
+
+    def runEffect(cmd: C, effect: Effect[E, S]): Behavior[InternalProtocol] = {
+      val (next, doUnstash) = applyEffects(cmd, state, effect.asInstanceOf[EffectImpl[E, S]])
       if (doUnstash) tryUnstashOne(next)
       else next
+
     }
 
     def onReplicatedEvent(
         state: Running.RunningState[S],
         envelope: ReplicatedEventEnvelope[E],
         replication: ReplicationSetup): Behavior[InternalProtocol] = {
-      setup.internalLogger.debugN(
-        "Replica {} received replicated event. Replica seqs nrs: {}. Envelope {}",
-        setup.replication,
-        state.seenPerReplica,
-        envelope)
+      setup.internalLogger.debug(
+        "Replica [{}] received replicated event from [{}], origin seq nr [{}]. Replica seq nrs: {}.",
+        replication.replicaId,
+        envelope.event.originReplica,
+        envelope.event.originSequenceNr,
+        state.seenPerReplica)
       envelope.ack ! ReplicatedEventAck
       if (envelope.event.originReplica != replication.replicaId && !alreadySeen(envelope.event)) {
-        setup.internalLogger.debug(
-          "Saving event [{}] from [{}] as first time",
-          envelope.event.originSequenceNr,
-          envelope.event.originReplica)
-        handleExternalReplicatedEventPersist(replication, envelope.event)
+        setup.replicationInterceptor match {
+          case Some(interceptor) =>
+            val asyncInterceptResult =
+              interceptor.intercept(state.state, envelope.event.event, envelope.event.originReplica, state.seqNr + 1)
+            asyncInterceptResult.value match {
+              case Some(Success(_)) =>
+                // optimization for quick successful interceptors
+                handleExternalReplicatedEventPersist(replication, envelope.event, None)
+              case _ =>
+                // failed or not ready
+                waitAsyncReplicationIntercept(
+                  state,
+                  asyncInterceptResult,
+                  () => handleExternalReplicatedEventPersist(replication, envelope.event, None))
+            }
+
+          case None =>
+            setup.internalLogger.debug(
+              "Saving event [{}] from [{}] as first time",
+              envelope.event.originSequenceNr,
+              envelope.event.originReplica)
+            handleExternalReplicatedEventPersist(replication, envelope.event, None)
+        }
       } else {
         setup.internalLogger.debug(
           "Filtering event [{}] from [{}] as it was already seen",
@@ -289,6 +350,7 @@ private[akka] object Running {
     }
 
     def onPublishedEvent(state: Running.RunningState[S], event: PublishedEventImpl): Behavior[InternalProtocol] = {
+      var asyncWait: Boolean = false
       val newBehavior: Behavior[InternalProtocol] = setup.replication match {
         case None =>
           setup.internalLogger.warn(
@@ -299,13 +361,41 @@ private[akka] object Running {
         case Some(replication) =>
           event.replicatedMetaData match {
             case None =>
-              setup.internalLogger.warn("Received published event for [{}] but with no replicated metadata, dropping")
+              setup.internalLogger.warn(
+                "Received published event for [{}] but with no replicated metadata, dropping",
+                event.persistenceId)
               this
             case Some(replicatedEventMetaData) =>
-              onPublishedEvent(state, replication, replicatedEventMetaData, event)
+              setup.replicationInterceptor match {
+                case Some(interceptor) =>
+                  val asyncInterceptResult =
+                    interceptor.intercept(
+                      state.state,
+                      event.event.asInstanceOf[E],
+                      replicatedEventMetaData.replicaId,
+                      state.seqNr + 1)
+                  asyncInterceptResult.value match {
+                    case Some(Success(_)) =>
+                      // optimization for quick successful interceptors
+                      onPublishedEvent(state, replication, replicatedEventMetaData, event)
+                    case _ =>
+                      // failed or not ready
+                      asyncWait = true
+                      waitAsyncReplicationIntercept(
+                        state,
+                        asyncInterceptResult,
+                        () => onPublishedEvent(state, replication, replicatedEventMetaData, event))
+
+                  }
+
+                case None =>
+                  onPublishedEvent(state, replication, replicatedEventMetaData, event)
+              }
+
           }
       }
-      tryUnstashOne(newBehavior)
+      if (!asyncWait) tryUnstashOne(newBehavior)
+      else newBehavior
     }
 
     private def onPublishedEvent(
@@ -326,39 +416,36 @@ private[akka] object Running {
             "Ignoring published replicated event with seqNr [{}] from our own replica id [{}]",
             event.sequenceNumber,
             originReplicaId)
-        this
-      } else if (!replication.allReplicas.contains(originReplicaId)) {
-        log.warnN(
-          "Received published replicated event from replica [{}], which is unknown. Replicated Event Sourcing must be set up with a list of all replicas (known are [{}]).",
-          originReplicaId,
-          replication.allReplicas.mkString(", "))
+        event.replyTo.foreach(_ ! Done) // probably won't happen
         this
       } else {
-        val expectedSequenceNumber = state.seenPerReplica(originReplicaId) + 1
-        if (expectedSequenceNumber > event.sequenceNumber) {
-          // already seen
+        val seenSequenceNr = state.seenPerReplica.getOrElse(originReplicaId, 0L)
+        if (seenSequenceNr >= event.sequenceNumber) {
+          // already seen/deduplication
           if (log.isDebugEnabled)
-            log.debugN(
-              "Ignoring published replicated event with seqNr [{}] from replica [{}] because it was already seen ([{}])",
+            log.debug(
+              "Ignoring published replicated event with seqNr [{}] from replica [{}] because it was already seen (version: {})",
               event.sequenceNumber,
               originReplicaId,
-              expectedSequenceNumber)
+              state.seenPerReplica)
+          event.replyTo.foreach(_ ! Done)
           this
-        } else if (expectedSequenceNumber != event.sequenceNumber) {
-          // gap in sequence numbers (message lost or query and direct replication out of sync, should heal up by itself
+        } else if (event.lossyTransport && event.sequenceNumber != (seenSequenceNr + 1)) {
+          // Lossy transport/opportunistic replication cannot allow gaps in sequence
+          // numbers (message lost or query and direct replication out of sync, should heal up by itself
           // once the query catches up)
           if (log.isDebugEnabled) {
-            log.debugN(
+            log.debug(
               "Ignoring published replicated event with replication seqNr [{}] from replica [{}] " +
               "because expected replication seqNr was [{}] ",
               event.sequenceNumber,
               originReplicaId,
-              expectedSequenceNumber)
+              seenSequenceNr + 1)
           }
           this
         } else {
           if (log.isTraceEnabled) {
-            log.traceN(
+            log.trace(
               "Received published replicated event [{}] with timestamp [{} (UTC)] from replica [{}] seqNr [{}]",
               Logging.simpleName(event.event.getClass),
               formatTimestamp(event.timestamp),
@@ -366,7 +453,7 @@ private[akka] object Running {
               event.sequenceNumber)
           }
 
-          // fast forward stream for source replica
+          // fast-forward stream for source replica
           state.replicationControl.get(originReplicaId).foreach(_.fastForward(event.sequenceNumber))
 
           handleExternalReplicatedEventPersist(
@@ -375,7 +462,8 @@ private[akka] object Running {
               event.event.asInstanceOf[E],
               originReplicaId,
               event.sequenceNumber,
-              replicatedMetadata.version))
+              replicatedMetadata.version),
+            event.replyTo)
         }
 
       }
@@ -388,19 +476,20 @@ private[akka] object Running {
     }
 
     def onGetSeenSequenceNr(get: GetSeenSequenceNr): Behavior[InternalProtocol] = {
-      get.replyTo ! state.seenPerReplica(get.replica)
+      get.replyTo ! state.seenPerReplica.getOrElse(get.replica, 0L)
       this
     }
 
     private def handleExternalReplicatedEventPersist(
         replication: ReplicationSetup,
-        event: ReplicatedEvent[E]): Behavior[InternalProtocol] = {
+        event: ReplicatedEvent[E],
+        ackToOnPersisted: Option[ActorRef[Done]]): Behavior[InternalProtocol] = {
       _currentSequenceNumber = state.seqNr + 1
       val isConcurrent: Boolean = event.originVersion <> state.version
       val updatedVersion = event.originVersion.merge(state.version)
 
       if (setup.internalLogger.isDebugEnabled())
-        setup.internalLogger.debugN(
+        setup.internalLogger.debug(
           "Processing event [{}] with version [{}]. Local version: {}. Updated version {}. Concurrent? {}",
           Logging.simpleName(event.event.getClass),
           event.originVersion,
@@ -411,34 +500,41 @@ private[akka] object Running {
       replication.setContext(recoveryRunning = false, event.originReplica, concurrent = isConcurrent)
 
       val stateAfterApply = state.applyEvent(setup, event.event)
-      val eventToPersist = adaptEvent(event.event)
+      val eventToPersist = adaptEvent(stateAfterApply.state, event.event)
       val eventAdapterManifest = setup.eventAdapter.manifest(event.event)
 
       replication.clearContext()
 
+      val sideEffects = ackToOnPersisted match {
+        case None => Nil
+        case Some(ref) =>
+          SideEffect { (_: S) =>
+            ref ! Done
+          } :: Nil
+      }
+
       val newState2: RunningState[S] = internalPersist(
-        setup.context,
-        null,
+        OptionVal.none,
         stateAfterApply,
         eventToPersist,
         eventAdapterManifest,
         OptionVal.Some(
           ReplicatedEventMetadata(event.originReplica, event.originSequenceNr, updatedVersion, isConcurrent)))
       val shouldSnapshotAfterPersist = setup.shouldSnapshot(newState2.state, event.event, newState2.seqNr)
-      // FIXME validate this is the correct sequence nr from that replica https://github.com/akka/akka/issues/29259
       val updatedSeen = newState2.seenPerReplica.updated(event.originReplica, event.originSequenceNr)
       persistingEvents(
         newState2.copy(seenPerReplica = updatedSeen, version = updatedVersion),
         state,
+        command = OptionVal.none[C],
         numberOfEvents = 1,
         shouldSnapshotAfterPersist,
         shouldPublish = false,
-        Nil)
+        sideEffects)
     }
 
     private def handleEventPersist(
         event: E,
-        cmd: Any,
+        cmd: C,
         sideEffects: immutable.Seq[SideEffect[S]]): (Behavior[InternalProtocol], Boolean) = {
       try {
         // apply the event before persist so that validation exception is handled before persisting
@@ -449,15 +545,14 @@ private[akka] object Running {
         setup.replication.foreach(r => r.setContext(recoveryRunning = false, r.replicaId, concurrent = false))
 
         val stateAfterApply = state.applyEvent(setup, event)
-        val eventToPersist = adaptEvent(event)
+        val eventToPersist = adaptEvent(stateAfterApply.state, event)
         val eventAdapterManifest = setup.eventAdapter.manifest(event)
 
         val newState2 = setup.replication match {
           case Some(replication) =>
             val updatedVersion = stateAfterApply.version.updated(replication.replicaId.id, _currentSequenceNumber)
             val r = internalPersist(
-              setup.context,
-              cmd,
+              OptionVal.Some(cmd),
               stateAfterApply,
               eventToPersist,
               eventAdapterManifest,
@@ -469,14 +564,14 @@ private[akka] object Running {
                   concurrent = false))).copy(version = updatedVersion)
 
             if (setup.internalLogger.isTraceEnabled())
-              setup.internalLogger.traceN(
+              setup.internalLogger.trace(
                 "Event persisted [{}]. Version vector after: [{}]",
                 Logging.simpleName(event.getClass),
                 r.version)
 
             r
           case None =>
-            internalPersist(setup.context, cmd, stateAfterApply, eventToPersist, eventAdapterManifest, OptionVal.None)
+            internalPersist(OptionVal.Some(cmd), stateAfterApply, eventToPersist, eventAdapterManifest, OptionVal.None)
         }
 
         val shouldSnapshotAfterPersist = setup.shouldSnapshot(newState2.state, event, newState2.seqNr)
@@ -484,6 +579,7 @@ private[akka] object Running {
           persistingEvents(
             newState2,
             state,
+            command = OptionVal.Some(cmd),
             numberOfEvents = 1,
             shouldSnapshotAfterPersist,
             shouldPublish = true,
@@ -496,7 +592,7 @@ private[akka] object Running {
 
     private def handleEventPersistAll(
         events: immutable.Seq[E],
-        cmd: Any,
+        cmd: C,
         sideEffects: immutable.Seq[SideEffect[S]]): (Behavior[InternalProtocol], Boolean) = {
       if (events.nonEmpty) {
         try {
@@ -518,15 +614,12 @@ private[akka] object Running {
 
           events.foreach { event =>
             _currentSequenceNumber += 1
-            if (shouldSnapshotAfterPersist == NoSnapshot)
-              shouldSnapshotAfterPersist = setup.shouldSnapshot(currentState.state, event, _currentSequenceNumber)
             val evtManifest = setup.eventAdapter.manifest(event)
-            val adaptedEvent = adaptEvent(event)
             val eventMetadata = metadataTemplate match {
               case Some(template) =>
                 val updatedVersion = currentState.version.updated(template.originReplica.id, _currentSequenceNumber)
                 if (setup.internalLogger.isDebugEnabled)
-                  setup.internalLogger.traceN(
+                  setup.internalLogger.trace(
                     "Processing event [{}] with version vector [{}]",
                     Logging.simpleName(event.getClass),
                     updatedVersion)
@@ -536,17 +629,22 @@ private[akka] object Running {
             }
 
             currentState = currentState.applyEvent(setup, event)
+            if (shouldSnapshotAfterPersist == NoSnapshot)
+              shouldSnapshotAfterPersist = setup.shouldSnapshot(currentState.state, event, _currentSequenceNumber)
+
+            val adaptedEvent = adaptEvent(currentState.state, event)
 
             eventsToPersist = EventToPersist(adaptedEvent, evtManifest, eventMetadata) :: eventsToPersist
           }
 
           val newState2 =
-            internalPersistAll(setup.context, cmd, currentState, eventsToPersist.reverse)
+            internalPersistAll(OptionVal.Some(cmd), currentState, eventsToPersist.reverse)
 
           (
             persistingEvents(
               newState2,
               state,
+              command = OptionVal.Some(cmd),
               events.size,
               shouldSnapshotAfterPersist,
               shouldPublish = true,
@@ -561,12 +659,12 @@ private[akka] object Running {
       }
     }
     @tailrec def applyEffects(
-        msg: Any,
+        msg: C,
         state: RunningState[S],
         effect: Effect[E, S],
         sideEffects: immutable.Seq[SideEffect[S]] = Nil): (Behavior[InternalProtocol], Boolean) = {
       if (setup.internalLogger.isDebugEnabled && !effect.isInstanceOf[CompositeEffect[_, _]])
-        setup.internalLogger.debugN(
+        setup.internalLogger.debug(
           s"Handled command [{}], resulting effect: [{}], side effects: [{}]",
           msg.getClass.getName,
           effect,
@@ -586,6 +684,9 @@ private[akka] object Running {
         case _: PersistNothing.type =>
           (applySideEffects(sideEffects, state), true)
 
+        case AsyncEffect(laterEffect) =>
+          (waitAsyncEffect(msg, state, laterEffect), false)
+
         case _: Unhandled.type =>
           import akka.actor.typed.scaladsl.adapter._
           setup.context.system.toClassic.eventStream
@@ -600,13 +701,30 @@ private[akka] object Running {
       }
     }
 
-    def adaptEvent(event: E): Any = {
-      val tags = setup.tagger(event)
+    def adaptEvent(state: S, event: E): Any = {
+      val tags = setup.tagger(state, event)
       val adaptedEvent = setup.eventAdapter.toJournal(event)
       if (tags.isEmpty)
         adaptedEvent
       else
         Tagged(adaptedEvent, tags)
+    }
+
+    // note that this shadows tryUnstashOne in StashManagement from HandlingCommands
+    private def tryUnstashOne(behavior: Behavior[InternalProtocol]): Behavior[InternalProtocol] = {
+      if (isStashEmpty) {
+        recursiveUnstashOne = 0
+        behavior
+      } else {
+        recursiveUnstashOne += 1
+        if (recursiveUnstashOne >= MaxRecursiveUnstash && behavior.isInstanceOf[HandlingCommands]) {
+          // avoid StackOverflow from too many recursive tryUnstashOne (stashed read only commands)
+          recursiveUnstashOne = 0
+          setup.context.self ! ContinueUnstash
+          new WaitingForContinueUnstash(state)
+        } else
+          Running.this.tryUnstashOne(behavior)
+      }
     }
 
     setup.setMdcPhase(PersistenceMdc.RunningCmds)
@@ -620,18 +738,28 @@ private[akka] object Running {
   def persistingEvents(
       state: RunningState[S],
       visibleState: RunningState[S], // previous state until write success
+      command: OptionVal[C],
       numberOfEvents: Int,
       shouldSnapshotAfterPersist: SnapshotAfterPersist,
       shouldPublish: Boolean,
       sideEffects: immutable.Seq[SideEffect[S]]): Behavior[InternalProtocol] = {
     setup.setMdcPhase(PersistenceMdc.PersistingEvents)
-    new PersistingEvents(state, visibleState, numberOfEvents, shouldSnapshotAfterPersist, shouldPublish, sideEffects)
+    recursiveUnstashOne = 0
+    new PersistingEvents(
+      state,
+      visibleState,
+      command,
+      numberOfEvents,
+      shouldSnapshotAfterPersist,
+      shouldPublish,
+      sideEffects)
   }
 
   /** INTERNAL API */
   @InternalApi private[akka] class PersistingEvents(
       var state: RunningState[S],
       var visibleState: RunningState[S], // previous state until write success
+      command: OptionVal[C],
       numberOfEvents: Int,
       shouldSnapshotAfterPersist: SnapshotAfterPersist,
       shouldPublish: Boolean,
@@ -653,6 +781,9 @@ private[akka] object Running {
         case SnapshotterResponse(r)                    => onDeleteSnapshotResponse(r, visibleState.state)
         case RecoveryTickEvent(_)                      => Behaviors.unhandled
         case RecoveryPermitGranted                     => Behaviors.unhandled
+        case ContinueUnstash                           => Behaviors.unhandled
+        case _: AsyncEffectCompleted[_, _, _]          => Behaviors.unhandled
+        case _: AsyncReplicationInterceptCompleted     => Behaviors.unhandled
       }
     }
 
@@ -667,7 +798,7 @@ private[akka] object Running {
     }
 
     def onGetSeenSequenceNr(get: GetSeenSequenceNr): PersistingEvents = {
-      get.replyTo ! state.seenPerReplica(get.replica)
+      get.replyTo ! state.seenPerReplica.getOrElse(get.replica, 0L)
       this
     }
 
@@ -689,7 +820,7 @@ private[akka] object Running {
 
     final def onJournalResponse(response: Response): Behavior[InternalProtocol] = {
       if (setup.internalLogger.isDebugEnabled) {
-        setup.internalLogger.debug2(
+        setup.internalLogger.debug(
           "Received Journal response: {} after: {} nanos",
           response,
           System.nanoTime() - persistStartTime)
@@ -699,30 +830,51 @@ private[akka] object Running {
         state = state.updateLastSequenceNr(p)
         eventCounter += 1
 
+        val instrumentationContext2 =
+          setup.instrumentation.persistEventWritten(
+            setup.context.self,
+            p.payload,
+            state.getInstrumentationContext(p.sequenceNr))
+        val state2 = state.updateInstrumentationContext(p.sequenceNr, instrumentationContext2)
         onWriteSuccess(setup.context, p)
 
         if (setup.publishEvents && shouldPublish) {
           val meta = setup.replication.map(replication =>
             new ReplicatedPublishedEventMetaData(replication.replicaId, state.version))
           context.system.eventStream ! EventStream.Publish(
-            PublishedEventImpl(setup.persistenceId, p.sequenceNr, p.payload, p.timestamp, meta))
+            PublishedEventImpl(setup.persistenceId, p.sequenceNr, p.payload, p.timestamp, meta, None))
         }
 
         // only once all things are applied we can revert back
         if (eventCounter < numberOfEvents) {
+          setup.instrumentation.persistEventDone(setup.context.self, instrumentationContext2)
           onWriteDone(setup.context, p)
           this
         } else {
-          visibleState = state
-          if (shouldSnapshotAfterPersist == NoSnapshot || state.state == null) {
-            val newState = applySideEffects(sideEffects, state)
+          visibleState = state2
+          def skipRetention(): Boolean = {
+            // only one retention process at a time
+            val inProgress = shouldSnapshotAfterPersist == SnapshotWithRetention && setup.isRetentionInProgress()
+            if (inProgress)
+              setup.internalLogger.info(
+                "Skipping retention at seqNr [{}] because previous retention has not completed yet. " +
+                "Next retention will cover skipped retention.",
+                state2.seqNr)
+            inProgress
+          }
 
+          if (shouldSnapshotAfterPersist == NoSnapshot || state2.state == null || skipRetention()) {
+            val behavior = applySideEffects(sideEffects, state2.clearInstrumentationContext)
+            setup.instrumentation.persistEventDone(setup.context.self, instrumentationContext2)
             onWriteDone(setup.context, p)
-
-            tryUnstashOne(newState)
+            tryUnstashOne(behavior)
           } else {
-            internalSaveSnapshot(state)
-            new StoringSnapshot(state, sideEffects, shouldSnapshotAfterPersist)
+            setup.instrumentation.persistEventDone(setup.context.self, instrumentationContext2)
+            onWriteDone(setup.context, p)
+            if (shouldSnapshotAfterPersist == SnapshotWithRetention)
+              setup.retentionProgressSaveSnapshotStarted(state2.seqNr)
+            internalSaveSnapshot(state2)
+            new StoringSnapshot(state2.clearInstrumentationContext, sideEffects, shouldSnapshotAfterPersist)
           }
         }
       }
@@ -735,13 +887,33 @@ private[akka] object Running {
 
         case WriteMessageRejected(p, cause, id) =>
           if (id == setup.writerIdentity.instanceId) {
+            setup.instrumentation.persistRejected(
+              setup.context.self,
+              cause,
+              p.payload,
+              p.sequenceNr,
+              state.getInstrumentationContext(p.sequenceNr))
             onWriteRejected(setup.context, cause, p)
+            val signal = PersistRejected(cause, command.toOption)
+            if (setup.onSignal(state.state, signal, catchAndLog = false)) {
+              setup.internalLogger.debug("Emitted signal [{}].", signal)
+            }
             throw new EventRejectedException(setup.persistenceId, p.sequenceNr, cause)
           } else this
 
         case WriteMessageFailure(p, cause, id) =>
           if (id == setup.writerIdentity.instanceId) {
+            setup.instrumentation.persistFailed(
+              setup.context.self,
+              cause,
+              p.payload,
+              p.sequenceNr,
+              state.getInstrumentationContext(p.sequenceNr))
             onWriteFailed(setup.context, cause, p)
+            val signal = PersistFailed(cause, command.toOption)
+            if (setup.onSignal(state.state, signal, catchAndLog = false)) {
+              setup.internalLogger.debug("Emitted signal [{}].", signal)
+            }
             throw new JournalFailureException(setup.persistenceId, p.sequenceNr, p.payload.getClass.getName, cause)
           } else this
 
@@ -775,6 +947,131 @@ private[akka] object Running {
 
   // ===============================================
 
+  def waitAsyncEffect(
+      msg: Any,
+      state: RunningState[S],
+      laterEffect: Future[Effect[E, S]]): Behavior[InternalProtocol] = {
+    setup.setMdcPhase(PersistenceMdc.WaitingAsyncEffect)
+    recursiveUnstashOne = 0
+    setup.context.pipeToSelf(laterEffect) {
+      case Success(effect) => AsyncEffectCompleted(msg, effect)
+      case Failure(exc) =>
+        setup.internalLogger.debug(s"Async effect failed: $exc")
+        AsyncEffectCompleted(msg, Effect.none[E, S].thenRun(_ => throw exc))
+    }
+    new WaitingAsyncEffect(state)
+  }
+
+  /** INTERNAL API */
+  @InternalApi private[akka] class WaitingAsyncEffect(var state: RunningState[S])
+      extends AbstractBehavior[InternalProtocol](setup.context)
+      with WithSeqNrAccessible {
+
+    override def onMessage(msg: InternalProtocol): Behavior[InternalProtocol] = {
+      msg match {
+        case completed: AsyncEffectCompleted[C @unchecked, E @unchecked, S @unchecked] =>
+          onAsyncEffectCompleted(completed.cmd, completed.effect)
+        case in: IncomingCommand[C @unchecked]         => onCommand(in)
+        case re: ReplicatedEventEnvelope[E @unchecked] => onReplicatedEvent(re)
+        case pe: PublishedEventImpl                    => onPublishedEvent(pe)
+        case JournalResponse(r)                        => onDeleteEventsJournalResponse(r, state.state)
+        case SnapshotterResponse(r)                    => onDeleteSnapshotResponse(r, state.state)
+        case get: GetState[S @unchecked]               => stashInternal(get)
+        case getSeqNr: GetSeenSequenceNr               => onGetSeenSequenceNr(getSeqNr)
+        case _                                         => Behaviors.unhandled
+      }
+    }
+
+    def onAsyncEffectCompleted(cmd: C, effect: Effect[E, S]): Behavior[InternalProtocol] = {
+      val handlingCommands = new HandlingCommands(state)
+      handlingCommands.runEffect(cmd, effect)
+    }
+
+    def onCommand(cmd: IncomingCommand[C]): Behavior[InternalProtocol] = {
+      if (state.receivedPoisonPill) {
+        if (setup.settings.logOnStashing)
+          setup.internalLogger.debug("Discarding message [{}], because actor is to be stopped.", cmd)
+        Behaviors.unhandled
+      } else {
+        stashInternal(cmd)
+      }
+    }
+
+    def onGetSeenSequenceNr(get: GetSeenSequenceNr): WaitingAsyncEffect = {
+      get.replyTo ! state.seenPerReplica.getOrElse(get.replica, 0L)
+      this
+    }
+
+    def onReplicatedEvent(event: InternalProtocol.ReplicatedEventEnvelope[E]): Behavior[InternalProtocol] = {
+      if (state.receivedPoisonPill) {
+        Behaviors.unhandled
+      } else {
+        stashInternal(event)
+      }
+    }
+
+    def onPublishedEvent(event: PublishedEventImpl): Behavior[InternalProtocol] = {
+      if (state.receivedPoisonPill) {
+        Behaviors.unhandled
+      } else {
+        stashInternal(event)
+      }
+    }
+
+    override def onSignal: PartialFunction[Signal, Behavior[InternalProtocol]] = {
+      case PoisonPill =>
+        // wait for completion of async effect before stopping
+        state = state.copy(receivedPoisonPill = true)
+        this
+      case signal =>
+        if (setup.onSignal(state.state, signal, catchAndLog = false)) this
+        else Behaviors.unhandled
+    }
+
+    override def currentSequenceNumber: Long = {
+      _currentSequenceNumber
+    }
+  }
+
+  // ===============================================
+
+  def waitAsyncReplicationIntercept(
+      state: RunningState[S],
+      interceptResult: Future[Done],
+      nextBehaviorF: () => Behavior[InternalProtocol]): Behavior[InternalProtocol] = {
+    setup.setMdcPhase(PersistenceMdc.AsyncReplicationIntercept)
+    recursiveUnstashOne = 0
+    setup.context.pipeToSelf(interceptResult) {
+      case Success(_) => AsyncReplicationInterceptCompleted(nextBehaviorF)
+      case Failure(exc) =>
+        setup.internalLogger.debug(s"Async replication intercept failed: $exc")
+        throw exc
+    }
+    new WaitingAsyncReplicationIntercept(state)
+  }
+
+  /** INTERNAL API */
+  @InternalApi private[akka] final class WaitingAsyncReplicationIntercept(_state: RunningState[S])
+      extends WaitingAsyncEffect(_state)
+      with WithSeqNrAccessible {
+
+    override def onMessage(msg: InternalProtocol): Behavior[InternalProtocol] = {
+      msg match {
+        case AsyncReplicationInterceptCompleted(nextBehaviorF) => nextBehaviorF()
+        case in: IncomingCommand[C @unchecked]                 => onCommand(in)
+        case re: ReplicatedEventEnvelope[E @unchecked]         => onReplicatedEvent(re)
+        case pe: PublishedEventImpl                            => onPublishedEvent(pe)
+        case JournalResponse(r)                                => onDeleteEventsJournalResponse(r, state.state)
+        case SnapshotterResponse(r)                            => onDeleteSnapshotResponse(r, state.state)
+        case get: GetState[S @unchecked]                       => stashInternal(get)
+        case getSeqNr: GetSeenSequenceNr                       => onGetSeenSequenceNr(getSeqNr)
+        case _                                                 => Behaviors.unhandled
+      }
+    }
+  }
+
+  // ===============================================
+
   /** INTERNAL API */
   @InternalApi private[akka] class StoringSnapshot(
       state: RunningState[S],
@@ -783,6 +1080,7 @@ private[akka] object Running {
       extends AbstractBehavior[InternalProtocol](setup.context)
       with WithSeqNrAccessible {
     setup.setMdcPhase(PersistenceMdc.StoringSnapshot)
+    recursiveUnstashOne = 0
 
     def onCommand(cmd: IncomingCommand[C]): Behavior[InternalProtocol] = {
       if (state.receivedPoisonPill) {
@@ -798,19 +1096,41 @@ private[akka] object Running {
       val signal = response match {
         case SaveSnapshotSuccess(meta) =>
           setup.internalLogger.debug(s"Persistent snapshot [{}] saved successfully", meta)
-          if (snapshotReason == SnapshotWithRetention) {
+          if (snapshotReason == SnapshotWithoutRetention && setup.snapshotWhen.deleteEventsOnSnapshot) {
+            def retentionBasedSequence = setup.retention match {
+              case s @ SnapshotCountRetentionCriteriaImpl(_, _, true) =>
+                val deleteEventsToSeqNr = s.deleteUpperSequenceNr(meta.sequenceNr)
+                setup.retentionProgressDeleteEventsStarted(state.seqNr, deleteEventsToSeqNr)
+                Some(deleteEventsToSeqNr) // keepNSnapshots batches of events
+              case _ => None
+            }
+            val deleteEventsToSeqNr =
+              if (setup.isOnlyOneSnapshot) Some(meta.sequenceNr) // delete all events up to the snapshot
+              else retentionBasedSequence
+            internalDeleteEvents(meta.sequenceNr, deleteEventsToSeqNr.getOrElse(meta.sequenceNr))
+
+          } else if (snapshotReason == SnapshotWithRetention) {
             // deletion of old events and snapshots are triggered by the SaveSnapshotSuccess
             setup.retention match {
-              case DisabledRetentionCriteria                          => // no further actions
+              case DisabledRetentionCriteria => // no further actions
               case s @ SnapshotCountRetentionCriteriaImpl(_, _, true) =>
+                setup.retentionProgressSaveSnapshotEnded(state.seqNr, success = true)
                 // deleteEventsOnSnapshot == true, deletion of old events
-                val deleteEventsToSeqNr = s.deleteUpperSequenceNr(meta.sequenceNr)
+                val deleteEventsToSeqNr = {
+                  if (setup.isOnlyOneSnapshot) meta.sequenceNr // delete all events up to the snapshot
+                  else s.deleteUpperSequenceNr(meta.sequenceNr) // keepNSnapshots batches of events
+                }
                 // snapshot deletion then happens on event deletion success in Running.onDeleteEventsJournalResponse
+                setup.retentionProgressDeleteEventsStarted(state.seqNr, deleteEventsToSeqNr)
                 internalDeleteEvents(meta.sequenceNr, deleteEventsToSeqNr)
               case s @ SnapshotCountRetentionCriteriaImpl(_, _, false) =>
+                setup.retentionProgressSaveSnapshotEnded(state.seqNr, success = true)
                 // deleteEventsOnSnapshot == false, deletion of old snapshots
-                val deleteSnapshotsToSeqNr = s.deleteUpperSequenceNr(meta.sequenceNr)
-                internalDeleteSnapshots(s.deleteLowerSequenceNr(deleteSnapshotsToSeqNr), deleteSnapshotsToSeqNr)
+                if (!setup.isOnlyOneSnapshot) {
+                  val deleteSnapshotsToSeqNr = s.deleteUpperSequenceNr(meta.sequenceNr)
+                  setup.retentionProgressDeleteSnapshotsStarted(deleteSnapshotsToSeqNr)
+                  internalDeleteSnapshots(deleteSnapshotsToSeqNr)
+                }
               case unexpected => throw new IllegalStateException(s"Unexpected retention criteria: $unexpected")
             }
           }
@@ -818,7 +1138,9 @@ private[akka] object Running {
           Some(SnapshotCompleted(SnapshotMetadata.fromClassic(meta)))
 
         case SaveSnapshotFailure(meta, error) =>
-          setup.internalLogger.warn2("Failed to save snapshot given metadata [{}] due to: {}", meta, error.getMessage)
+          if (snapshotReason == SnapshotWithRetention)
+            setup.retentionProgressSaveSnapshotEnded(state.seqNr, success = false)
+          setup.internalLogger.warn("Failed to save snapshot given metadata [{}] due to: {}", meta, error.getMessage)
           Some(SnapshotFailed(SnapshotMetadata.fromClassic(meta), error))
 
         case _ =>
@@ -872,6 +1194,51 @@ private[akka] object Running {
       _currentSequenceNumber
   }
 
+  // ===============================================
+
+  /** INTERNAL API */
+  @InternalApi private[akka] class WaitingForContinueUnstash(state: RunningState[S])
+      extends AbstractBehavior[InternalProtocol](setup.context)
+      with WithSeqNrAccessible {
+
+    def onCommand(cmd: IncomingCommand[C]): Behavior[InternalProtocol] = {
+      if (state.receivedPoisonPill) {
+        if (setup.settings.logOnStashing)
+          setup.internalLogger.debug("Discarding message [{}], because actor is to be stopped.", cmd)
+        Behaviors.unhandled
+      } else {
+        stashInternal(cmd)
+      }
+    }
+
+    def onMessage(msg: InternalProtocol): Behavior[InternalProtocol] = msg match {
+      case ContinueUnstash =>
+        tryUnstashOne(new HandlingCommands(state))
+      case cmd: IncomingCommand[C] @unchecked =>
+        onCommand(cmd)
+      case get: GetState[S @unchecked] =>
+        stashInternal(get)
+      case get: GetSeenSequenceNr =>
+        stashInternal(get)
+      case _ =>
+        Behaviors.unhandled
+    }
+
+    override def onSignal: PartialFunction[Signal, Behavior[InternalProtocol]] = {
+      case PoisonPill =>
+        // wait for ContinueUnstash before stopping
+        new WaitingForContinueUnstash(state.copy(receivedPoisonPill = true))
+      case signal =>
+        if (setup.onSignal(state.state, signal, catchAndLog = false))
+          Behaviors.same
+        else
+          Behaviors.unhandled
+    }
+
+    override def currentSequenceNumber: Long =
+      _currentSequenceNumber
+  }
+
   // --------------------------
 
   def applySideEffects(effects: immutable.Seq[SideEffect[S]], state: RunningState[S]): Behavior[InternalProtocol] = {
@@ -903,9 +1270,14 @@ private[akka] object Running {
         unstashAll()
         behavior
 
-      case callback: Callback[_] =>
+      case callback: Callback[Any] @unchecked =>
         callback.sideEffect(state.state)
         behavior
+
+      case _ =>
+        // case _: Callback[S] should be covered by above case, but needed needed to silence Scala 3 exhaustive match
+        throw new IllegalStateException(
+          s"Unexpected effect [${effect.getClass.getName}]. This is a bug, please report https://github.com/akka/akka/issues")
     }
   }
 
@@ -917,18 +1289,23 @@ private[akka] object Running {
     val signal = response match {
       case DeleteMessagesSuccess(toSequenceNr) =>
         setup.internalLogger.debug("Persistent events to sequenceNr [{}] deleted successfully.", toSequenceNr)
+        setup.retentionProgressDeleteEventsEnded(toSequenceNr, success = true)
         setup.retention match {
-          case DisabledRetentionCriteria             => // no further actions
-          case s: SnapshotCountRetentionCriteriaImpl =>
-            // The reason for -1 is that a snapshot at the exact toSequenceNr is still useful and the events
-            // after that can be replayed after that snapshot, but replaying the events after toSequenceNr without
-            // starting at the snapshot at toSequenceNr would be invalid.
-            val deleteSnapshotsToSeqNr = toSequenceNr - 1
-            internalDeleteSnapshots(s.deleteLowerSequenceNr(deleteSnapshotsToSeqNr), deleteSnapshotsToSeqNr)
+          case DisabledRetentionCriteria => // no further actions
+          case _: SnapshotCountRetentionCriteriaImpl =>
+            if (!setup.isOnlyOneSnapshot) {
+              // The reason for -1 is that a snapshot at the exact toSequenceNr is still useful and the events
+              // after that can be replayed after that snapshot, but replaying the events after toSequenceNr without
+              // starting at the snapshot at toSequenceNr would be invalid.
+              val deleteSnapshotsToSeqNr = toSequenceNr - 1
+              setup.retentionProgressDeleteSnapshotsStarted(deleteSnapshotsToSeqNr)
+              internalDeleteSnapshots(deleteSnapshotsToSeqNr)
+            }
           case unexpected => throw new IllegalStateException(s"Unexpected retention criteria: $unexpected")
         }
         Some(DeleteEventsCompleted(toSequenceNr))
       case DeleteMessagesFailure(e, toSequenceNr) =>
+        setup.retentionProgressDeleteEventsEnded(toSequenceNr, success = false)
         Some(DeleteEventsFailed(toSequenceNr, e))
       case _ =>
         None
@@ -949,8 +1326,10 @@ private[akka] object Running {
   def onDeleteSnapshotResponse(response: SnapshotProtocol.Response, state: S): Behavior[InternalProtocol] = {
     val signal = response match {
       case DeleteSnapshotsSuccess(criteria) =>
+        setup.retentionProgressDeleteSnapshotsEnded(criteria.maxSequenceNr, success = true)
         Some(DeleteSnapshotsCompleted(DeletionTarget.Criteria(SnapshotSelectionCriteria.fromClassic(criteria))))
       case DeleteSnapshotsFailure(criteria, error) =>
+        setup.retentionProgressDeleteSnapshotsEnded(criteria.maxSequenceNr, success = false)
         Some(DeleteSnapshotsFailed(DeletionTarget.Criteria(SnapshotSelectionCriteria.fromClassic(criteria)), error))
       case DeleteSnapshotSuccess(meta) =>
         Some(DeleteSnapshotsCompleted(DeletionTarget.Individual(SnapshotMetadata.fromClassic(meta))))
@@ -968,18 +1347,16 @@ private[akka] object Running {
     }
   }
 
+  // FIXME remove instrumentation hook method in 2.10.0
   @InternalStableApi
-  private[akka] def onWriteFailed(
-      @unused ctx: ActorContext[_],
-      @unused reason: Throwable,
-      @unused event: PersistentRepr): Unit = ()
+  private[akka] def onWriteFailed(ctx: ActorContext[_], reason: Throwable, event: PersistentRepr): Unit = ()
+  // FIXME remove instrumentation hook method in 2.10.0
   @InternalStableApi
-  private[akka] def onWriteRejected(
-      @unused ctx: ActorContext[_],
-      @unused reason: Throwable,
-      @unused event: PersistentRepr): Unit = ()
+  private[akka] def onWriteRejected(ctx: ActorContext[_], reason: Throwable, event: PersistentRepr): Unit = ()
+  // FIXME remove instrumentation hook method in 2.10.0
   @InternalStableApi
-  private[akka] def onWriteSuccess(@unused ctx: ActorContext[_], @unused event: PersistentRepr): Unit = ()
+  private[akka] def onWriteSuccess(ctx: ActorContext[_], event: PersistentRepr): Unit = ()
+  // FIXME remove instrumentation hook method in 2.10.0
   @InternalStableApi
-  private[akka] def onWriteDone(@unused ctx: ActorContext[_], @unused event: PersistentRepr): Unit = ()
+  private[akka] def onWriteDone(ctx: ActorContext[_], event: PersistentRepr): Unit = ()
 }

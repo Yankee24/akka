@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2024 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.util
 
-import akka.annotation.InternalApi
-
 import scala.util.hashing.MurmurHash3
+
+import akka.annotation.InternalApi
 
 /**
  * INTERNAL API

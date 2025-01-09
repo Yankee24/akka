@@ -96,13 +96,13 @@ Akka embraces distributed computing and makes the fallibility of communication
 explicit through message passing, therefore it does not try to lie and emulate
 a leaky abstraction. This is a model that has been used with great success in
 Erlang and requires the users to design their applications around it. You can
-read more about this approach in the [Erlang documentation](https://erlang.org/faq/academic.html) (section 10.8 and
+read more about this approach in the [Erlang documentation](https://www.erlang.org/faq/academic.html) (section 10.8 and
 10.9), Akka follows it closely.
 
 Another angle on this issue is that by providing only basic guarantees those
 use cases which do not need stronger reliability do not pay the cost of their
 implementation; it is always possible to add stronger reliability on top of
-basic ones, but it is not possible to retro-actively remove reliability in order
+basic ones, but it is not possible to retroactively remove reliability in order
 to gain more performance.
 
 <a id="message-ordering"></a>
@@ -339,7 +339,7 @@ guaranteed delivery.
 ### How do I Receive Dead Letters?
 
 An actor can subscribe to class @apidoc[akka.actor.DeadLetter](akka.actor.DeadLetter) on the event
-stream, see @ref:[Event Stream](../event-bus.md#event-stream)
+stream, see @ref:[Event Stream](../typed/event-stream.md)
 for how to do that. The subscribed actor will then receive all dead
 letters published in the (local) system from that point onwards. Dead letters
 are not propagated over the network, if you want to collect them in one place

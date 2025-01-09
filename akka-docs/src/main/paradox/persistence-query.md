@@ -5,6 +5,14 @@ project.description: Query side to Akka Persistence allowing for building CQRS a
 
 ## Dependency
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Persistence Query, you must add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -174,7 +182,14 @@ If your usage does not require a live stream, you can use the @apidoc[currentEve
 Query events for given entity type and slices. A slice is deterministically defined based on the persistence id.
 The purpose is to evenly distribute all persistence ids over the slices.
 
-See @apidoc[akka.persistence.query.typed.*.EventsBySliceQuery] and @apidoc[akka.persistence.query.typed.*.CurrentEventsBySliceQuery]. 
+See @apidoc[akka.persistence.query.typed.*.EventsBySliceQuery] and @apidoc[akka.persistence.query.typed.*.CurrentEventsBySliceQuery].
+
+A variation of these are @apidoc[akka.persistence.query.typed.*.EventsBySliceStartingFromSnapshotsQuery] and @apidoc[akka.persistence.query.typed.*.CurrentEventsBySliceStartingFromSnapshotsQuery].
+
+@apidoc[akka.persistence.query.typed.*.EventsBySliceFirehoseQuery] can give better scalability when many
+consumers retrieve the same events, for example many Projections of the same entity type. The purpose is
+to share the stream of events from the database and fan out to connected consumer streams. Thereby fewer queries
+and loading of events from the database. It is typically used together with @ref:[Sharded Daemon Process with colocated processes](typed/cluster-sharded-daemon-process.md#colocate-processes).
 
 ### Materialized values of queries
 
@@ -267,7 +282,7 @@ Java
 Sometimes you may need to use "resumable" projections, which will not start from the beginning of time each time
 when run. In such case, the sequence number (or `offset`) of the processed event will be stored and
 used the next time this projection is started. This pattern is implemented in the
-[Akka Projections](https://doc.akka.io/docs/akka-projection/current/) module.
+@extref[Akka Projections](akka-projection:) module.
 
 
 <a id="read-journal-plugin-api"></a>

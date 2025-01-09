@@ -1,24 +1,24 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2024 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit
 
-import akka.actor.ActorLogging
+import scala.annotation.nowarn
 import scala.collection.immutable
 import scala.concurrent.Future
 import scala.util.Try
 
 import com.typesafe.config.{ Config, ConfigFactory }
 
+import akka.actor.ActorLogging
 import akka.annotation.InternalApi
 import akka.persistence._
 import akka.persistence.journal.AsyncWriteJournal
 import akka.persistence.journal.Tagged
 import akka.persistence.snapshot.SnapshotStore
-import akka.persistence.testkit.internal.CurrentTime
 import akka.persistence.testkit.internal.{ InMemStorageExtension, SnapshotStorageEmulatorExtension }
-import akka.util.unused
+import akka.persistence.testkit.internal.CurrentTime
 
 /**
  * INTERNAL API
@@ -26,7 +26,9 @@ import akka.util.unused
  * Persistence testkit plugin for events.
  */
 @InternalApi
-class PersistenceTestKitPlugin(@unused cfg: Config, cfgPath: String) extends AsyncWriteJournal with ActorLogging {
+class PersistenceTestKitPlugin(@nowarn("msg=never used") cfg: Config, cfgPath: String)
+    extends AsyncWriteJournal
+    with ActorLogging {
 
   private final val storage = {
     log.debug("Using in memory storage [{}] for test kit journal", cfgPath)
@@ -83,7 +85,7 @@ object PersistenceTestKitPlugin {
 
   val PluginId = "akka.persistence.testkit.journal"
 
-  import akka.util.ccompat.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   def getInstance() = this
 
@@ -116,7 +118,7 @@ class PersistenceTestKitSnapshotPlugin extends SnapshotStore {
     Future.fromTry(Try(storage.tryDelete(metadata)))
 
   override def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] =
-    Future.successful(Try(storage.tryDelete(persistenceId, criteria)))
+    Future.fromTry(Try(storage.tryDelete(persistenceId, criteria)))
 
 }
 
@@ -124,15 +126,16 @@ object PersistenceTestKitSnapshotPlugin {
 
   val PluginId = "akka.persistence.testkit.snapshotstore.pluginid"
 
-  import akka.util.ccompat.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   def getInstance() = this
 
   val config: Config = ConfigFactory.parseMap(
-    Map(
+    Map[String, Any](
       "akka.persistence.snapshot-store.plugin" -> PluginId,
       s"$PluginId.class" -> classOf[PersistenceTestKitSnapshotPlugin].getName,
-      s"$PluginId.snapshot-is-optional" -> false // fallback isn't used by the testkit
+      s"$PluginId.snapshot-is-optional" -> false, // fallback isn't used by the testkit
+      s"$PluginId.only-one-snapshot" -> false // fallback isn't used by the testkit
     ).asJava)
 
 }
@@ -141,7 +144,7 @@ object PersistenceTestKitDurableStateStorePlugin {
 
   val PluginId = "akka.persistence.testkit.state"
 
-  import akka.util.ccompat.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   def getInstance() = this
 

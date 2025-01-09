@@ -1,23 +1,28 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2024 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.javadsl
 
-import java.util.Collections
-import java.util.Optional
-
+import akka.Done
 import akka.actor.typed
 import akka.actor.typed.BackoffSupervisorStrategy
 import akka.actor.typed.Behavior
 import akka.actor.typed.internal.BehaviorImpl.DeferredBehavior
 import akka.actor.typed.javadsl.ActorContext
 import akka.annotation.InternalApi
-import akka.persistence.typed._
 import akka.persistence.typed.EventAdapter
+import akka.persistence.typed._
 import akka.persistence.typed.internal._
-import akka.util.unused
 
+import java.util.Collections
+import java.util.Optional
+import java.util.concurrent.CompletionStage
+import scala.annotation.nowarn
+
+/**
+ * For projects using Java 17 and newer, also see [[EventSourcedOnCommandBehavior]]
+ */
 abstract class EventSourcedBehavior[Command, Event, State] private[akka] (
     val persistenceId: PersistenceId,
     onPersistFailure: Optional[BackoffSupervisorStrategy])
@@ -140,15 +145,27 @@ abstract class EventSourcedBehavior[Command, Event, State] private[akka] (
    * When persisting multiple events at once the snapshot is triggered after all the events have
    * been persisted.
    *
-   * Snapshots triggered by `snapshotWhen` will not trigger deletes of old snapshots and events if
+   * Snapshots triggered by `shouldSnapshot` will not trigger deletes of old snapshots and events if
    * [[EventSourcedBehavior.retentionCriteria]] with [[RetentionCriteria.snapshotEvery]] is used together with
    * `shouldSnapshot`. Such deletes are only triggered by snapshots matching the `numberOfEvents` in the
    * [[RetentionCriteria]].
    *
+   * Events can be deleted if `deleteEventsOnSnapshot` returns `true`.
+   *
    * @return `true` if snapshot should be saved at the given `state`, `event` and `sequenceNr` when the event has
    *         been successfully persisted
    */
-  def shouldSnapshot(@unused state: State, @unused event: Event, @unused sequenceNr: Long): Boolean = false
+  def shouldSnapshot(state: State, event: Event, sequenceNr: Long): Boolean = false
+
+  /**
+   * Can be used to delete events after `shouldSnapshot`.
+   *
+   * Can be used in combination with `[[EventSourcedBehavior.retentionCriteria]]` in a way that events are triggered
+   * up the the oldest snapshot based on `[[RetentionCriteria.snapshotEvery]]` config.
+   *
+   * @return `true` if events should be deleted after `shouldSnapshot` evaluates to true
+   */
+  def deleteEventsOnSnapshot: Boolean = false
 
   /**
    * Criteria for retention/deletion of snapshots and events.
@@ -163,9 +180,19 @@ abstract class EventSourcedBehavior[Command, Event, State] private[akka] (
   def recovery: Recovery = Recovery.default
 
   /**
-   * The `tagger` function should give event tags, which will be used in persistence query
+   * Return tags to store for the given event, the tags can then be used in persistence query.
+   *
+   * If [[tagsFor(Event, State)]] is overriden this method is ignored.
    */
-  def tagsFor(@unused event: Event): java.util.Set[String] = Collections.emptySet()
+  def tagsFor(@nowarn("msg=never used") event: Event): java.util.Set[String] = Collections.emptySet()
+
+  /**
+   * Return tags to store for the given event and state, the tags can then be used in persistence query.
+   * The state passed to the tagger allows for toggling a tag with one event but keep all events after it tagged
+   * based on a property or the type of the state.
+   */
+  def tagsFor(@nowarn("msg=never used") state: State, event: Event): java.util.Set[String] =
+    tagsFor(event)
 
   /**
    * Transform the event in another type before giving to the journal. Can be used to wrap events
@@ -188,28 +215,27 @@ abstract class EventSourcedBehavior[Command, Event, State] private[akka] (
   /**
    * INTERNAL API
    */
-  @InternalApi private[akka] final def createEventSourcedBehavior()
-      : scaladsl.EventSourcedBehavior[Command, Event, State] = {
+  @InternalApi private[akka] def createEventSourcedBehavior(): scaladsl.EventSourcedBehavior[Command, Event, State] = {
     val snapshotWhen: (State, Event, Long) => Boolean = (state, event, seqNr) => shouldSnapshot(state, event, seqNr)
 
-    val tagger: Event => Set[String] = { event =>
-      import akka.util.ccompat.JavaConverters._
-      val tags = tagsFor(event)
+    val tagger: (State, Event) => Set[String] = { (state, event) =>
+      import scala.jdk.CollectionConverters._
+      val tags = tagsFor(state, event)
       if (tags.isEmpty) Set.empty
       else tags.asScala.toSet
     }
 
     val commandHandlerInstance = commandHandler()
     val eventHandlerInstance = eventHandler()
-    val behavior = new internal.EventSourcedBehaviorImpl[Command, Event, State](
+    var behavior = new internal.EventSourcedBehaviorImpl[Command, Event, State](
       persistenceId,
       emptyState,
       (state, cmd) => commandHandlerInstance(state, cmd).asInstanceOf[EffectImpl[Event, State]],
       eventHandlerInstance(_, _),
       getClass)
-      .snapshotWhen(snapshotWhen)
+      .snapshotWhen(snapshotWhen, deleteEventsOnSnapshot)
       .withRetention(retentionCriteria.asScala)
-      .withTagger(tagger)
+      .withTaggerForState(tagger)
       .eventAdapter(eventAdapter())
       .snapshotAdapter(snapshotAdapter())
       .withJournalPluginId(journalPluginId)
@@ -217,14 +243,10 @@ abstract class EventSourcedBehavior[Command, Event, State] private[akka] (
       .withRecovery(recovery.asScala)
 
     val handler = signalHandler()
-    val behaviorWithSignalHandler =
-      if (handler.isEmpty) behavior
-      else behavior.receiveSignal(handler.handler)
-
-    if (onPersistFailure.isPresent)
-      behaviorWithSignalHandler.onPersistFailure(onPersistFailure.get)
-    else
-      behaviorWithSignalHandler
+    if (!handler.isEmpty) behavior = behavior.receiveSignal(handler.handler)
+    onPersistFailure.ifPresent(opf => behavior = behavior.onPersistFailure(opf))
+    stashCapacity.ifPresent(sc => behavior = behavior.withStashCapacity(sc))
+    behavior
   }
 
   /**
@@ -234,6 +256,25 @@ abstract class EventSourcedBehavior[Command, Event, State] private[akka] (
     scaladsl.EventSourcedBehavior.lastSequenceNumber(ctx.asScala)
   }
 
+  /**
+   * Override to define a custom stash capacity per entity.
+   * If not defined, the default `akka.persistence.typed.stash-capacity` will be used.
+   */
+  def stashCapacity: Optional[java.lang.Integer] = Optional.empty()
+
+}
+
+@FunctionalInterface
+trait ReplicationInterceptor[Event, State] {
+
+  /**
+   * @param state Current state
+   * @param event The replicated event
+   * @param originReplica The replica where the event came from
+   * @param sequenceNumber The local sequence number the event will get when persisted
+   * @return
+   */
+  def intercept(state: State, event: Event, originReplica: ReplicaId, sequenceNumber: Long): CompletionStage[Done]
 }
 
 /**
