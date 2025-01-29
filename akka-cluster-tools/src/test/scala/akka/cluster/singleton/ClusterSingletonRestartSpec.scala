@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton
@@ -23,10 +23,6 @@ class ClusterSingletonRestartSpec
   akka.cluster.downing-provider-class = akka.cluster.testkit.AutoDowning
   akka.cluster.testkit.auto-down-unreachable-after = 2s
   akka.remote {
-    classic.netty.tcp {
-      hostname = "127.0.0.1"
-      port = 0
-    }
     artery.canonical {
       hostname = "127.0.0.1"
       port = 0
@@ -38,8 +34,6 @@ class ClusterSingletonRestartSpec
   val sys2 = ActorSystem(system.name, system.settings.config)
   var sys3: ActorSystem = null
 
-  import akka.util.ccompat._
-  @ccompatUsedUntil213
   def join(from: ActorSystem, to: ActorSystem): Unit = {
     from.actorOf(
       ClusterSingletonManager.props(
@@ -81,7 +75,6 @@ class ClusterSingletonRestartSpec
         val sys3Config =
           ConfigFactory.parseString(s"""
             akka.remote.artery.canonical.port=$sys1port
-            akka.remote.classic.netty.tcp.port=$sys1port
             """).withFallback(system.settings.config)
 
         ActorSystem(system.name, sys3Config)

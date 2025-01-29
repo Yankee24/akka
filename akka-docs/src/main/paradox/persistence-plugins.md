@@ -1,15 +1,48 @@
 # Persistence Plugins 
 
-Storage backends for journals and snapshot stores are pluggable in the Akka persistence extension.
+Storage backends for journals, snapshot stores, durable state stores and persistence queries are pluggable in the Akka persistence extension. The following plugins are maintained by the Akka team.
 
-A directory of persistence journal and snapshot store plugins is available at the Akka Community Projects page, see [Community plugins](https://akka.io/community/)
+## R2DBC plugin
 
-Plugins maintained within the Akka organization are:
+The Reactive database drivers (R2DBC) support relational databases like PostgreSQL, H2 (As a minimal in-process memory or file based database) and Yugabyte.
 
-* [akka-persistence-cassandra](https://doc.akka.io/docs/akka-persistence-cassandra/current/) (no Durable State support)
-* [akka-persistence-jdbc](https://doc.akka.io/docs/akka-persistence-jdbc/current/)
-* [akka-persistence-r2dbc](https://doc.akka.io/docs/akka-persistence-r2dbc/current/)
-* [akka-persistence-spanner](https://doc.akka.io/docs/akka-persistence-spanner/current/)
+The [Akka Persistence R2DBC plugin](https://doc.akka.io/libraries/akka-persistence-r2dbc/current/) supports the latest feature additions of Akka Persistence and is generally recommended over the JDBC-based plugin.
+
+## Cassandra plugin
+
+Akka supports Cassandra's data model through [Akka Persistence Cassandra](https://doc.akka.io/libraries/akka-persistence-cassandra/current/).
+
+Some later Akka Persistence feature additions (including @ref:[Durable State](./typed/index-persistence-durable-state.md)) are not supported by the Cassandra plugin (see below).
+
+## AWS DynamoDB plugin
+
+AWS DynamoDB can be used as backend for Akka Persistence with the [Akka Persistence DynamoDB plugin](https://doc.akka.io/libraries/akka-persistence-dynamodb/current/).
+
+@ref:[Durable State](./typed/index-persistence-durable-state.md) is not supported by the DynamoDB plugin.
+
+Recovery from only last event is not supported by the DynamoDB plugin.
+
+## JDBC plugin
+
+Relational databases with JDBC-drivers are supported through [Akka Persistence JDBC](https://doc.akka.io/libraries/akka-persistence-jdbc/current/). For new projects, the @ref:[R2DBC plugin](#r2dbc-plugin) is recommended.
+
+Some later Akka Persistence feature additions are not supported by the Akka Persistence JDBC plugin (see below).
+
+## Feature limitations
+
+Example of concrete features _not_ supported by the Cassandra and JDBC plugins:
+
+* `eventsBySlices` query
+* Projections over gRPC
+* Replicated Event Sourcing over gRPC
+* Dynamic scaling of number of Projection instances
+* Low latency Projections
+* Projections starting from snapshots
+* Scalability of many Projections
+* Durable State entities (partly supported by JDBC plugin)
+* Recovery from only last event
+
+## Enabling a plugin
 
 Plugins can be selected either by "default" for all persistent actors,
 or "individually", when a persistent actor defines its own set of plugins.
@@ -27,7 +60,7 @@ However, these entries are provided as empty "", and require explicit user confi
 
 * For an example of a journal plugin which writes messages to LevelDB see @ref:[Local LevelDB journal](#local-leveldb-journal).
 * For an example of a snapshot store plugin which writes snapshots as individual files to the local filesystem see @ref:[Local snapshot store](#local-snapshot-store).
-* The state store is relatively new, one available implementation is the [akka-persistence-jdbc-plugin](https://doc.akka.io/docs/akka-persistence-jdbc/current/).
+* The state store is relatively new, one available implementation is the [akka-persistence-jdbc-plugin](https://doc.akka.io/libraries/akka-persistence-jdbc/current/).
 
 ## Eager initialization of persistence plugin
 
@@ -74,7 +107,7 @@ The LevelDB plugin cannot be used in an Akka Cluster since the storage is in a l
 @@@
 
 The LevelDB journal is deprecated and it is not advised to build new applications with it.
-As a replacement we recommend using [Akka Persistence JDBC](https://doc.akka.io/docs/akka-persistence-jdbc/current/index.html).
+As a replacement we recommend using [Akka Persistence JDBC](https://doc.akka.io/libraries/akka-persistence-jdbc/current/index.html).
 
 The LevelDB journal plugin config entry is `akka.persistence.journal.leveldb`. Enable this plugin by
 defining config property:

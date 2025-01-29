@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -8,6 +8,7 @@ import scala.annotation.implicitNotFound
 import scala.annotation.nowarn
 import scala.annotation.unchecked.uncheckedVariance
 import scala.collection.immutable
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
@@ -27,6 +28,7 @@ import akka.event.LoggingAdapter
 import akka.event.MarkerLoggingAdapter
 import akka.stream._
 import akka.stream.Attributes.SourceLocation
+import akka.stream.impl.CoupledTerminationBidi
 import akka.stream.impl.LinearTraversalBuilder
 import akka.stream.impl.ProcessorModule
 import akka.stream.impl.SetupFlowStage
@@ -42,7 +44,6 @@ import akka.stream.stage._
 import akka.util.ConstantFun
 import akka.util.OptionVal
 import akka.util.Timeout
-import akka.util.ccompat._
 
 /**
  * A `Flow` is a set of stream processing steps that has one open input and one open output.
@@ -53,7 +54,6 @@ final class Flow[-In, +Out, +Mat](
     extends FlowOpsMat[Out, Mat]
     with Graph[FlowShape[In, Out], Mat] {
 
-  // TODO: debug string
   override def toString: String = s"Flow($shape)"
 
   override type Repr[+O] = Flow[In @uncheckedVariance, O, Mat @uncheckedVariance]
@@ -156,12 +156,26 @@ final class Flow[-In, +Out, +Mat](
   /**
    * Materializes this [[Flow]], immediately returning (1) its materialized value, and (2) a newly materialized [[Flow]].
    * The returned flow is partial materialized and do not support multiple times materialization.
+   *
+   * Note that `preMaterialize` is implemented through a reactive streams `Publisher` and `Subscriber` pair which means that
+   * a buffer is introduced and that errors are not propagated upstream but are turned into cancellations without error details.
    */
   def preMaterialize()(implicit materializer: Materializer): (Mat, ReprMat[Out, NotUsed]) = {
     val ((sub, mat), pub) =
       Source.asSubscriber[In].viaMat(this)(Keep.both).toMat(Sink.asPublisher(false))(Keep.both).run()
     (mat, Flow.fromSinkAndSource(Sink.fromSubscriber(sub), Source.fromPublisher(pub)))
   }
+
+  /**
+   * Transform this Flow by applying a function to each *incoming* upstream element before
+   * it is passed to the [[Flow]]
+   *
+   * '''Backpressures when''' original [[Flow]] backpressures
+   *
+   * '''Cancels when''' original [[Flow]] cancels
+   */
+  def contramap[In2](f: In2 => In): Flow[In2, Out, Mat] =
+    Flow.fromFunction(f).viaMat(this)(Keep.right)
 
   /**
    * Join this [[Flow]] to another [[Flow]], by cross connecting the inputs and outputs, creating a [[RunnableGraph]].
@@ -639,7 +653,7 @@ object Flow {
   @deprecated("Use 'Flow.lazyFutureFlow' instead", "2.6.0")
   def lazyInitAsync[I, O, M](flowFactory: () => Future[Flow[I, O, M]]): Flow[I, O, Future[Option[M]]] =
     Flow.lazyFutureFlow(flowFactory).mapMaterializedValue {
-      implicit val ec = akka.dispatch.ExecutionContexts.parasitic
+      implicit val ec = ExecutionContext.parasitic
       _.map(Some.apply).recover { case _: NeverMaterializedException => None }
     }
 
@@ -715,8 +729,8 @@ object Flow {
       .flatMapPrefixMat(1) {
         case Seq(a) =>
           val f: Flow[I, O, Future[M]] =
-            futureFlow(create()
-              .map(Flow[I].prepend(Source.single(a)).viaMat(_)(Keep.right))(akka.dispatch.ExecutionContexts.parasitic))
+            futureFlow(
+              create().map(Flow[I].prepend(Source.single(a)).viaMat(_)(Keep.right))(ExecutionContext.parasitic))
           f
         case Nil =>
           val f: Flow[I, O, Future[M]] = Flow[I]
@@ -805,7 +819,6 @@ final case class RunnableGraph[+Mat](override val traversalBuilder: TraversalBui
  * Binary compatibility is only maintained for callers of this trait’s interface.
  */
 @DoNotInherit
-@ccompatUsedUntil213
 trait FlowOps[+Out, +Mat] {
   import GraphDSL.Implicits._
 
@@ -878,9 +891,48 @@ trait FlowOps[+Out, +Mat] {
    * '''Cancels when''' downstream cancels
    *
    */
-  @deprecated("Use recoverWithRetries instead.", "2.4.4")
   def recoverWith[T >: Out](pf: PartialFunction[Throwable, Graph[SourceShape[T], NotUsed]]): Repr[T] =
     via(new RecoverWith(-1, pf))
+
+  /**
+   * onErrorComplete allows to complete the stream when an upstream error occurs.
+   *
+   * Since the underlying failure signal onError arrives out-of-band, it might jump over existing elements.
+   * This operator can recover the failure signal, but not the skipped elements, which will be dropped.
+   *
+   * '''Emits when''' element is available from the upstream
+   *
+   * '''Backpressures when''' downstream backpressures
+   *
+   * '''Completes when''' upstream completes or failed with exception is an instance of the provided type
+   *
+   * '''Cancels when''' downstream cancels
+   */
+  def onErrorComplete[T <: Throwable]()(implicit tag: ClassTag[T]): Repr[Out] = onErrorComplete {
+    case ex if tag.runtimeClass.isInstance(ex) => true
+  }
+
+  /**
+   * onErrorComplete allows to complete the stream when an upstream error occurs.
+   *
+   * Since the underlying failure signal onError arrives out-of-band, it might jump over existing elements.
+   * This operator can recover the failure signal, but not the skipped elements, which will be dropped.
+   *
+   * '''Emits when''' element is available from the upstream
+   *
+   * '''Backpressures when''' downstream backpressures
+   *
+   * '''Completes when''' upstream completes or failed with exception pf can handle
+   *
+   * '''Cancels when''' downstream cancels
+   */
+  def onErrorComplete(pf: PartialFunction[Throwable, Boolean]): Repr[Out] =
+    via(
+      Flow[Out]
+        .recoverWith(pf.andThen({
+          case true => Source.empty[Out]
+        }: PartialFunction[Boolean, Graph[SourceShape[Out], NotUsed]]))
+        .withAttributes(DefaultAttributes.onErrorComplete and SourceLocation.forLambda(pf)))
 
   /**
    * RecoverWithRetries allows to switch to alternative Source on flow failure. It will stay in effect after
@@ -1004,7 +1056,7 @@ trait FlowOps[+Out, +Mat] {
    * the mapping function for mapping the first element. The mapping function returns a mapped element to emit
    * downstream and a state to pass to the next mapping function. The state can be the same for each mapping return,
    * be a new immutable state but it is also safe to use a mutable state. The returned `T` MUST NOT be `null` as it is
-   * illegal as stream element - according to the Reactive Streams specification.
+   * illegal as stream element - according to the Reactive Streams specification. A `null` state is not allowed and will fail the stream.
    *
    * For stateless variant see [[FlowOps.map]].
    *
@@ -1029,7 +1081,8 @@ trait FlowOps[+Out, +Mat] {
    */
   def statefulMap[S, T](create: () => S)(f: (S, Out) => (S, T), onComplete: S => Option[T]): Repr[T] =
     via(
-      new StatefulMap[S, Out, T](DefaultAttributes.statefulMap and SourceLocation.forLambda(f), create, f, onComplete))
+      new StatefulMap[S, Out, T](create, f, onComplete)
+        .withAttributes(DefaultAttributes.statefulMap and SourceLocation.forLambda(f)))
 
   /**
    * Transform each stream element with the help of a resource.
@@ -1064,11 +1117,8 @@ trait FlowOps[+Out, +Mat] {
    */
   def mapWithResource[R, T](create: () => R)(f: (R, Out) => T, close: R => Option[T]): Repr[T] =
     via(
-      new StatefulMap[R, Out, T](
-        DefaultAttributes.mapWithResource and SourceLocation.forLambda(f),
-        create,
-        (resource, out) => (resource, f(resource, out)),
-        resource => close(resource)))
+      new StatefulMap[R, Out, T](create, (resource, out) => (resource, f(resource, out)), resource => close(resource))
+        .withAttributes(DefaultAttributes.mapWithResource and SourceLocation.forLambda(f)))
 
   /**
    * Transform each input element into an `Iterable` of output elements that is
@@ -1128,11 +1178,55 @@ trait FlowOps[+Out, +Mat] {
    *
    * '''Cancels when''' downstream cancels
    *
-   * @see [[#mapAsyncUnordered]]
+   * @see [[#mapAsyncUnordered]] and [[#mapAsyncPartitioned]]
    */
   def mapAsync[T](parallelism: Int)(f: Out => Future[T]): Repr[T] =
     if (parallelism == 1) mapAsyncUnordered[T](parallelism = 1)(f) // optimization for parallelism 1
     else via(MapAsync(parallelism, f))
+
+  /**
+   * Transform this stream by partitioning elements based on the provided partitioner as they
+   * pass through this step and then applying a given `Future`-returning function to each element
+   * and its partition key.  The value of the returned future, if successful, will be emitted
+   * downstream.
+   *
+   * The number of Futures running at any given time is bounded by the 'parallelism' and 'perPartition'
+   * values.  The futures may complete in any order, but the results are emitted in the same order
+   * as the corresponding elements were received.
+   *
+   * If the functions 'partitioner' or 'f' throw an exception, or the `Future` completes with failure,
+   * supervision will be applied to determine a decision.  If the decision is [[akka.stream.Supervision.Stop]]
+   * the stream will be stopped with failure; otherwise, the element will be dropped and the stream continues.
+   *
+   * The function 'partitioner' is always invoked on the elements in the order they arrive.
+   *
+   * The function 'f' is invoked on elements with the same partition key in the order they arrive.  The order
+   * of invocation of 'f' for elements with different partition keys is undefined and subject to factors
+   * including, but not limited to, the distribution of partition keys within the stream.
+   *
+   * Adheres to the [[ActorAttributes.SupervisionStrategy]] attribute.
+   *
+   * '''Emits when''' the Future returned by 'f' finishes for the next element in sequence
+   *
+   * '''Backpressures when''' the number of elements for which no resulting future has completed reaches the
+   * configured parallelism and the downstream backpressures
+   *
+   * '''Completes when''' upstream completes and all futures have been completed and all results have been emitted
+   *
+   * '''Cancels when''' downstream cancels
+   *
+   * @see [[#mapAsync]] and [[#mapAsyncUnordered]]
+   *
+   * @param parallelism at most this many futures will be incomplete at any time
+   * @param perPartition at most this many futures will be incomplete for a given partition key at any time
+   * @param partitioner function to generate a partition key
+   * @param f function to generate a Future
+   */
+  def mapAsyncPartitioned[T, P](parallelism: Int, perPartition: Int)(partitioner: Out => P)(
+      f: (Out, P) => Future[T]): Repr[T] =
+    if (parallelism == 1) mapAsyncUnordered[T](parallelism = 1) { elem =>
+      f(elem, partitioner(elem))
+    } else via(MapAsyncPartitioned(parallelism, perPartition, partitioner, f))
 
   /**
    * Transform this stream by applying the given function to each of the elements
@@ -1165,7 +1259,7 @@ trait FlowOps[+Out, +Mat] {
    *
    * '''Cancels when''' downstream cancels
    *
-   * @see [[#mapAsync]]
+   * @see [[#mapAsync]] and [[#mapAsyncPartitioned]]
    */
   def mapAsyncUnordered[T](parallelism: Int)(f: Out => Future[T]): Repr[T] = via(MapAsyncUnordered(parallelism, f))
 
@@ -1327,7 +1421,7 @@ trait FlowOps[+Out, +Mat] {
    *
    * See also [[FlowOps.limit]], [[FlowOps.limitWeighted]]
    */
-  def takeWhile(p: Out => Boolean): Repr[Out] = takeWhile(p, false)
+  def takeWhile(p: Out => Boolean): Repr[Out] = takeWhile(p, inclusive = false)
 
   /**
    * Terminate processing (and cancel the upstream publisher) after predicate
@@ -2232,7 +2326,8 @@ trait FlowOps[+Out, +Mat] {
    *
    * @see [[#groupBy]]
    */
-  def groupBy[K](maxSubstreams: Int, f: Out => K): SubFlow[Out, Mat, Repr, Closed] = groupBy(maxSubstreams, f, false)
+  def groupBy[K](maxSubstreams: Int, f: Out => K): SubFlow[Out, Mat, Repr, Closed] =
+    groupBy(maxSubstreams, f, allowClosedSubstreamRecreation = false)
 
   /**
    * This operation applies the given predicate to all incoming elements and
@@ -2412,7 +2507,7 @@ trait FlowOps[+Out, +Mat] {
 
   /**
    * If the first element has not passed through this operator before the provided timeout, the stream is failed
-   * with a [[scala.concurrent.TimeoutException]].
+   * with a [[akka.stream.InitialTimeoutException]].
    *
    * '''Emits when''' upstream emits an element
    *
@@ -2426,7 +2521,7 @@ trait FlowOps[+Out, +Mat] {
 
   /**
    * If the completion of the stream does not happen until the provided timeout, the stream is failed
-   * with a [[scala.concurrent.TimeoutException]].
+   * with a [[akka.stream.CompletionTimeoutException]].
    *
    * '''Emits when''' upstream emits an element
    *
@@ -2440,7 +2535,7 @@ trait FlowOps[+Out, +Mat] {
 
   /**
    * If the time between two processed elements exceeds the provided timeout, the stream is failed
-   * with a [[scala.concurrent.TimeoutException]]. The timeout is checked periodically,
+   * with a [[akka.stream.StreamIdleTimeoutException]]. The timeout is checked periodically,
    * so the resolution of the check is one period (equals to timeout value).
    *
    * '''Emits when''' upstream emits an element
@@ -2455,7 +2550,7 @@ trait FlowOps[+Out, +Mat] {
 
   /**
    * If the time between the emission of an element and the following downstream demand exceeds the provided timeout,
-   * the stream is failed with a [[scala.concurrent.TimeoutException]]. The timeout is checked periodically,
+   * the stream is failed with a [[akka.stream.BackpressureTimeoutException]]. The timeout is checked periodically,
    * so the resolution of the check is one period (equals to timeout value).
    *
    * '''Emits when''' upstream emits an element
@@ -2641,37 +2736,6 @@ trait FlowOps[+Out, +Mat] {
       costCalculation: (Out) => Int,
       mode: ThrottleMode): Repr[Out] =
     via(new Throttle(cost, per, maximumBurst, costCalculation, mode))
-
-  /**
-   * This is a simplified version of throttle that spreads events evenly across the given time interval. throttleEven using
-   * best effort approach to meet throttle rate.
-   *
-   * Use this operator when you need just slow down a stream without worrying about exact amount
-   * of time between events.
-   *
-   * If you want to be sure that no time interval has no more than specified number of events you need to use
-   * [[throttle]] with maximumBurst attribute.
-   * @see [[throttle]]
-   */
-  @Deprecated
-  @deprecated("Use throttle without `maximumBurst` parameter instead.", "2.5.12")
-  def throttleEven(elements: Int, per: FiniteDuration, mode: ThrottleMode): Repr[Out] =
-    throttle(elements, per, Throttle.AutomaticMaximumBurst, ConstantFun.oneInt, mode)
-
-  /**
-   * This is a simplified version of throttle that spreads events evenly across the given time interval.
-   *
-   * Use this operator when you need just slow down a stream without worrying about exact amount
-   * of time between events.
-   *
-   * If you want to be sure that no time interval has no more than specified number of events you need to use
-   * [[throttle]] with maximumBurst attribute.
-   * @see [[throttle]]
-   */
-  @Deprecated
-  @deprecated("Use throttle without `maximumBurst` parameter instead.", "2.5.12")
-  def throttleEven(cost: Int, per: FiniteDuration, costCalculation: (Out) => Int, mode: ThrottleMode): Repr[Out] =
-    throttle(cost, per, Throttle.AutomaticMaximumBurst, costCalculation, mode)
 
   /**
    * Detaches upstream demand from downstream demand without detaching the
@@ -2917,16 +2981,12 @@ trait FlowOps[+Out, +Mat] {
    *
    * '''Cancels when''' downstream cancels
    */
-  def zipWithIndex: Repr[(Out, Long)] = {
-    statefulMapConcat[(Out, Long)] { () =>
-      var index: Long = 0L
-      elem => {
-        val zipped = (elem, index)
-        index += 1
-        immutable.Iterable[(Out, Long)](zipped)
-      }
-    }
-  }
+  def zipWithIndex: Repr[(Out, Long)] =
+    via(
+      new StatefulMap[Long, Out, (Out, Long)](
+        () => 0L,
+        (index, out) => (index + 1L, (out, index)),
+        ConstantFun.scalaAnyToNone).withAttributes(DefaultAttributes.zipWithIndex))
 
   /**
    * Interleave is a deterministic merge of the given [[Source]] with elements of this [[Flow]].
@@ -3264,9 +3324,9 @@ trait FlowOps[+Out, +Mat] {
 
   private def internalConcat[U >: Out, Mat2](that: Graph[SourceShape[U], Mat2], detached: Boolean): Repr[U] =
     that match {
-      case source if source eq Source.empty => this.asInstanceOf[Repr[U]]
+      case source if TraversalBuilder.isEmptySource(source) => this.asInstanceOf[Repr[U]]
       case other =>
-        TraversalBuilder.getSingleSource(other) match {
+        TraversalBuilder.getSingleSource[Any](other) match {
           case OptionVal.Some(singleSource) =>
             via(new SingleConcat(singleSource.elem.asInstanceOf[U]))
           case _ => via(concatGraph(other, detached))
@@ -3479,7 +3539,7 @@ trait FlowOps[+Out, +Mat] {
       when: Out => Boolean): Graph[FlowShape[Out @uncheckedVariance, Out], M] =
     GraphDSL.createGraph(that) { implicit b => r =>
       import GraphDSL.Implicits._
-      val partition = b.add(new Partition[Out](2, out => if (when(out)) 1 else 0, true))
+      val partition = b.add(new Partition[Out](2, out => if (when(out)) 1 else 0, eagerCancel = true))
       partition.out(1) ~> r
       FlowShape(partition.in, partition.out(0))
     }
@@ -3989,18 +4049,6 @@ trait FlowOpsMat[+Out, +Mat] extends FlowOps[Out, Mat] {
    * Transform the materialized value of this graph, leaving all other properties as they were.
    */
   def mapMaterializedValue[Mat2](f: Mat => Mat2): ReprMat[Out, Mat2]
-
-  /**
-   * Materializes to `FlowMonitor[Out]` that allows monitoring of the current flow. All events are propagated
-   * by the monitor unchanged. Note that the monitor inserts a memory barrier every time it processes an
-   * event, and may therefor affect performance.
-   *
-   * The `combine` function is used to combine the `FlowMonitor` with this flow's materialized value.
-   */
-  @Deprecated
-  @deprecated("Use monitor() or monitorMat(combine) instead", "2.5.17")
-  def monitor[Mat2]()(combine: (Mat, FlowMonitor[Out]) => Mat2): ReprMat[Out, Mat2] =
-    viaMat(GraphStages.monitor)(combine)
 
   /**
    * Materializes to `FlowMonitor[Out]` that allows monitoring of the current flow. All events are propagated

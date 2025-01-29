@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit.query.javadsl
@@ -8,16 +8,16 @@ import akka.NotUsed
 import akka.japi.Pair
 import akka.persistence.query.EventEnvelope
 import akka.persistence.query.Offset
-import akka.persistence.query.javadsl.{
-  CurrentEventsByPersistenceIdQuery,
-  CurrentEventsByTagQuery,
-  EventsByPersistenceIdQuery,
-  ReadJournal
-}
-import akka.persistence.query.typed
+import akka.persistence.query.javadsl.CurrentEventsByPersistenceIdQuery
+import akka.persistence.query.javadsl.CurrentEventsByTagQuery
+import akka.persistence.query.javadsl.EventsByPersistenceIdQuery
+import akka.persistence.query.javadsl.ReadJournal
+import akka.persistence.query.typed.{ EventEnvelope => TypedEventEnvelope }
+import akka.persistence.query.typed.javadsl.CurrentEventsByPersistenceIdTypedQuery
 import akka.persistence.query.typed.javadsl.CurrentEventsBySliceQuery
-import akka.stream.javadsl.Source
+import akka.persistence.query.typed.javadsl.EventsByPersistenceIdTypedQuery
 import akka.persistence.testkit.query.scaladsl
+import akka.stream.javadsl.Source
 
 object PersistenceTestKitReadJournal {
   val Identifier = "akka.persistence.testkit.query"
@@ -27,6 +27,8 @@ final class PersistenceTestKitReadJournal(delegate: scaladsl.PersistenceTestKitR
     extends ReadJournal
     with EventsByPersistenceIdQuery
     with CurrentEventsByPersistenceIdQuery
+    with EventsByPersistenceIdTypedQuery
+    with CurrentEventsByPersistenceIdTypedQuery
     with CurrentEventsByTagQuery
     with CurrentEventsBySliceQuery {
 
@@ -42,6 +44,18 @@ final class PersistenceTestKitReadJournal(delegate: scaladsl.PersistenceTestKitR
       toSequenceNr: Long): Source[EventEnvelope, NotUsed] =
     delegate.currentEventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr).asJava
 
+  override def eventsByPersistenceIdTyped[Event](
+      persistenceId: String,
+      fromSequenceNr: Long,
+      toSequenceNr: Long): Source[TypedEventEnvelope[Event], NotUsed] =
+    delegate.eventsByPersistenceIdTyped(persistenceId, fromSequenceNr, toSequenceNr).asJava
+
+  override def currentEventsByPersistenceIdTyped[Event](
+      persistenceId: String,
+      fromSequenceNr: Long,
+      toSequenceNr: Long): Source[TypedEventEnvelope[Event], NotUsed] =
+    delegate.currentEventsByPersistenceIdTyped(persistenceId, fromSequenceNr, toSequenceNr).asJava
+
   override def currentEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] =
     delegate.currentEventsByTag(tag, offset).asJava
 
@@ -49,14 +63,14 @@ final class PersistenceTestKitReadJournal(delegate: scaladsl.PersistenceTestKitR
       entityType: String,
       minSlice: Int,
       maxSlice: Int,
-      offset: Offset): Source[typed.EventEnvelope[Event], NotUsed] =
+      offset: Offset): Source[TypedEventEnvelope[Event], NotUsed] =
     delegate.currentEventsBySlices(entityType, minSlice, maxSlice, offset).asJava
 
   override def sliceForPersistenceId(persistenceId: String): Int =
     delegate.sliceForPersistenceId(persistenceId)
 
   override def sliceRanges(numberOfRanges: Int): java.util.List[Pair[Integer, Integer]] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     delegate
       .sliceRanges(numberOfRanges)
       .map(range => Pair(Integer.valueOf(range.min), Integer.valueOf(range.max)))

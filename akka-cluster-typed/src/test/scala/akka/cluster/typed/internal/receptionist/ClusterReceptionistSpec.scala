@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.typed.internal.receptionist
@@ -10,6 +10,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import com.typesafe.config.ConfigFactory
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -30,21 +31,15 @@ import akka.cluster.typed.Join
 import akka.cluster.typed.JoinSeedNodes
 import akka.cluster.typed.Leave
 import akka.serialization.jackson.CborSerializable
-import akka.testkit.LongRunningTest
-import org.scalatest.concurrent.ScalaFutures
-
 import akka.testkit.GHExcludeAeronTest
+import akka.testkit.LongRunningTest
 
 object ClusterReceptionistSpec {
-  val config = ConfigFactory.parseString(s"""
+  val config = ConfigFactory.parseString("""
       akka.loglevel = DEBUG # issue #24960
       akka.actor.provider = cluster
-      akka.remote.classic.netty.tcp.port = 0
-      akka.remote.classic.netty.tcp.host = 127.0.0.1
       akka.remote.artery.canonical.port = 0
       akka.remote.artery.canonical.hostname = 127.0.0.1
-
-      akka.remote.retry-gate-closed-for = 1 s
 
       akka.cluster.typed.receptionist {
         pruning-interval = 1 s
@@ -364,7 +359,6 @@ class ClusterReceptionistSpec extends AnyWordSpec with Matchers with LogCapturin
         val testKit3 = ActorTestKit(
           system1.name,
           ConfigFactory.parseString(s"""
-            akka.remote.classic.netty.tcp.port = ${clusterNode2.selfMember.address.port.get}
             akka.remote.artery.canonical.port = ${clusterNode2.selfMember.address.port.get}
             # retry joining when existing member removed
             akka.cluster.retry-unsuccessful-join-after = 1s
@@ -401,8 +395,8 @@ class ClusterReceptionistSpec extends AnyWordSpec with Matchers with LogCapturin
           // we should get either empty message and then updated with the new incarnation actor
           // or just updated with the new service directly
           val msg = regProbe1.fishForMessagePF(20.seconds) {
-            case PingKey.Listing(entries) if entries.size == 1 => FishingOutcome.Complete
-            case _: Listing                                    => FishingOutcome.ContinueAndIgnore
+            case PingKey.Listing(l) if l.size == 1 => FishingOutcome.Complete
+            case _: Listing                        => FishingOutcome.ContinueAndIgnore
           }
           val entries = msg.last match {
             case PingKey.Listing(e) => e
@@ -480,7 +474,6 @@ class ClusterReceptionistSpec extends AnyWordSpec with Matchers with LogCapturin
         val testKit3 = ActorTestKit(
           system1.name,
           ConfigFactory.parseString(s"""
-            akka.remote.classic.netty.tcp.port = ${clusterNode2.selfMember.address.port.get}
             akka.remote.artery.canonical.port = ${clusterNode2.selfMember.address.port.get}
           """).withFallback(config))
 

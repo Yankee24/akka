@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery.tcp.ssl
@@ -7,13 +7,13 @@ package akka.remote.artery.tcp.ssl
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 
-import org.scalatest.matchers.must.Matchers
-import org.scalatest.wordspec.AnyWordSpec
-
 import scala.util.Try
 import scala.util.control.NonFatal
 
-import akka.util.ccompat.JavaConverters._
+import org.scalatest.matchers.must.Matchers
+import org.scalatest.wordspec.AnyWordSpec
+
+import scala.jdk.CollectionConverters._
 
 /**
  *

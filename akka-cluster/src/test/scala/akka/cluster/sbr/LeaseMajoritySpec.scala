@@ -1,12 +1,13 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sbr
 
-import akka.testkit.AkkaSpec
 import com.typesafe.config.ConfigFactory
 import org.scalatest.concurrent.Eventually
+
+import akka.testkit.AkkaSpec
 
 class LeaseMajoritySpec extends AkkaSpec() with Eventually {
 

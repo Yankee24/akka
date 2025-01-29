@@ -1,12 +1,11 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.routing
 
-import scala.collection.immutable
-
 import scala.annotation.nowarn
+import scala.collection.immutable
 
 import akka.ConfigurationException
 import akka.actor.ActorContext
@@ -19,7 +18,6 @@ import akka.actor.SupervisorStrategy
 import akka.actor.Terminated
 import akka.dispatch.Dispatchers
 import akka.japi.Util.immutableSeq
-import akka.util.unused
 
 /**
  * This trait represents a router factory: it produces the actual router actor
@@ -63,7 +61,7 @@ trait RouterConfig extends Serializable {
    * Management messages not handled by the "head" actor are
    * delegated to this controller actor.
    */
-  def routingLogicController(@unused routingLogic: RoutingLogic): Option[Props] = None
+  def routingLogicController(routingLogic: RoutingLogic): Option[Props] = None
 
   /**
    * Is the message handled by the router head actor or the
@@ -83,12 +81,12 @@ trait RouterConfig extends Serializable {
   /**
    * Overridable merge strategy, by default completely prefers `this` (i.e. no merge).
    */
-  def withFallback(@unused other: RouterConfig): RouterConfig = this
+  def withFallback(@nowarn("msg=never used") other: RouterConfig): RouterConfig = this
 
   /**
    * Check that everything is there which is needed. Called in constructor of RoutedActorRef to fail early.
    */
-  def verifyConfig(@unused path: ActorPath): Unit = ()
+  def verifyConfig(path: ActorPath): Unit = ()
 
   /**
    * INTERNAL API
@@ -407,7 +405,7 @@ final case class Routees(routees: immutable.IndexedSeq[Routee]) {
    * Java API
    */
   def getRoutees: java.util.List[Routee] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     routees.asJava
   }
 }

@@ -1,22 +1,24 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
 
 import java.util.concurrent.TimeUnit
 
+import scala.annotation.nowarn
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
+import akka.AkkaException
 import akka.Done
-import akka.actor.EmptyLocalActorRef
+import akka.OnlyCauseStackTrace
 import akka.actor._
+import akka.actor.EmptyLocalActorRef
 import akka.event.Logging
 import akka.remote.MessageSerializer
-import akka.remote.OversizedPayloadException
 import akka.remote.RemoteActorRefProvider
 import akka.remote.UniqueAddress
 import akka.remote.artery.Decoder.AdvertiseActorRefsCompressionTable
@@ -25,8 +27,8 @@ import akka.remote.artery.Decoder.InboundCompressionAccess
 import akka.remote.artery.Decoder.InboundCompressionAccessImpl
 import akka.remote.artery.OutboundHandshake.HandshakeReq
 import akka.remote.artery.SystemMessageDelivery.SystemMessageEnvelope
-import akka.remote.artery.compress.CompressionProtocol._
 import akka.remote.artery.compress._
+import akka.remote.artery.compress.CompressionProtocol._
 import akka.remote.serialization.AbstractActorRefResolveCache
 import akka.serialization.Serialization
 import akka.serialization.SerializationExtension
@@ -34,7 +36,12 @@ import akka.serialization.Serializers
 import akka.stream._
 import akka.stream.stage._
 import akka.util.OptionVal
-import akka.util.unused
+
+/**
+ * INTERNAL API
+ */
+@SerialVersionUID(1L)
+private[remote] class OversizedPayloadException(msg: String) extends AkkaException(msg) with OnlyCauseStackTrace
 
 /**
  * INTERNAL API
@@ -55,7 +62,7 @@ private[remote] class Encoder(
     system: ExtendedActorSystem,
     outboundEnvelopePool: ObjectPool[ReusableOutboundEnvelope],
     bufferPool: EnvelopeBufferPool,
-    @unused streamId: Int,
+    @nowarn("msg=never used") streamId: Int,
     debugLogSend: Boolean,
     version: Byte)
     extends GraphStageWithMaterializedValue[
@@ -544,7 +551,7 @@ private[remote] class Decoder(
           }
         } catch {
           case NonFatal(e) =>
-            log.warning("Dropping message due to: {}", e)
+            log.warning(e, "Dropping message due to unexpected error")
             pull(in)
         }
 
@@ -628,7 +635,7 @@ private[remote] class Decoder(
  * INTERNAL API
  */
 private[remote] class Deserializer(
-    @unused inboundContext: InboundContext,
+    @nowarn("msg=never used") inboundContext: InboundContext,
     system: ExtendedActorSystem,
     bufferPool: EnvelopeBufferPool)
     extends GraphStage[FlowShape[InboundEnvelope, InboundEnvelope]] {

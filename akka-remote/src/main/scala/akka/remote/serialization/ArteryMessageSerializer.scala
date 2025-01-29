@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.serialization
@@ -11,12 +11,12 @@ import akka.protobufv3.internal.MessageLite
 import akka.remote._
 import akka.remote.RemoteWatcher.ArteryHeartbeatRsp
 import akka.remote.artery.{ ActorSystemTerminating, ActorSystemTerminatingAck, Quarantined, SystemMessageDelivery }
+import akka.remote.artery.Flush
+import akka.remote.artery.FlushAck
 import akka.remote.artery.OutboundHandshake.{ HandshakeReq, HandshakeRsp }
 import akka.remote.artery.compress.{ CompressionProtocol, CompressionTable }
 import akka.remote.artery.compress.CompressionProtocol._
 import akka.serialization.{ BaseSerializer, Serialization, SerializationExtension, SerializerWithStringManifest }
-import akka.remote.artery.Flush
-import akka.remote.artery.FlushAck
 
 /** INTERNAL API */
 private[akka] object ArteryMessageSerializer {
@@ -123,7 +123,7 @@ private[akka] final class ArteryMessageSerializer(val system: ExtendedActorSyste
           s"Manifest '$manifest' not defined for ArteryControlMessageSerializer (serializer id $identifier)")
     }
 
-  import akka.util.ccompat.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   def serializeQuarantined(quarantined: Quarantined): ArteryControlFormats.Quarantined =
     ArteryControlFormats.Quarantined

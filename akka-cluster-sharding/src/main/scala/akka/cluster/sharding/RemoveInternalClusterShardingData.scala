@@ -1,14 +1,16 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
 
+import scala.annotation.nowarn
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
+
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.ActorRef
@@ -19,8 +21,6 @@ import akka.actor.Terminated
 import akka.persistence._
 import akka.persistence.journal.leveldb.SharedLeveldbJournal
 import akka.persistence.journal.leveldb.SharedLeveldbStore
-
-import scala.annotation.nowarn
 
 /**
  * Utility program that removes the internal data stored with Akka Persistence
@@ -93,7 +93,7 @@ object RemoveInternalClusterShardingData {
       else journalPluginId
     if (resolvedJournalPluginId == "akka.persistence.journal.leveldb-shared") {
       @nowarn("msg=deprecated")
-      val store = system.actorOf(Props[SharedLeveldbStore](), "store")
+      val store = system.actorOf(Props(new SharedLeveldbStore), "store")
       SharedLeveldbJournal.setStore(store, system)
     }
 

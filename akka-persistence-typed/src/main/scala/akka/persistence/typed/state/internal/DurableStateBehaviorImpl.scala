@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.internal
@@ -19,11 +19,11 @@ import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.Behaviors
 import akka.annotation._
 import akka.persistence.RecoveryPermitter
-import akka.persistence.typed.state.scaladsl._
 import akka.persistence.state.scaladsl.GetObjectResult
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.SnapshotAdapter
-import akka.util.unused
+import akka.persistence.typed.state.scaladsl._
+import akka.persistence.typed.telemetry.DurableStateBehaviorInstrumentationProvider
 
 @InternalApi
 private[akka] object DurableStateBehaviorImpl {
@@ -51,7 +51,9 @@ private[akka] final case class DurableStateBehaviorImpl[Command, State](
     tag: String = "",
     snapshotAdapter: SnapshotAdapter[State] = NoOpSnapshotAdapter.instance[State],
     supervisionStrategy: SupervisorStrategy = SupervisorStrategy.stop,
-    override val signalHandler: PartialFunction[(State, Signal), Unit] = PartialFunction.empty)
+    override val signalHandler: PartialFunction[(State, Signal), Unit] = PartialFunction.empty,
+    customStashCapacity: Option[Int] = None,
+    changeEventHandler: Option[ChangeEventHandler[Any, State, Any]] = None)
     extends DurableStateBehavior[Command, State] {
 
   if (persistenceId eq null)
@@ -67,7 +69,7 @@ private[akka] final case class DurableStateBehaviorImpl[Command, State](
       case _                                => false
     }
     if (!hasCustomLoggerName) ctx.setLoggerName(loggerClass)
-    val settings = DurableStateSettings(ctx.system, durableStateStorePluginId.getOrElse(""))
+    val settings = DurableStateSettings(ctx.system, durableStateStorePluginId.getOrElse(""), customStashCapacity)
 
     // stashState outside supervise because StashState should survive restarts due to persist failures
     val stashState = new StashState(ctx.asInstanceOf[ActorContext[InternalProtocol]], settings)
@@ -88,7 +90,9 @@ private[akka] final case class DurableStateBehaviorImpl[Command, State](
       case (_, DurableStateBehaviorImpl.GetPersistenceId(replyTo)) => replyTo ! persistenceId
     }
 
+    val instrumentation = DurableStateBehaviorInstrumentationProvider(ctx.system).instrumentation
     // do this once, even if the actor is restarted
+    instrumentation.actorInitialized(ctx.self)
     initialize(context.asScala)
 
     Behaviors
@@ -105,7 +109,9 @@ private[akka] final case class DurableStateBehaviorImpl[Command, State](
             holdingRecoveryPermit = false,
             settings = settings,
             stashState = stashState,
-            internalLoggerFactory = () => internalLogger())
+            internalLoggerFactory = () => internalLogger(),
+            changeEventHandler,
+            instrumentation)
 
           // needs to accept Any since we also can get messages from outside
           // not part of the user facing Command protocol
@@ -146,8 +152,9 @@ private[akka] final case class DurableStateBehaviorImpl[Command, State](
       .onFailure[DurableStateStoreException](supervisionStrategy)
   }
 
+  // FIXME remove instrumentation hook method in 2.10.0
   @InternalStableApi
-  private[akka] def initialize(@unused context: ActorContext[_]): Unit = ()
+  private[akka] def initialize(context: ActorContext[_]): Unit = ()
 
   override def receiveSignal(handler: PartialFunction[(State, Signal), Unit]): DurableStateBehavior[Command, State] =
     copy(signalHandler = handler)
@@ -166,6 +173,13 @@ private[akka] final case class DurableStateBehaviorImpl[Command, State](
   override def onPersistFailure(backoffStrategy: BackoffSupervisorStrategy): DurableStateBehavior[Command, State] =
     copy(supervisionStrategy = backoffStrategy)
 
+  override def withStashCapacity(size: Int): DurableStateBehavior[Command, State] =
+    copy(customStashCapacity = Some(size))
+
+  override def withChangeEventHandler[ChangeEvent](
+      handler: ChangeEventHandler[Command, State, ChangeEvent]): DurableStateBehavior[Command, State] =
+    copy(changeEventHandler = Option(handler.asInstanceOf[ChangeEventHandler[Any, State, Any]]))
+
 }
 
 /** Protocol used internally by the DurableStateBehavior. */
@@ -180,5 +194,6 @@ private[akka] final case class DurableStateBehaviorImpl[Command, State](
   final case class DeleteFailure(cause: Throwable) extends InternalProtocol
   case object RecoveryTimeout extends InternalProtocol
   final case class IncomingCommand[C](c: C) extends InternalProtocol
+  case object ContinueUnstash extends InternalProtocol
 
 }

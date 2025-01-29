@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
@@ -30,7 +30,8 @@ object ClusterShardingGetStateSpec {
   val shardTypeName = "Ping"
 }
 
-object ClusterShardingGetStateSpecConfig extends MultiNodeClusterShardingConfig(additionalConfig = s"""
+object ClusterShardingGetStateSpecConfig
+    extends MultiNodeClusterShardingConfig(additionalConfig = """
     akka.cluster.sharding {
       coordinator-failure-backoff = 3s
       shard-failure-backoff = 3s

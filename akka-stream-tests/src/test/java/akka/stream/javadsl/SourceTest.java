@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.javadsl;
@@ -46,8 +46,7 @@ import static akka.stream.testkit.StreamTestKit.PublisherProbeSubscription;
 import static akka.stream.testkit.TestPublisher.ManualProbe;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 @SuppressWarnings("serial")
 public class SourceTest extends StreamTest {
@@ -276,6 +275,17 @@ public class SourceTest extends StreamTest {
 
     List<Object> output = probe.receiveN(6);
     assertEquals(Arrays.asList("A", "B", "C", "D", "E", "F"), output);
+  }
+
+  @Test
+  public void mustBeAbleToConcatEmptySource() {
+    Source.from(Arrays.asList("A", "B", "C"))
+        .concat(Source.empty())
+        .runWith(TestSink.probe(system), system)
+        .ensureSubscription()
+        .request(3)
+        .expectNext("A", "B", "C")
+        .expectComplete();
   }
 
   @Test
@@ -748,6 +758,21 @@ public class SourceTest extends StreamTest {
   }
 
   @Test
+  public void mustBeAbleToUseMapWithResource() {
+    Source.from(Arrays.asList("1", "2", "3"))
+        .mapWithResource(
+            () -> "resource",
+            (resource, elem) -> elem,
+            (resource) -> {
+              return Optional.of("end");
+            })
+        .runWith(TestSink.create(system), system)
+        .request(4)
+        .expectNext("1", "2", "3", "end")
+        .expectComplete();
+  }
+
+  @Test
   public void mustBeAbleToUseIntersperse() throws Exception {
     final TestKit probe = new TestKit(system);
     final Source<String, NotUsed> source =
@@ -927,6 +952,19 @@ public class SourceTest extends StreamTest {
     // elements from source1 (i.e. first of combined source) come first, then source2 elements, due
     // to `Concat`
     probe.expectMsgAllOf(0, 1, 2, 3);
+  }
+
+  @Test
+  public void mustBeAbleToCombineN() throws Exception {
+    final Source<Integer, NotUsed> source1 = Source.single(1);
+    final Source<Integer, NotUsed> source2 = Source.single(2);
+    final Source<Integer, NotUsed> source3 = Source.single(3);
+    final List<Source<Integer, NotUsed>> sources = Arrays.asList(source1, source2, source3);
+    final CompletionStage<Integer> result =
+        Source.combine(sources, Concat::create)
+            .runWith(Sink.collect(Collectors.toList()), system)
+            .thenApply(list -> list.stream().mapToInt(l -> l).sum());
+    assertEquals(6, result.toCompletableFuture().get(3, TimeUnit.SECONDS).intValue());
   }
 
   @SuppressWarnings("unchecked")
@@ -1152,10 +1190,9 @@ public class SourceTest extends StreamTest {
                     .runWith(Sink.head(), system)
                     .toCompletableFuture()
                     .get(3, TimeUnit.SECONDS));
-    assertEquals(
+    assertTrue(
         "The cause of ExecutionException should be TimeoutException",
-        TimeoutException.class,
-        exception.getCause().getClass());
+        TimeoutException.class.isAssignableFrom(exception.getCause().getClass()));
   }
 
   @Test
@@ -1170,10 +1207,9 @@ public class SourceTest extends StreamTest {
                     .runWith(Sink.head(), system)
                     .toCompletableFuture()
                     .get(3, TimeUnit.SECONDS));
-    assertEquals(
+    assertTrue(
         "The cause of ExecutionException should be TimeoutException",
-        TimeoutException.class,
-        exception.getCause().getClass());
+        TimeoutException.class.isAssignableFrom(exception.getCause().getClass()));
   }
 
   @Test
@@ -1188,10 +1224,9 @@ public class SourceTest extends StreamTest {
                     .runWith(Sink.head(), system)
                     .toCompletableFuture()
                     .get(3, TimeUnit.SECONDS));
-    assertEquals(
+    assertTrue(
         "The cause of ExecutionException should be TimeoutException",
-        TimeoutException.class,
-        exception.getCause().getClass());
+        TimeoutException.class.isAssignableFrom(exception.getCause().getClass()));
   }
 
   @Test

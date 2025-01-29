@@ -1,31 +1,33 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.serialization
 
+import java.{ lang => jl }
 import java.io.NotSerializableException
 import java.util.{ ArrayList, Collections, Comparator }
-import java.{ lang => jl }
+
+import scala.annotation.tailrec
+import scala.collection.immutable.TreeMap
+
 import akka.actor.ExtendedActorSystem
+import akka.actor.typed.ActorRefResolver
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.annotation.InternalApi
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.ReplicaId
 import akka.persistence.typed.crdt.{ Counter, ORSet }
 import akka.persistence.typed.internal.PublishedEventImpl
 import akka.persistence.typed.internal.ReplicatedEventMetadata
-import akka.persistence.typed.internal.ReplicatedSnapshotMetadata
 import akka.persistence.typed.internal.ReplicatedPublishedEventMetaData
+import akka.persistence.typed.internal.ReplicatedSnapshotMetadata
 import akka.persistence.typed.internal.VersionVector
 import akka.remote.ByteStringUtils
 import akka.remote.ContainerFormats.Payload
 import akka.remote.serialization.WrappedPayloadSupport
 import akka.serialization.{ BaseSerializer, SerializerWithStringManifest }
-
-import scala.annotation.tailrec
-import akka.util.ccompat.JavaConverters._
-
-import scala.collection.immutable.TreeMap
+import scala.jdk.CollectionConverters._
 
 /**
  * INTERNAL API
@@ -64,6 +66,9 @@ import scala.collection.immutable.TreeMap
     with BaseSerializer {
 
   private val wrappedSupport = new WrappedPayloadSupport(system)
+  // lazy because Serializers are initialized early on. `toTyped` might then try to
+  // initialize the classic ActorSystemAdapter extension.
+  private lazy val resolver = ActorRefResolver(system.toTyped)
 
   private val CrdtCounterManifest = "AA"
   private val CrdtCounterUpdatedManifest = "AB"
@@ -117,7 +122,6 @@ import scala.collection.immutable.TreeMap
     case m: Counter.Updated => counterUpdatedToProtoBufByteArray(m)
 
     case m: PublishedEventImpl => publishedEventToProtoByteArray(m)
-
     case _ =>
       throw new IllegalArgumentException(s"Can't serialize object of type ${o.getClass}")
   }
@@ -153,17 +157,26 @@ import scala.collection.immutable.TreeMap
       .setPayload(wrappedSupport.payloadBuilder(impl.payload))
       .setTimestamp(impl.timestamp)
 
-    (impl.replicatedMetaData match {
-      case None =>
-        builder
+    impl.replicatedMetaData match {
       case Some(m) =>
-        builder.setMetadata(
+        val replicatedPublishedEventMetaDataBuilder =
           ReplicatedEventSourcing.ReplicatedPublishedEventMetaData
             .newBuilder()
             .setReplicaId(m.replicaId.id)
             .setVersionVector(versionVectorToProto(m.version))
-            .build())
-    }).build().toByteArray
+        m.metadata.foreach { metadataPayload =>
+          replicatedPublishedEventMetaDataBuilder.setMetadata(wrappedSupport.payloadBuilder(metadataPayload))
+        }
+        builder.setMetadata(replicatedPublishedEventMetaDataBuilder)
+      case None =>
+    }
+
+    impl.replyTo match {
+      case Some(ref) => builder.setReplyTo(resolver.toSerializationFormat(ref))
+      case None      =>
+    }
+
+    builder.build().toByteArray
   }
 
   def publishedEventFromBinary(bytes: Array[Byte]): PublishedEventImpl = {
@@ -174,12 +187,21 @@ import scala.collection.immutable.TreeMap
       wrappedSupport.deserializePayload(p.getPayload),
       p.getTimestamp,
       if (p.hasMetadata) {
-        val protoMeta = p.getMetadata
+        val protoReplicatedMeta = p.getMetadata
+        val meta =
+          if (protoReplicatedMeta.hasMetadata)
+            Some(wrappedSupport.deserializePayload(protoReplicatedMeta.getMetadata))
+          else
+            None
+
         Some(
           new ReplicatedPublishedEventMetaData(
-            ReplicaId(protoMeta.getReplicaId),
-            versionVectorFromProto(protoMeta.getVersionVector)))
-      } else None)
+            ReplicaId(protoReplicatedMeta.getReplicaId),
+            versionVectorFromProto(protoReplicatedMeta.getVersionVector),
+            meta))
+      } else None,
+      if (!p.hasReplyTo) None
+      else Some(resolver.resolveActorRef(p.getReplyTo)))
   }
 
   def counterFromBinary(bytes: Array[Byte]): Counter =
@@ -310,13 +332,13 @@ import scala.collection.immutable.TreeMap
 
     val b = ReplicatedEventSourcing.ORSetDeltaGroup.newBuilder()
     deltaGroup.ops.foreach {
-      case ORSet.AddDeltaOp(u) =>
-        b.addEntries(createEntry(ReplicatedEventSourcing.ORSetDeltaOp.Add, u))
-      case ORSet.RemoveDeltaOp(u) =>
-        b.addEntries(createEntry(ReplicatedEventSourcing.ORSetDeltaOp.Remove, u))
-      case ORSet.FullStateDeltaOp(u) =>
-        b.addEntries(createEntry(ReplicatedEventSourcing.ORSetDeltaOp.Full, u))
-      case ORSet.DeltaGroup(_) =>
+      case add: ORSet.AddDeltaOp[_] =>
+        b.addEntries(createEntry(ReplicatedEventSourcing.ORSetDeltaOp.Add, add.underlying))
+      case remove: ORSet.RemoveDeltaOp[_] =>
+        b.addEntries(createEntry(ReplicatedEventSourcing.ORSetDeltaOp.Remove, remove.underlying))
+      case full: ORSet.FullStateDeltaOp[_] =>
+        b.addEntries(createEntry(ReplicatedEventSourcing.ORSetDeltaOp.Full, full.underlying))
+      case _: ORSet.DeltaGroup[_] =>
         throw new IllegalArgumentException("ORSet.DeltaGroup should not be nested")
     }
     b.build()

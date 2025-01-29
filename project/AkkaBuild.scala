@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka
@@ -11,7 +11,8 @@ import sbt.Def
 import sbt.Keys._
 import sbt._
 import sbtassembly.AssemblyPlugin.autoImport._
-import sbtwelcome.WelcomePlugin.autoImport._
+import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
+import sbtdynver.DynVerPlugin.autoImport.dynverSonatypeSnapshots
 
 import java.io.FileInputStream
 import java.io.InputStreamReader
@@ -80,6 +81,7 @@ object AkkaBuild {
     }
 
   lazy val resolverSettings = Def.settings(
+    resolvers += "Akka library repository".at("https://repo.akka.io/maven"),
     // should we be allowed to use artifacts published to the local maven repository
     if (System.getProperty("akka.build.useLocalMavenResolver", "false").toBoolean)
       resolvers += mavenLocalResolver
@@ -114,15 +116,6 @@ object AkkaBuild {
     }
   }
 
-  private def jvmGCLogOptions(isJdk11OrHigher: Boolean, isJdk8: Boolean): Seq[String] = {
-    if (isJdk11OrHigher)
-      // -Xlog:gc* is equivalent to -XX:+PrintGCDetails. See:
-      // https://docs.oracle.com/en/java/javase/11/tools/java.html#GUID-BE93ABDC-999C-4CB5-A88B-1994AAAC74D5
-      Seq("-Xlog:gc*")
-    else if (isJdk8) Seq("-XX:+PrintGCTimeStamps", "-XX:+PrintGCDetails")
-    else Nil
-  }
-
   // -XDignore.symbol.file suppresses sun.misc.Unsafe warnings
   final val DefaultJavacOptions = Seq("-encoding", "UTF-8", "-Xlint:unchecked", "-XDignore.symbol.file")
 
@@ -133,35 +126,30 @@ object AkkaBuild {
     // compile options
     Compile / scalacOptions ++= DefaultScalacOptions.value,
     Compile / scalacOptions ++=
-      JdkOptions.targetJdkScalacOptions(
-        targetSystemJdk.value,
-        optionalDir(jdk8home.value),
-        fullJavaHomes.value,
-        scalaVersion.value),
+      JdkOptions.targetJdkScalacOptions(targetSystemJdk.value, scalaVersion.value),
     Compile / scalacOptions ++= (if (allWarnings) Seq("-deprecation") else Nil),
     Test / scalacOptions := (Test / scalacOptions).value.filterNot(opt =>
         opt == "-Xlog-reflective-calls" || opt.contains("genjavadoc")),
     Compile / javacOptions ++= {
       DefaultJavacOptions ++
-      JdkOptions.targetJdkJavacOptions(targetSystemJdk.value, optionalDir(jdk8home.value), fullJavaHomes.value)
+      JdkOptions.targetJdkJavacOptions(targetSystemJdk.value)
     },
     Test / javacOptions ++= DefaultJavacOptions ++
-      JdkOptions.targetJdkJavacOptions(targetSystemJdk.value, optionalDir(jdk8home.value), fullJavaHomes.value),
+      JdkOptions.targetJdkJavacOptions(targetSystemJdk.value),
     Compile / javacOptions ++= (if (allWarnings) Seq("-Xlint:deprecation") else Nil),
     doc / javacOptions := Seq(),
+    scalafmtOnCompile := !CliOptions.runningOnCi.get && !sys.props.contains("akka.no.discipline") && !scalaVersion.value
+        .startsWith("3."),
     crossVersion := CrossVersion.binary,
-    // Adds a `src/main/scala-2.13+` source directory for code shared
-    // between Scala 2.13 and Scala 3
-    Compile / unmanagedSourceDirectories ++= {
-      val sourceDir = (Compile / sourceDirectory).value
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, n))            => Seq(sourceDir / "scala-2.13+")
-        case Some((2, n)) if n >= 13 => Seq(sourceDir / "scala-2.13+")
-        case _                       => Nil
-      }
-    },
+    // append -SNAPSHOT to version when isSnapshot
+    ThisBuild / dynverSonatypeSnapshots := true,
     ThisBuild / ivyLoggingLevel := UpdateLogging.Quiet,
-    licenses := Seq(("BUSL-1.1", url("https://raw.githubusercontent.com/akka/akka/main/LICENSE"))), // FIXME change s/main/v2.7.0/ when released
+    licenses := {
+      val tagOrBranch =
+        if (isSnapshot.value) "main"
+        else "v" + version.value
+      Seq(("BUSL-1.1", url(s"https://raw.githubusercontent.com/akka/akka/${tagOrBranch}/LICENSE")))
+    },
     homepage := Some(url("https://akka.io/")),
     description := "Akka is a toolkit for building highly concurrent, distributed, and resilient message-driven applications for Java and Scala.",
     scmInfo := Some(
@@ -169,7 +157,11 @@ object AkkaBuild {
           url("https://github.com/akka/akka"),
           "scm:git:https://github.com/akka/akka.git",
           "scm:git:git@github.com:akka/akka.git")),
-    apiURL := Some(url(s"https://doc.akka.io/api/akka/${version.value}")),
+    releaseNotesURL := (
+        if (isSnapshot.value) None
+        else Some(url(s"https://github.com/akka/akka/releases/tag/v${version.value}"))
+      ),
+    apiURL := Some(url(s"https://doc.akka.io/api/akka-core/${version.value}")),
     initialCommands :=
       """|import language.postfixOps
          |import akka.actor._
@@ -178,7 +170,7 @@ object AkkaBuild {
          |import scala.concurrent.duration._
          |import akka.util.Timeout
          |var config = ConfigFactory.parseString("akka.stdout-loglevel=INFO,akka.loglevel=DEBUG,pinned{type=PinnedDispatcher,executor=thread-pool-executor,throughput=1000}")
-         |var remoteConfig = ConfigFactory.parseString("akka.remote.classic.netty{port=0,use-dispatcher-for-io=akka.actor.default-dispatcher,execution-pool-size=0},akka.actor.provider=remote").withFallback(config)
+         |var remoteConfig = ConfigFactory.parseString("akka.remote.artery.canonical.port=0,akka.actor.provider=remote").withFallback(config)
          |var system: ActorSystem = null
          |implicit def _system: ActorSystem = system
          |def startSystem(remoting: Boolean = false) = { system = ActorSystem("repl", if(remoting) remoteConfig else config); println("don’t forget to system.terminate()!") }
@@ -211,9 +203,7 @@ object AkkaBuild {
         // faster random source
         "-Djava.security.egd=file:/dev/./urandom")
 
-      defaults ++ CliOptions.runningOnCi
-        .ifTrue(jvmGCLogOptions(JdkOptions.isJdk11orHigher, JdkOptions.isJdk8))
-        .getOrElse(Nil) ++
+      defaults ++ CliOptions.runningOnCi.ifTrue(Seq("-Xlog:gc*")).getOrElse(Nil) ++
       JdkOptions.versionSpecificJavaOptions
     },
     // all system properties passed to sbt prefixed with "akka." or "aeron." will be passed on to the forked jvms as is
@@ -262,35 +252,42 @@ object AkkaBuild {
       }
     })
 
-  lazy val welcomeSettings: Seq[Setting[_]] = Def.settings {
-    import sbtwelcome._
-    Seq(
-      logo := {
+  lazy val welcomeSettings: Seq[Setting[_]] =
+    CliOptions.runningOnCi
+      .ifTrue(Seq())
+      .getOrElse(Seq(onLoadMessage :=
         s"""
-           |_______ ______  ______
-           |___    |___  /_____  /________ _
-           |__  /| |__  //_/__  //_/_  __ `/
-           |_  ___ |_  ,<   _  ,<   / /_/ /
-           |/_/  |_|/_/|_|  /_/|_|  \\__,_/   ${version.value}
            |
-           |""".stripMargin
-
-      },
-      logoColor := scala.Console.BLUE,
-      usefulTasks := Seq(
-          UsefulTask("", "compile", "Compile the current project"),
-          UsefulTask("", "test", "Run all the tests "),
-          UsefulTask("", "testOnly *.AnySpec", "Only run a selected test"),
-          UsefulTask("", "verifyCodeStyle", "Verify code style"),
-          UsefulTask("", "applyCodeStyle", "Apply code style"),
-          UsefulTask("", "sortImports", "Sort the imports"),
-          UsefulTask("", "mimaReportBinaryIssues ", "Check binary issues"),
-          UsefulTask("", "validatePullRequest ", "Validate pull request"),
-          UsefulTask("", "akka-docs/paradox", "Build documentation"),
-          UsefulTask("", "akka-docs/paradoxBrowse", "Browse the generated documentation"),
-          UsefulTask("", "tips:", "prefix commands with `+` to run against cross Scala versions."),
-          UsefulTask("", "Contributing guide:", "https://github.com/akka/akka/blob/main/CONTRIBUTING.md")))
-  }
+           |                        .~!77!^                            :::          :::
+           |                     .^!???????~                          .5GP:        .5GP:
+           |                   :~???????????!              ...        .PGP:      . .5GP:      .     ...
+           |                .~7??????????????!          ~J5PPP5J!Y5Y. .5GP:  .?557..5GP:  .?557..!J5PPP5?!55J
+           |             .^!??????????????????7.      :5GGY!~~!JPGGP. .5GP:.7PGY^  .5GP:.7PGY^ ^5GGJ!~~!YGGG5
+           |           :~7?????????????????????7.     YGG!      ^PGP. .5GP?PG5^    .5GP?PG5^  .PGP^      ~GGY
+           |        .^7?????????????JJYY55555YYJ?.   .5GG^      .PGP. .5GGG5GP7.   .5GGG5GP7. :PGP:      :PGY
+           |      :!????????????JY5PPGGGGGGGGGGGP5^   ~PGP7:..:!5GGP: .PGG~ ~5BP!  .5GG~ ~5BP! !GG5!:..:7PGG5.
+           |   .~7??????????JY5PGGGGGGGGGGGGGGGGGGP^   :?5GGPPPPJJPGG7 5GP:  .7PGY^.5GP:   7PGY^^JPGGPPPP?JPGP!
+           |  :??????????JYPGGGGPPPPPGGGGGGGGGGGGGGJ     .:^^^:.  :^^: :::     .::: :::     .:::  .:^^^:.  :^^.
+           |  ^????????7???7~~^::::::^^~!?Y5GGGGGGG7
+           |   ^!7??7~:.                   .^7YPP57
+           |     ...                           .:.
+           |                                                                                                      
+           | ${version.value}
+           |
+           |
+           | Useful sbt tasks:
+           | > testOnly *.AnySpec         Only run a selected test
+           | > verifyCodeStyle            Verify code style
+           | > applyCodeStyle             Apply code style
+           | > mimaReportBinaryIssues     Check binary issues
+           | > validatePullRequest        Validate pull request
+           | > akka-docs/paradox          Build documentation
+           | > akka-docs/paradoxBrowse    Browse the generated documentation
+           |
+           | Contributing guide: https://github.com/akka/akka/blob/main/CONTRIBUTING.md
+           | tips: prefix commands with + to run against cross Scala versions.
+           |
+           |""".stripMargin))
 
   private def optionalDir(path: String): Option[File] =
     Option(path).filter(_.nonEmpty).map { path =>
@@ -303,13 +300,10 @@ object AkkaBuild {
   lazy val docLintingSettings = Seq(
     compile / javacOptions ++= Seq("-Xdoclint:none"),
     test / javacOptions ++= Seq("-Xdoclint:none"),
-    doc / javacOptions ++= {
-      if (JdkOptions.isJdk8) Seq("-Xdoclint:none")
-      else Seq("-Xdoclint:none", "--ignore-source-errors")
-    })
+    doc / javacOptions ++= Seq("-Xdoclint:none", "--ignore-source-errors"))
 
   def loadSystemProperties(fileName: String): Unit = {
-    import scala.collection.JavaConverters._
+    import scala.jdk.CollectionConverters._
     val file = new File(fileName)
     if (file.exists()) {
       println("Loading system properties from file `" + fileName + "`")
@@ -348,4 +342,5 @@ object AkkaBuild {
       commands.foldLeft(initialState)(run)
     }
   })
+
 }

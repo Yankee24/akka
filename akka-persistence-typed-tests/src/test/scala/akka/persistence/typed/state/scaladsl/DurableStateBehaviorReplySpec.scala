@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.scaladsl
@@ -16,13 +16,13 @@ import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.Behaviors
+import akka.persistence.testkit.PersistenceTestKitDurableStateStorePlugin
 import akka.persistence.typed.PersistenceId
 import akka.serialization.jackson.CborSerializable
 
-import akka.persistence.testkit.PersistenceTestKitDurableStateStorePlugin
-
 object DurableStateBehaviorReplySpec {
-  def conf: Config = PersistenceTestKitDurableStateStorePlugin.config.withFallback(ConfigFactory.parseString(s"""
+  def conf: Config =
+    PersistenceTestKitDurableStateStorePlugin.config.withFallback(ConfigFactory.parseString("""
     akka.loglevel = INFO
     """))
 
@@ -82,7 +82,7 @@ class DurableStateBehaviorReplySpec
   val pidCounter = new AtomicInteger(0)
   private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()})")
 
-  "A typed persistent actor with commands that are expecting replies" must {
+  "A DurableStateBehavior actor with commands that are expecting replies" must {
 
     "persist state thenReply" in {
       val c = spawn(counter(nextPid()))
@@ -126,6 +126,29 @@ class DurableStateBehaviorReplySpec
       val queryProbe = TestProbe[State]()
       c ! GetValue(queryProbe.ref)
       queryProbe.expectMessage(State(0))
+    }
+
+    "handle commands sequentially" in {
+      val c = spawn(counter(nextPid()))
+      val probe = TestProbe[Any]()
+
+      c ! IncrementWithConfirmation(probe.ref)
+      c ! IncrementWithConfirmation(probe.ref)
+      c ! IncrementWithConfirmation(probe.ref)
+      c ! GetValue(probe.ref)
+      probe.expectMessage(Done)
+      probe.expectMessage(Done)
+      probe.expectMessage(Done)
+      probe.expectMessage(State(3))
+
+      c ! IncrementWithConfirmation(probe.ref)
+      c ! IncrementWithConfirmation(probe.ref)
+      c ! DeleteWithConfirmation(probe.ref)
+      c ! GetValue(probe.ref)
+      probe.expectMessage(Done)
+      probe.expectMessage(Done)
+      probe.expectMessage(Done)
+      probe.expectMessage(State(0))
     }
   }
 }

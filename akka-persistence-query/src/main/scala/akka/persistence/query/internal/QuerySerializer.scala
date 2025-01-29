@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.query.internal
@@ -9,7 +9,9 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
+
 import scala.util.control.NonFatal
+
 import akka.annotation.InternalApi
 import akka.event.Logging
 import akka.persistence.query.NoOffset
@@ -17,6 +19,7 @@ import akka.persistence.query.Offset
 import akka.persistence.query.Sequence
 import akka.persistence.query.TimeBasedUUID
 import akka.persistence.query.TimestampOffset
+import akka.persistence.query.TimestampOffsetBySlice
 import akka.persistence.query.internal.protobuf.QueryMessages
 import akka.persistence.query.typed.EventEnvelope
 import akka.remote.serialization.WrappedPayloadSupport.{ deserializePayload, payloadBuilder }
@@ -24,6 +27,7 @@ import akka.serialization.BaseSerializer
 import akka.serialization.SerializationExtension
 import akka.serialization.SerializerWithStringManifest
 import akka.serialization.Serializers
+import scala.jdk.CollectionConverters._
 
 /**
  * INTERNAL API
@@ -43,11 +47,14 @@ import akka.serialization.Serializers
   private final val SequenceOffsetManifest = "SEQ"
   private final val TimeBasedUUIDOffsetManifest = "TBU"
   private final val TimestampOffsetManifest = "TSO"
+  private final val TimestampOffsetBySliceManifest = "TBS"
   private final val NoOffsetManifest = "NO"
 
   private val manifestSeparator = ':'
   // persistenceId and timestamp must not contain this separator char
   private val timestampOffsetSeparator = ';'
+  // doubling the `timestampOffsetSeparator` for separator between entries
+  private val timestampOffsetBySliceSeparator = ";;"
 
   override def manifest(o: AnyRef): String = o match {
     case _: EventEnvelope[_] => EventEnvelopeManifest
@@ -70,9 +77,15 @@ import akka.serialization.Serializers
         .setTimestamp(env.timestamp)
         .setOffset(offset)
         .setOffsetManifest(offsetManifest)
+        .setFiltered(env.filtered)
+        .setSource(env.source)
+
+      if (env.tags.nonEmpty) {
+        builder.addAllTags(env.tags.asJava)
+      }
 
       env.eventOption.foreach(event => builder.setEvent(payloadBuilder(event, serialization, log)))
-      env.eventMetadata.foreach(meta => builder.setMetadata(payloadBuilder(meta, serialization, log)))
+      env.internalEventMetadata.foreach(meta => builder.setMetadata(payloadBuilder(meta, serialization, log)))
 
       builder.build().toByteArray()
 
@@ -96,6 +109,12 @@ import akka.serialization.Serializers
         if (env.hasMetadata) Option(deserializePayload(env.getMetadata, serialization))
         else None
 
+      val filtered = env.hasFiltered && env.getFiltered
+      val source = if (env.hasSource) env.getSource else ""
+      val tags =
+        if (env.getTagsList.isEmpty) Set.empty[String]
+        else env.getTagsList.iterator.asScala.toSet
+
       new EventEnvelope(
         offset,
         env.getPersistenceId,
@@ -104,7 +123,10 @@ import akka.serialization.Serializers
         env.getTimestamp,
         metaOption,
         env.getEntityType,
-        env.getSlice)
+        env.getSlice,
+        filtered,
+        source,
+        tags)
 
     case _ =>
       fromStorageRepresentation(new String(bytes, UTF_8), manifest)
@@ -116,10 +138,11 @@ import akka.serialization.Serializers
    */
   private def fromStorageRepresentation(offsetStr: String, manifest: String): Offset = {
     manifest match {
-      case TimestampOffsetManifest     => timestampOffsetFromStorageRepresentation(offsetStr)
-      case SequenceOffsetManifest      => Offset.sequence(offsetStr.toLong)
-      case TimeBasedUUIDOffsetManifest => Offset.timeBasedUUID(UUID.fromString(offsetStr))
-      case NoOffsetManifest            => NoOffset
+      case TimestampOffsetManifest        => timestampOffsetFromStorageRepresentation(offsetStr)
+      case TimestampOffsetBySliceManifest => timestampOffsetBySliceFromStorageRepresentation(offsetStr)
+      case SequenceOffsetManifest         => Offset.sequence(offsetStr.toLong)
+      case TimeBasedUUIDOffsetManifest    => Offset.timeBasedUUID(UUID.fromString(offsetStr))
+      case NoOffsetManifest               => NoOffset
       case _ =>
         manifest.split(manifestSeparator) match {
           case Array(serializerIdStr, serializerManifest) =>
@@ -147,6 +170,8 @@ import akka.serialization.Serializers
   private def toStorageRepresentation(offset: Offset): (String, String) = {
     offset match {
       case t: TimestampOffset => (timestampOffsetToStorageRepresentation(t), TimestampOffsetManifest)
+      case tbs: TimestampOffsetBySlice =>
+        (timestampOffsetBySliceToStorageRepresentation(tbs), TimestampOffsetBySliceManifest)
       case seq: Sequence      => (seq.value.toString, SequenceOffsetManifest)
       case tbu: TimeBasedUUID => (tbu.value.toString, TimeBasedUUIDOffsetManifest)
       case NoOffset           => ("", NoOffsetManifest)
@@ -214,6 +239,41 @@ import akka.serialization.Serializers
         case (pid, seqNr) =>
           checkSeparator(pid)
           str.append(timestampOffsetSeparator).append(pid).append(timestampOffsetSeparator).append(seqNr)
+      }
+    }
+    str.toString
+  }
+
+  private def timestampOffsetBySliceFromStorageRepresentation(str: String): TimestampOffsetBySlice = {
+    try {
+      val offsets =
+        if (str.isEmpty) Map.empty[Int, TimestampOffset]
+        else
+          str
+            .split(timestampOffsetBySliceSeparator)
+            .map { entry =>
+              val sliceSeparator = entry.indexOf(timestampOffsetSeparator)
+              val slice = entry.substring(0, sliceSeparator).toInt
+              val offset = timestampOffsetFromStorageRepresentation(entry.substring(sliceSeparator + 1))
+              slice -> offset
+            }
+            .toMap
+      TimestampOffsetBySlice(offsets)
+    } catch {
+      case NonFatal(e) =>
+        throw new IllegalArgumentException(s"Unexpected serialized TimestampOffsetBySlice format [$str].", e)
+    }
+  }
+
+  private def timestampOffsetBySliceToStorageRepresentation(offsetBySlice: TimestampOffsetBySlice): String = {
+    val str = new java.lang.StringBuilder
+    if (offsetBySlice.offsets.nonEmpty) {
+      var first = true
+      offsetBySlice.offsets.foreach {
+        case (slice, offset) =>
+          if (!first) str.append(timestampOffsetBySliceSeparator)
+          str.append(slice).append(timestampOffsetSeparator).append(timestampOffsetToStorageRepresentation(offset))
+          first = false
       }
     }
     str.toString

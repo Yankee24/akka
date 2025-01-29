@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
@@ -10,7 +10,7 @@ import java.util.Optional
 
 import scala.annotation.tailrec
 import scala.collection.immutable
-import scala.compat.java8.OptionConverters._
+import scala.jdk.OptionConverters._
 
 import akka.annotation.InternalApi
 
@@ -22,6 +22,8 @@ import akka.annotation.InternalApi
  * This class is final to allow use as a case class (copy method etc.); if
  * for example a remote transport would want to associate additional
  * information with an address, then this must be done externally.
+ *
+ * Not for user instantiation
  */
 @SerialVersionUID(1L)
 final case class Address private[akka] (protocol: String, system: String, host: Option[String], port: Option[Int]) {
@@ -44,12 +46,12 @@ final case class Address private[akka] (protocol: String, system: String, host: 
   /**
    * Java API: The hostname if specified or empty optional if not
    */
-  def getHost(): Optional[String] = host.asJava
+  def getHost(): Optional[String] = host.toJava
 
   /**
    * Java API: The port if specified or empty optional if not
    */
-  def getPort(): Optional[Integer] = port.asJava.asInstanceOf[Optional[Integer]]
+  def getPort(): Optional[Integer] = port.toJava.asInstanceOf[Optional[Integer]]
 
   /**
    * Returns true if this Address is only defined locally. It is not safe to send locally scoped addresses to remote
@@ -133,6 +135,10 @@ object Address {
   }
 }
 
+/**
+ * INTERNAL API
+ */
+@InternalApi
 private[akka] trait PathUtils {
   protected def split(s: String, fragment: String): List[String] = {
     @tailrec

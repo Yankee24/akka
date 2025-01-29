@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.pattern
@@ -51,6 +51,25 @@ class StatusReplySpec extends AkkaSpec with ScalaFutures {
       StatusReply.Error(TestException("boho!")) match {
         case StatusReply.Error(_) =>
         case _                    => fail()
+      }
+    }
+
+    "include exception type in toString for non text-error" in {
+      StatusReply.Error(TestException("boho!")).toString should include("TestException")
+    }
+
+    "transform scala.util.Try" in {
+      StatusReply.fromTry(scala.util.Success("woho")) should matchPattern {
+        case StatusReply.Success("woho") =>
+      }
+      StatusReply.fromTry(scala.util.Failure(TestException("boho"))) should matchPattern {
+        case StatusReply.Error(StatusReply.ErrorMessage("boho")) =>
+      }
+      StatusReply.fromTryKeepException(scala.util.Success("woho")) should matchPattern {
+        case StatusReply.Success("woho") =>
+      }
+      StatusReply.fromTryKeepException(scala.util.Failure(TestException("boho"))) should matchPattern {
+        case StatusReply.Error(TestException("boho")) =>
       }
     }
 

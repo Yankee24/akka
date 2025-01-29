@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.event;
 
 import akka.actor.AbstractActor;
-
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;

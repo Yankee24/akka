@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
@@ -10,12 +10,12 @@ import java.nio.ByteOrder
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.concurrent.Await
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-import scala.annotation.nowarn
 import com.typesafe.config.ConfigFactory
 import org.openjdk.jmh.annotations._
 
@@ -70,7 +70,7 @@ class CodecBenchmark {
     override def publishDropped(inbound: InboundEnvelope, reason: String): Unit = ()
   }
 
-  @nowarn("msg=never used") private var remoteRefB: RemoteActorRef = _
+  private var remoteRefB: RemoteActorRef = _
   @nowarn("msg=never used") private var resolvedRef: InternalActorRef = _
   @nowarn("msg=never used") private var senderStringA: String = _
   @nowarn("msg=never used") private var recipientStringB: String = _
@@ -110,7 +110,7 @@ class CodecBenchmark {
 
     uniqueLocalAddress = UniqueAddress(
       system.asInstanceOf[ExtendedActorSystem].provider.getDefaultAddress,
-      AddressUidExtension(system).longAddressUid)
+      system.asInstanceOf[ExtendedActorSystem].uid)
 
     val actorOnSystemA = system.actorOf(Props.empty, "a")
     senderStringA = actorOnSystemA.path.toSerializationFormatWithAddress(uniqueLocalAddress.address)

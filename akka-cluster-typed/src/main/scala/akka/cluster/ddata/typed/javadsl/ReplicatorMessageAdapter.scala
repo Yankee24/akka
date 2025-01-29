@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata.typed.javadsl
@@ -7,16 +7,14 @@ package akka.cluster.ddata.typed.javadsl
 import java.time.Duration
 import java.util.function.{ Function => JFunction }
 
+import scala.jdk.DurationConverters._
 import scala.util.Failure
 import scala.util.Success
-
-import scala.annotation.nowarn
 
 import akka.actor.typed.ActorRef
 import akka.actor.typed.javadsl.ActorContext
 import akka.cluster.ddata.Key
 import akka.cluster.ddata.ReplicatedData
-import akka.util.JavaDurationConverters._
 import akka.util.Timeout
 
 /**
@@ -56,7 +54,7 @@ class ReplicatorMessageAdapter[A, B <: ReplicatedData](
     replicator: ActorRef[Replicator.Command],
     unexpectedAskTimeout: Duration) {
 
-  private implicit val askTimeout: Timeout = Timeout(unexpectedAskTimeout.asScala)
+  private implicit val askTimeout: Timeout = Timeout(unexpectedAskTimeout.toScala)
 
   private var changedMessageAdapters: Map[Key[B], ActorRef[Replicator.SubscribeResponse[B]]] = Map.empty
 
@@ -113,7 +111,6 @@ class ReplicatorMessageAdapter[A, B <: ReplicatedData](
    * `ActorRef[GetResponse]` that the the replicator will send the response message back through.
    * Use that `ActorRef[GetResponse]` as the `replyTo` parameter in the `Get` message.
    */
-  @nowarn
   def askGet(
       createRequest: JFunction[ActorRef[Replicator.GetResponse[B]], Replicator.Get[B]],
       responseAdapter: JFunction[Replicator.GetResponse[B], A]): Unit = {

@@ -1,14 +1,18 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
 
+import java.io.NotSerializableException
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit.NANOSECONDS
+
 import scala.concurrent.duration._
+
 import com.typesafe.config.ConfigFactory
+
 import akka.actor._
 import akka.remote.{ RARP, RemoteActorRefProvider, RemotingMultiNodeSpec }
 import akka.remote.artery.compress.CompressionProtocol.Events.ReceivedActorRefCompressionTable
@@ -17,8 +21,6 @@ import akka.remote.testkit.{ MultiNodeConfig, PerfFlamesSupport }
 import akka.serialization.{ ByteBufferSerializer, SerializerWithStringManifest }
 import akka.serialization.jackson.CborSerializable
 import akka.testkit._
-
-import java.io.NotSerializableException
 
 object MaxThroughputSpec extends MultiNodeConfig {
   val first = role("first")
@@ -50,7 +52,6 @@ object MaxThroughputSpec extends MultiNodeConfig {
          }
        }
        remote.artery {
-         enabled = on
 
          # for serious measurements when running this test on only one machine
          # it is recommended to use external media driver
@@ -173,8 +174,7 @@ object MaxThroughputSpec extends MultiNodeConfig {
     var pendingFlowControl = Map.empty[Int, Int]
 
     val compressionEnabled =
-      RARP(context.system).provider.transport.isInstanceOf[ArteryTransport] &&
-      RARP(context.system).provider.remoteSettings.Artery.Enabled
+      RARP(context.system).provider.remoteSettings.Artery.Advanced.Compression.Enabled
 
     def receive = {
       case Run =>

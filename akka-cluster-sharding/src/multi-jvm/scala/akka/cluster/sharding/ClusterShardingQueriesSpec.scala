@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
@@ -8,6 +8,7 @@ import scala.concurrent.duration._
 
 import com.typesafe.config.ConfigFactory
 import org.scalatest.concurrent.ScalaFutures
+
 import akka.actor.Props
 import akka.testkit.TestProbe
 
@@ -28,7 +29,8 @@ object ClusterShardingQueriesSpec {
   val shardTypeName = "DatatypeA"
 }
 
-object ClusterShardingQueriesSpecConfig extends MultiNodeClusterShardingConfig(additionalConfig = s"""
+object ClusterShardingQueriesSpecConfig
+    extends MultiNodeClusterShardingConfig(additionalConfig = """
         akka.log-dead-letters-during-shutdown = off
         akka.cluster.sharding {
           shard-region-query-timeout = 2ms

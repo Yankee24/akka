@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl
 
 import scala.annotation.switch
+
 import akka.annotation.InternalApi
 import akka.stream.scaladsl.Framing.FramingException
 import akka.util.ByteString
@@ -108,20 +109,20 @@ import akka.util.ByteString
 
     skipToNextObject(bufSize)
 
-    while (pos < bufSize && pos < maximumObjectLength && !completedObject) {
+    while (pos < bufSize && (pos - start) < maximumObjectLength && !completedObject) {
       val input = buffer(pos)
       proceed(input)
       pos += 1
     }
 
-    if (pos >= maximumObjectLength)
+    if ((pos - start) >= maximumObjectLength)
       throw new FramingException(s"""JSON element exceeded maximumObjectLength ($maximumObjectLength bytes)!""")
 
     completedObject
   }
 
   private def skipToNextObject(bufSize: Int): Unit =
-    while (pos != -1 && pos < bufSize && pos < maximumObjectLength && depth == 0) {
+    while (pos != -1 && pos < bufSize && (pos - start) < maximumObjectLength && depth == 0) {
       val outer = outerChars(buffer(pos) & 0xff)
       start += outer & 1
       depth = (outer & 2) >> 1

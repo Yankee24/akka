@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
@@ -20,7 +20,6 @@ import akka.dispatch.{ Envelope, MessageDispatcher }
 import akka.dispatch.sysmsg._
 import akka.event.Logging.{ Debug, Error, LogEvent }
 import akka.japi.Procedure
-import akka.util.unused
 
 /**
  * The actor context - the view of the actor cell from the actor.
@@ -230,7 +229,7 @@ trait ActorContext extends ActorRefFactory with ClassicActorContextProvider {
   /**
    * ActorContexts shouldn't be Serializable
    */
-  final protected def writeObject(@unused o: ObjectOutputStream): Unit =
+  final protected def writeObject(o: ObjectOutputStream): Unit =
     throw new NotSerializableException("ActorContext is not serializable!")
 }
 
@@ -357,10 +356,9 @@ private[akka] trait Cell {
 }
 
 /**
- * Everything in here is completely Akka PRIVATE. You will not find any
- * supported APIs in this place. This is not the API you were looking
- * for! (waves hand)
+ * INTERNAL API
  */
+@InternalApi
 private[akka] object ActorCell {
   val contextStack = new ThreadLocal[List[ActorContext]] {
     override def initialValue: List[ActorContext] = Nil
@@ -402,11 +400,9 @@ private[akka] object ActorCell {
 //vars don't need volatile since it's protected with the mailbox status
 //Make sure that they are not read/written outside of a message processing (systemInvoke/invoke)
 /**
- * Everything in here is completely Akka PRIVATE. You will not find any
- * supported APIs in this place. This is not the API you were looking
- * for! (waves hand)
+ * INTERNAL API
  */
-@nowarn("msg=deprecated")
+@InternalApi
 private[akka] class ActorCell(
     val system: ActorSystemImpl,
     val self: InternalActorRef,

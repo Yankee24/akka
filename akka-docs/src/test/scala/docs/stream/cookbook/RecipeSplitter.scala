@@ -1,5 +1,5 @@
 /*
- * Copyright (C) since 2016 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.stream.cookbook
@@ -14,7 +14,7 @@ import org.scalatest.wordspec.AnyWordSpec
 
 class RecipeSplitter extends AnyWordSpec with BeforeAndAfterAll with Matchers with ScalaFutures {
 
-  implicit val system = ActorSystem("Test")
+  implicit val system: ActorSystem = ActorSystem("Test")
 
   "Splitter" should {
     " simple split " in {
@@ -46,7 +46,7 @@ class RecipeSplitter extends AnyWordSpec with BeforeAndAfterAll with Matchers wi
       val result = source
         .map(s => s.split("-").toList)
         //split all messages into sub-streams
-        .splitWhen(a => true)
+        .splitWhen(_ => true)
         //now split each collection
         .mapConcat(identity)
         //Sub-streams logic

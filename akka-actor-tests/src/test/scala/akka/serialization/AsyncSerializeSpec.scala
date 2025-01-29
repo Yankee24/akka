@@ -1,13 +1,16 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.serialization
 
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+
 import scala.concurrent.Future
+
 import com.typesafe.config.ConfigFactory
+
 import akka.actor.ExtendedActorSystem
 import akka.testkit.{ AkkaSpec, EventFilter }
 

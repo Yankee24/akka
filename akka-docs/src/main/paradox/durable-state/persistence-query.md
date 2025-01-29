@@ -5,6 +5,14 @@ project.description: Query side to Akka Persistence allowing for building CQRS a
 
 ## Dependency
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Persistence Query, you must add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -27,6 +35,12 @@ based implementation. Various state store plugins can implement these interfaces
 One of the rationales behind having a separate query module for Akka Persistence is for implementing the so-called 
 query side or read side in the popular CQRS architecture pattern - in which the writing side of the 
 application implemented using Akka persistence, is completely separated from the query side.
+
+@@@ note { title=Alternative }
+When using the R2DBC plugin an alternative to using Akka persistence query or Projection is to
+[store the query representation](https://doc.akka.io/libraries/akka-persistence-r2dbc/current/durable-state-store.html#storing-query-representation)
+directly from the write side.
+@@@
 
 ## Using query with Akka Projections
 

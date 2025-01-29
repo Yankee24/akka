@@ -1,16 +1,16 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed
 package internal
 
-import akka.actor.typed.scaladsl.{ ActorContext => SAC }
+import scala.reflect.ClassTag
+
 import akka.actor.typed.{ TypedActorContext => AC }
+import akka.actor.typed.scaladsl.{ ActorContext => SAC }
 import akka.annotation.InternalApi
 import akka.util.{ LineNumbers, OptionVal }
-
-import scala.reflect.ClassTag
 
 /**
  * INTERNAL API

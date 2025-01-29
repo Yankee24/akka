@@ -1,6 +1,6 @@
 # Releasing
 
-Create a new issue from the [Release Train Issue Template](scripts/release-train-issue-template.md):
+Create a new issue from the [Release Train Issue Template](akka-docs/release-train-issue-template.md):
 
 ```
 $ sh ./scripts/create-release-issue.sh 0.x.y
@@ -50,12 +50,11 @@ scaladoc generation build task, which is part of the release.
  
 ## Snapshot releases
 
-Snapshot releases are created from `main` and published to
-https://oss.sonatype.org/content/repositories/snapshots/com/typesafe/akka/
+Snapshot releases are created from `main` and published to https://repo.akka.io/snapshots
 
 To create snapshot versions manually, use `sbt clean publishLocal`.
 If you have access, you can use `+publishSigned` to publish them to
-sonatype.
+repo.akka.io.
 
 ## Releasing only updated docs
 

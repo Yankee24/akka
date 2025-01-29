@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.dungeon
@@ -146,7 +146,7 @@ private[akka] trait FaultHandling { this: ActorCell =>
    */
   protected def faultCreate(): Unit = {
     assert(mailbox.isSuspended, "mailbox must be suspended during failed creation, status=" + mailbox.currentStatus)
-    assert(perpetrator == self)
+    if (!isFailedFatally) assert(perpetrator == self)
 
     cancelReceiveTimeout()
     cancelReceiveTimeoutTask()
@@ -179,8 +179,9 @@ private[akka] trait FaultHandling { this: ActorCell =>
     if (systemImpl.aborting) {
       // separate iteration because this is a very rare case that should not penalize normal operation
       children.foreach {
-        case ref: ActorRefScope if !ref.isLocal => self.sendSystemMessage(DeathWatchNotification(ref, true, false))
-        case _                                  =>
+        case ref: ActorRefScope if !ref.isLocal =>
+          self.sendSystemMessage(DeathWatchNotification(ref, existenceConfirmed = true, addressTerminated = false))
+        case _ =>
       }
     }
 

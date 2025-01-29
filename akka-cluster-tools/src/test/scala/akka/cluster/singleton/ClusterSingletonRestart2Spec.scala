@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton
@@ -37,10 +37,6 @@ class ClusterSingletonRestart2Spec
   akka.cluster.testkit.auto-down-unreachable-after = 2s
   akka.cluster.singleton.min-number-of-hand-over-retries = 5
   akka.remote {
-    classic.netty.tcp {
-      hostname = "127.0.0.1"
-      port = 0
-    }
     artery.canonical {
       hostname = "127.0.0.1"
       port = 0
@@ -59,8 +55,6 @@ class ClusterSingletonRestart2Spec
     ConfigFactory.parseString("akka.cluster.roles = [other]").withFallback(system.settings.config))
   var sys4: ActorSystem = null
 
-  import akka.util.ccompat._
-  @ccompatUsedUntil213
   def join(from: ActorSystem, to: ActorSystem): Unit = {
     if (Cluster(from).selfRoles.contains("singleton"))
       from.actorOf(
@@ -110,7 +104,6 @@ class ClusterSingletonRestart2Spec
         val sys4Config =
           ConfigFactory.parseString(s"""
             akka.remote.artery.canonical.port=$sys2port
-            akka.remote.classic.netty.tcp.port=$sys2port
             """).withFallback(system.settings.config)
 
         ActorSystem(system.name, sys4Config)

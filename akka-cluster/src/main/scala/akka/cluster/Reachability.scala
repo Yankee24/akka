@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -7,12 +7,10 @@ package akka.cluster
 import scala.collection.immutable
 
 import akka.annotation.InternalApi
-import akka.util.ccompat._
 
 /**
  * INTERNAL API
  */
-@ccompatUsedUntil213
 private[cluster] object Reachability {
   val empty = new Reachability(Vector.empty, Map.empty)
 
@@ -275,9 +273,9 @@ private[cluster] class Reachability private (
 
   def observersGroupedByUnreachable: Map[UniqueAddress, Set[UniqueAddress]] = {
     records.groupBy(_.subject).collect {
-      case (subject, records) if records.exists(_.status == Unreachable) =>
+      case (subject, recordsForSubject) if recordsForSubject.exists(_.status == Unreachable) =>
         val observers: Set[UniqueAddress] =
-          records.iterator.collect { case r if r.status == Unreachable => r.observer }.to(immutable.Set)
+          recordsForSubject.iterator.collect { case r if r.status == Unreachable => r.observer }.to(immutable.Set)
         subject -> observers
     }
   }

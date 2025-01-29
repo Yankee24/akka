@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
 import java.util.concurrent.atomic.AtomicReference
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 
-import scala.annotation.nowarn
 import com.typesafe.config._
 
 import akka.annotation.InternalApi
@@ -181,7 +181,6 @@ abstract class LocalScope extends Scope
  * which do not set a different scope. It is also the only scope handled by
  * the LocalActorRefProvider.
  */
-@nowarn("msg=@SerialVersionUID has no effect")
 @SerialVersionUID(1L)
 case object LocalScope extends LocalScope {
 
@@ -211,10 +210,13 @@ case object NoScopeGiven extends NoScopeGiven {
 
 /**
  * Deployer maps actor paths to actor deployments.
+ *
+ * INTERNAL API
  */
+@InternalApi
 private[akka] class Deployer(val settings: ActorSystem.Settings, val dynamicAccess: DynamicAccess) {
 
-  import akka.util.ccompat.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   private val resizerEnabled: Config = ConfigFactory.parseString("resizer.enabled=on")
   private val deployments = new AtomicReference(WildcardIndex[Deploy]())
@@ -301,8 +303,8 @@ private[akka] class Deployer(val settings: ActorSystem.Settings, val dynamicAcce
             dynamicAccess
               .createInstanceFor[RouterConfig](fqn, args2)
               .recover {
-                case e @ (_: IllegalArgumentException | _: ConfigException) => throw e
-                case _                                                      => throwCannotInstantiateRouter(args2, e)
+                case e2 @ (_: IllegalArgumentException | _: ConfigException) => throw e2
+                case _                                                       => throwCannotInstantiateRouter(args2, e)
               }
               .get
           case e => throwCannotInstantiateRouter(args2, e)

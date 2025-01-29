@@ -1,17 +1,19 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.journal.leveldb
 
 import scala.annotation.nowarn
+
 import com.typesafe.config.ConfigFactory
+
 import akka.actor._
 import akka.persistence._
 import akka.testkit.{ AkkaSpec, TestProbe }
 
 object SharedLeveldbJournalSpec {
-  val config = ConfigFactory.parseString(s"""
+  val config = ConfigFactory.parseString("""
       akka {
         actor {
           provider = remote
@@ -27,11 +29,6 @@ object SharedLeveldbJournalSpec {
           }
         }
         remote {
-          enabled-transports = ["akka.remote.classic.netty.tcp"]
-          classic.netty.tcp {
-            hostname = "127.0.0.1"
-            port = 0
-          }
           artery.canonical {
             hostname = "127.0.0.1"
             port = 0

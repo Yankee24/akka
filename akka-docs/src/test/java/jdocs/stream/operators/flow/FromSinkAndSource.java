@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream.operators.flow;
@@ -12,7 +12,6 @@ import akka.stream.javadsl.*;
 import akka.stream.testkit.TestPublisher;
 import akka.stream.testkit.TestSubscriber;
 import akka.util.ByteString;
-
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Optional;

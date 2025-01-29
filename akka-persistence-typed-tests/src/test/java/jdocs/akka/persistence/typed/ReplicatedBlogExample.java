@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.akka.persistence.typed;
@@ -19,7 +19,6 @@ import akka.persistence.typed.javadsl.EventHandler;
 import akka.persistence.typed.javadsl.ReplicatedEventSourcedBehavior;
 import akka.persistence.typed.javadsl.ReplicatedEventSourcing;
 import akka.persistence.typed.javadsl.ReplicationContext;
-
 import java.util.Optional;
 import java.util.Set;
 
@@ -154,7 +153,7 @@ interface ReplicatedBlogExample {
     public static class BlogState {
 
       public static final BlogState EMPTY =
-          new BlogState(Optional.empty(), new LwwTime(Long.MIN_VALUE, new ReplicaId("")), false);
+          new BlogState(Optional.empty(), new LwwTime(Long.MIN_VALUE, ReplicaId.empty()), false);
 
       final Optional<PostContent> content;
       final LwwTime contentTimestamp;

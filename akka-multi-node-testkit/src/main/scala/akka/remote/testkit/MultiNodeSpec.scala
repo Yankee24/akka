@@ -1,34 +1,38 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.testkit
 
-import java.net.{ InetAddress, InetSocketAddress }
-import scala.collection.immutable
-import scala.concurrent.{ Await, Awaitable }
-import scala.concurrent.duration._
-import scala.util.control.NonFatal
-import com.typesafe.config.{ Config, ConfigFactory, ConfigObject }
-
-import language.implicitConversions
-import org.jboss.netty.channel.ChannelException
-import akka.actor._
 import akka.actor.RootActorPath
-import akka.event.{ Logging, LoggingAdapter }
+import akka.actor._
+import akka.event.Logging
+import akka.event.LoggingAdapter
 import akka.remote.RemoteTransportException
-import akka.remote.testconductor.{ TestConductor, TestConductorExt }
 import akka.remote.testconductor.RoleName
-import akka.testkit._
+import akka.remote.testconductor.TestConductor
+import akka.remote.testconductor.TestConductorExt
 import akka.testkit.TestEvent._
 import akka.testkit.TestKit
+import akka.testkit._
 import akka.util.Timeout
-import akka.util.ccompat._
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import com.typesafe.config.ConfigObject
+import io.netty.channel.ChannelException
+
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import scala.collection.immutable
+import scala.concurrent.duration._
+import scala.concurrent.Await
+import scala.concurrent.Awaitable
+import scala.language.implicitConversions
+import scala.util.control.NonFatal
 
 /**
  * Configure the role names and participants of the test, including configuration settings.
  */
-@ccompatUsedUntil213
 abstract class MultiNodeConfig {
 
   private var _commonConf: Option[Config] = None
@@ -71,7 +75,6 @@ abstract class MultiNodeConfig {
           receive = on
           fsm = on
         }
-        akka.remote.log-remote-lifecycle-events = on
         """)
     else
       ConfigFactory.empty
@@ -108,7 +111,6 @@ abstract class MultiNodeConfig {
   private[akka] def config: Config = {
     val transportConfig =
       if (_testTransport) ConfigFactory.parseString("""
-           akka.remote.classic.netty.tcp.applied-adapters = [trttl, gremlin]
            akka.remote.artery.advanced.test-mode = on
         """)
       else ConfigFactory.empty
@@ -238,8 +240,6 @@ object MultiNodeSpec {
     Map(
       "akka.actor.provider" -> "remote",
       "akka.remote.artery.canonical.hostname" -> selfName,
-      "akka.remote.classic.netty.tcp.hostname" -> selfName,
-      "akka.remote.classic.netty.tcp.port" -> tcpPort,
       "akka.remote.artery.canonical.port" -> selfPort))
 
   private[testkit] val baseConfig: Config =
@@ -265,7 +265,7 @@ object MultiNodeSpec {
       """)
 
   private def mapToConfig(map: Map[String, Any]): Config = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     ConfigFactory.parseMap(map.asJava)
   }
 
@@ -275,10 +275,8 @@ object MultiNodeSpec {
   // are exposed in kubernetes
   def configureNextPortIfFixed(config: Config): Config = {
     val arteryPortConfig = getNextPortString("akka.remote.artery.canonical.port", config)
-    val nettyPortConfig = getNextPortString("akka.remote.classic.netty.tcp.port", config)
     ConfigFactory.parseString(s"""{
       $arteryPortConfig
-      $nettyPortConfig
       }""").withFallback(config)
   }
 
@@ -511,7 +509,7 @@ abstract class MultiNodeSpec(
               base.replace(tag, replaceWith)
           }
       }
-      import akka.util.ccompat.JavaConverters._
+      import scala.jdk.CollectionConverters._
       ConfigFactory.parseString(deployString).root.asScala.foreach {
         case (key, value: ConfigObject) => deployer.parseConfig(key, value.toConfig).foreach(deployer.deploy)
         case (key, x) =>
@@ -540,7 +538,7 @@ abstract class MultiNodeSpec(
    */
   protected def startNewSystem(): ActorSystem = {
     val config = ConfigFactory
-      .parseString(s"akka.remote.classic.netty.tcp{port=${myAddress.port.get}\nhostname=${myAddress.host.get}}")
+      .parseString(s"akka.remote.artery.canonical{port=${myAddress.port.get}\nhostname=${myAddress.host.get}}")
       .withFallback(system.settings.config)
     val sys = ActorSystem(system.name, config)
     injectDeployments(sys, myself)

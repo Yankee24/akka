@@ -8,6 +8,14 @@ For the full documentation of this feature and for new projects see @ref:[Event 
 
 ## Module info
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Persistence, you must add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -848,6 +856,12 @@ in your Akka configuration. Also note that for the LevelDB Java port, you will n
   version="0.9"
 }
 
+@@@ note { title="Java 17" }
+
+When using LevelDB with Java 17 you have to add JVM flag `--add-opens=java.base/java.nio=ALL-UNNAMED`. 
+
+@@@
+
 @@@ warning
 
 It is not possible to test persistence provided classes (i.e. `PersistentActor`
@@ -912,6 +926,5 @@ Java
 
 ## See also
 
-* @ref[Persistent FSM](persistence-fsm.md)
 * @ref[Persistence plugins](persistence-plugins.md)
 * @ref[Building a new storage backend](persistence-journals.md)

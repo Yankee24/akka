@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.akka.cluster.sharding.typed;
@@ -15,7 +15,6 @@ import akka.persistence.typed.state.javadsl.DurableStateBehaviorWithEnforcedRepl
 import akka.persistence.typed.state.javadsl.ReplyEffect;
 import akka.serialization.jackson.CborSerializable;
 import com.fasterxml.jackson.annotation.JsonCreator;
-
 import java.math.BigDecimal;
 
 /**

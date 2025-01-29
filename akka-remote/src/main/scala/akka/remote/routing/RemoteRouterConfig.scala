@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.routing
@@ -7,6 +7,7 @@ package akka.remote.routing
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.annotation.nowarn
+
 import com.typesafe.config.ConfigFactory
 
 import akka.actor.ActorCell

@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.javadsl
+
+import scala.annotation.tailrec
 
 import akka.actor.typed.{ Behavior, MessageAdaptionFailure, Signal }
 import akka.annotation.InternalApi
 import akka.japi.function.{ Creator, Function => JFunction, Predicate => JPredicate }
 import akka.util.OptionVal
-
-import scala.annotation.tailrec
 
 /**
  * Mutable builder used when implementing [[AbstractBehavior]].

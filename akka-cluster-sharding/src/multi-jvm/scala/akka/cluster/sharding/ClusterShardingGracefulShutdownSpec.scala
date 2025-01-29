@@ -1,19 +1,18 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
 
-import akka.Done
-
+import scala.concurrent.Future
 import scala.concurrent.duration._
+
+import akka.Done
 import akka.actor._
 import akka.cluster.sharding.ShardCoordinator.ShardAllocationStrategy
 import akka.cluster.sharding.ShardRegion.{ CurrentRegions, GracefulShutdown }
 import akka.remote.testconductor.RoleName
 import akka.testkit._
-
-import scala.concurrent.Future
 
 abstract class ClusterShardingGracefulShutdownSpecConfig(mode: String)
     extends MultiNodeClusterShardingConfig(

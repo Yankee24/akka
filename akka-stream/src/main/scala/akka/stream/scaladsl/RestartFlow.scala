@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -9,7 +9,7 @@ import scala.util.control.NoStackTrace
 
 import akka.NotUsed
 import akka.event.Logging
-import akka.pattern.BackoffSupervisor
+import akka.pattern.RetrySupport
 import akka.stream._
 import akka.stream.Attributes.Attribute
 import akka.stream.Attributes.LogLevels
@@ -261,7 +261,9 @@ private abstract class RestartWithBackoffLogic[S <: Shape](
 
   private def loggingEnabled = inheritedAttributes.get[LogLevels] match {
     case Some(levels) => levels.onFailure != LogLevels.Off
-    case None         => true
+    case None         =>
+      // Allows for system wide disable at least
+      LogLevels.defaultErrorLevel(materializer.system) != LogLevels.Off
   }
 
   /**
@@ -315,6 +317,8 @@ private abstract class RestartWithBackoffLogic[S <: Shape](
     if (level >= minLogLevel || level == Logging.OffLevel) level else minLogLevel
   }
 
+  private def logFullStackTrace: Boolean = logSettings.verboseLogsAfter.forall(_ <= restartCount)
+
   private def logIt(
       message: String,
       exc: OptionVal[Throwable],
@@ -323,14 +327,14 @@ private abstract class RestartWithBackoffLogic[S <: Shape](
       logLevel(minLogLevel) match {
         case Logging.ErrorLevel =>
           exc match {
-            case OptionVal.Some(e) => log.error(e, message)
-            case _                 => log.error(message)
+            case OptionVal.Some(e) if logFullStackTrace => log.error(e, message)
+            case _                                      => log.error(message)
           }
         case Logging.WarningLevel =>
           if (log.isWarningEnabled) {
             exc match {
-              case OptionVal.Some(e) if !e.isInstanceOf[NoStackTrace] =>
-                log.warning(message + s"${Logging.stackTraceFor(e)}")
+              case OptionVal.Some(e) if !e.isInstanceOf[NoStackTrace] && logFullStackTrace =>
+                log.warning(e, message)
               case _ =>
                 log.warning(message)
             }
@@ -404,7 +408,7 @@ private abstract class RestartWithBackoffLogic[S <: Shape](
 
   // Set a timer to restart after the calculated delay
   protected final def scheduleRestartTimer(): Unit = {
-    val restartDelay = BackoffSupervisor.calculateDelay(restartCount, minBackoff, maxBackoff, randomFactor)
+    val restartDelay = RetrySupport.calculateExponentialBackoffDelay(restartCount, minBackoff, maxBackoff, randomFactor)
     log.debug("Restarting graph in {}", restartDelay.toCoarsest)
     scheduleOnce("RestartTimer", restartDelay)
     restartCount += 1

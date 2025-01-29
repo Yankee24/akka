@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.serialization
@@ -22,9 +22,7 @@ import com.typesafe.config.Config
 import akka.actor._
 import akka.annotation.InternalApi
 import akka.event.{ LogMarker, Logging, LoggingAdapter }
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 object Serialization {
 
   /**
@@ -47,7 +45,7 @@ object Serialization {
     }
 
     private final def configToMap(cfg: Config): Map[String, String] = {
-      import akka.util.ccompat.JavaConverters._
+      import scala.jdk.CollectionConverters._
       cfg.root.unwrapped.asScala.toMap.map { case (k, v) => (k -> v.toString) }
     }
   }
@@ -389,13 +387,47 @@ class Serialization(val system: ExtendedActorSystem) extends Extension {
 
     system.dynamicAccess.createInstanceFor[Serializer](fqn, List(classOf[ExtendedActorSystem] -> system)).recoverWith {
       case _: NoSuchMethodException =>
-        system.dynamicAccess.createInstanceFor[Serializer](fqn, Nil).recoverWith {
-          case e: NoSuchMethodException =>
-            if (bindingName == "") throw e // compatibility with (public) serializerOf method without bindingName
-            else
-              system.dynamicAccess.createInstanceFor[Serializer](
-                fqn,
-                List(classOf[ExtendedActorSystem] -> system, classOf[String] -> bindingName))
+        system.dynamicAccess.createInstanceFor[Serializer](fqn, List(classOf[ActorSystem] -> system)).recoverWith {
+          case _: NoSuchMethodException =>
+            system.dynamicAccess
+              .createInstanceFor[Serializer](fqn, List(classOf[ClassicActorSystemProvider] -> system))
+              .recoverWith {
+                case _: NoSuchMethodException =>
+                  system.dynamicAccess.createInstanceFor[Serializer](fqn, Nil).recoverWith {
+                    case _: NoSuchMethodException =>
+                      if (bindingName == "") {
+                        // compatibility with (public) serializerOf method without bindingName
+                        throw new NoSuchMethodException(s"The serializer [$fqn] doesn't have a matching constructor, " +
+                        s"see API documentation of ${classOf[Serializer].getName}")
+                      } else
+                        system.dynamicAccess
+                          .createInstanceFor[Serializer](
+                            fqn,
+                            List(classOf[ExtendedActorSystem] -> system, classOf[String] -> bindingName))
+                          .recoverWith {
+                            case _: NoSuchMethodException =>
+                              system.dynamicAccess
+                                .createInstanceFor[Serializer](
+                                  fqn,
+                                  List(classOf[ActorSystem] -> system, classOf[String] -> bindingName))
+                                .recoverWith {
+                                  case _: NoSuchMethodException =>
+                                    system.dynamicAccess
+                                      .createInstanceFor[Serializer](
+                                        fqn,
+                                        List(
+                                          classOf[ClassicActorSystemProvider] -> system,
+                                          classOf[String] -> bindingName))
+                                      .recoverWith {
+                                        case _: NoSuchMethodException =>
+                                          Failure(new NoSuchMethodException(
+                                            s"The serializer [$fqn] for binding [$bindingName] doesn't have a matching " +
+                                            s"constructor, see API documentation of ${classOf[Serializer].getName}"))
+                                      }
+                                }
+                          }
+                  }
+              }
         }
     }
   }
@@ -434,7 +466,7 @@ class Serialization(val system: ExtendedActorSystem) extends Extension {
   private[akka] val bindings: immutable.Seq[ClassSerializer] = {
     val fromConfig = for {
       (className: String, alias: String) <- settings.SerializationBindings
-      if alias != "none" && checkGoogleProtobuf(className) && checkAkkaProtobuf(className)
+      if alias != "none" && checkGoogleProtobuf(className) && checkAkkaProtobuf(className) && checkScalaPb(className)
     } yield (system.dynamicAccess.getClassFor[Any](className).get, serializers(alias))
 
     val fromSettings = serializerDetails.flatMap { detail =>
@@ -454,7 +486,10 @@ class Serialization(val system: ExtendedActorSystem) extends Extension {
   }
 
   private def warnUnexpectedNonAkkaSerializer(clazz: Class[_], ser: Serializer): Boolean = {
-    if (clazz.getName.startsWith("akka.") && !ser.getClass.getName.startsWith("akka.")) {
+    val className = clazz.getName
+    if (className.startsWith("akka.") && !ser.getClass.getName.startsWith("akka.") &&
+        // no serializers for these in Akka
+        !(className.startsWith("akka.grpc") || className.startsWith("akka.http"))) {
       log.warning(
         "Using serializer [{}] for message [{}]. Note that this serializer " +
         "is not implemented by Akka. It's not recommended to replace serializers for messages " +
@@ -474,6 +509,9 @@ class Serialization(val system: ExtendedActorSystem) extends Extension {
   // akka-protobuf is now not a dependency of remote so only load if user has explicitly added it
   // remove in 2.7
   private def checkAkkaProtobuf(className: String): Boolean = checkClass("akka.protobuf", className)
+
+  // for convenience scalapb.GeneratedMessage is defined in reference.conf, but might not be included in classpath
+  private def checkScalaPb(className: String): Boolean = checkClass("scalapb.GeneratedMessage", className)
 
   private def checkClass(prefix: String, className: String): Boolean =
     !className.startsWith(prefix) || system.dynamicAccess.getClassFor[Any](className).isSuccess

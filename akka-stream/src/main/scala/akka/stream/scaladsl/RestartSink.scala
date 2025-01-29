@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
-import akka.NotUsed
-import akka.stream.stage.{ GraphStage, GraphStageLogic }
-import akka.stream.{ Attributes, Inlet, RestartSettings, SinkShape }
-
 import scala.concurrent.duration.FiniteDuration
+
+import akka.NotUsed
+import akka.stream.{ Attributes, Inlet, RestartSettings, SinkShape }
+import akka.stream.stage.{ GraphStage, GraphStageLogic }
 
 /**
  * A RestartSink wraps a [[Sink]] that gets restarted when it completes or fails.

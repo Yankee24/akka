@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton
@@ -8,6 +8,7 @@ import scala.concurrent.duration._
 
 import com.typesafe.config.ConfigFactory
 import language.postfixOps
+import scala.annotation.nowarn
 
 import akka.actor.Actor
 import akka.actor.ActorIdentity
@@ -40,7 +41,6 @@ object ClusterSingletonManagerSpec extends MultiNodeConfig {
   commonConfig(ConfigFactory.parseString("""
     akka.loglevel = INFO
     akka.actor.provider = "cluster"
-    akka.remote.log-remote-lifecycle-events = off
     akka.cluster.downing-provider-class = akka.cluster.testkit.AutoDowning
     akka.cluster.testkit.auto-down-unreachable-after = 0s
     akka.remote.artery.advanced.aeron.idle-cpu-level = 3
@@ -168,6 +168,7 @@ class ClusterSingletonManagerMultiJvmNode6 extends ClusterSingletonManagerSpec
 class ClusterSingletonManagerMultiJvmNode7 extends ClusterSingletonManagerSpec
 class ClusterSingletonManagerMultiJvmNode8 extends ClusterSingletonManagerSpec
 
+@nowarn("msg=Use Akka Distributed Cluster")
 class ClusterSingletonManagerSpec
     extends MultiNodeSpec(ClusterSingletonManagerSpec)
     with STMultiNodeSpec

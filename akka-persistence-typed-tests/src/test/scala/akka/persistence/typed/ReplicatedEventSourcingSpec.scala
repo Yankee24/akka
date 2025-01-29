@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed
@@ -7,8 +7,10 @@ package akka.persistence.typed
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-
+import org.scalatest.concurrent.Eventually
+import org.scalatest.wordspec.AnyWordSpecLike
 import akka.Done
+import akka.actor.testkit.typed.TestException
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.actor.typed.ActorRef
@@ -18,8 +20,10 @@ import akka.persistence.testkit.query.scaladsl.PersistenceTestKitReadJournal
 import akka.persistence.testkit.scaladsl.PersistenceTestKit
 import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior, ReplicatedEventSourcing, ReplicationContext }
 import akka.serialization.jackson.CborSerializable
-import org.scalatest.concurrent.Eventually
-import org.scalatest.wordspec.AnyWordSpecLike
+
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 object ReplicatedEventSourcingSpec {
 
@@ -78,11 +82,48 @@ object ReplicatedEventSourcingSpec {
   def testBehavior(
       entityId: String,
       replicaId: String,
-      probe: Option[ActorRef[EventAndContext]] = None): Behavior[Command] =
+      probe: Option[ActorRef[EventAndContext]] = None,
+      allReplicas: Set[ReplicaId] = AllReplicas,
+      modifyBehavior: EventSourcedBehavior[Command, String, State] => EventSourcedBehavior[Command, String, State] =
+        identity): Behavior[Command] =
     ReplicatedEventSourcing.commonJournalConfig(
       ReplicationId("ReplicatedEventSourcingSpec", entityId, ReplicaId(replicaId)),
-      AllReplicas,
-      PersistenceTestKitReadJournal.Identifier)(replicationContext => eventSourcedBehavior(replicationContext, probe))
+      allReplicas,
+      PersistenceTestKitReadJournal.Identifier)(replicationContext =>
+      modifyBehavior(eventSourcedBehavior(replicationContext, probe)))
+
+  def nonReplicatedEventSourcedBehavior(
+      persistenceId: PersistenceId,
+      probe: Option[ActorRef[String]]): EventSourcedBehavior[Command, String, State] = {
+    EventSourcedBehavior[Command, String, State](
+      persistenceId,
+      State(Nil),
+      (state, command) =>
+        command match {
+          case GetState(replyTo) =>
+            replyTo ! state
+            Effect.none
+          case GetReplica(_) =>
+            Effect.unhandled
+          case StoreMe(evt, ack, latch) =>
+            latch.countDown()
+            latch.await(10, TimeUnit.SECONDS)
+            Effect.persist(evt).thenRun(_ => ack ! Done)
+          case StoreUs(evts, replyTo, latch) =>
+            latch.countDown()
+            latch.await(10, TimeUnit.SECONDS)
+            Effect.persist(evts).thenRun(_ => replyTo ! Done)
+          case Stop =>
+            Effect.stop()
+        },
+      (state, event) => {
+        probe.foreach(_ ! event)
+        state.copy(all = event :: state.all)
+      })
+  }
+
+  def nonReplictedTestBehavior(entityId: String, probe: Option[ActorRef[String]] = None): Behavior[Command] =
+    nonReplicatedEventSourcedBehavior(PersistenceId.of("ReplicatedEventSourcingSpec", entityId), probe)
 
 }
 
@@ -459,6 +500,108 @@ class ReplicatedEventSourcingSpec
       // should restart the replication stream
       r2 ! StoreMe("from r2", probe.ref)
       eventProbeR1.expectMessageType[EventAndContext].event shouldEqual "from r2"
+    }
+
+    "migrate from EventSourcedBehavior to ReplicatedEventSourcedBehavior" in {
+      val entityId = nextEntityId
+      val probe = createTestProbe[Done]()
+      // first ordinary EventSourced
+      val es1 = spawn(nonReplictedTestBehavior(entityId))
+      es1 ! StoreMe("from es1", probe.ref)
+      probe.expectMessage(Done)
+      es1 ! Stop
+
+      // then migrate to ReplicatedEventSourced, one replica must keep the same persistenceId
+      // as the original EventSourced, i.e. without replicaId
+      val allReplicas = Set(ReplicaId.empty, ReplicaId("R2"), ReplicaId("R3"))
+      val r1 = spawn(testBehavior(entityId, "", allReplicas = allReplicas))
+      val stateProbe = createTestProbe[State]()
+      r1 ! GetState(stateProbe.ref)
+      stateProbe.expectMessageType[State].all.reverse shouldEqual List("from es1")
+
+      r1 ! StoreMe("from r1", probe.ref)
+      probe.expectMessage(Done)
+      val r2 = spawn(testBehavior(entityId, "R2", allReplicas = allReplicas))
+      eventually {
+        r2 ! GetState(stateProbe.ref)
+        stateProbe.expectMessageType[State].all.reverse shouldEqual List("from es1", "from r1")
+      }
+
+      r2 ! StoreMe("from r2", probe.ref)
+      probe.expectMessage(Done)
+      eventually {
+        r1 ! GetState(stateProbe.ref)
+        stateProbe.expectMessageType[State].all.reverse shouldEqual List("from es1", "from r1", "from r2")
+      }
+    }
+
+    "intercept replicated events between two entities" in {
+      val entityId = nextEntityId
+      val probe = createTestProbe[Done]()
+      case class Intercepted(origin: ReplicaId, seqNr: Long, event: String)
+      val interceptProbe = createTestProbe[Intercepted]()
+      val addInterceptor: EventSourcedBehavior[Command, String, State] => EventSourcedBehavior[Command, String, State] =
+        _.withReplicatedEventInterceptor { (_, event, origin, seqNr) =>
+          interceptProbe.ref ! Intercepted(origin, seqNr, event)
+          Future.successful(Done)
+        }
+      val r1 = spawn(testBehavior(entityId, "R1", modifyBehavior = addInterceptor))
+      val r2 = spawn(testBehavior(entityId, "R2", modifyBehavior = addInterceptor))
+      r1 ! StoreMe("from r1", probe.ref)
+      r2 ! StoreMe("from r2", probe.ref)
+      eventually {
+        val probe = createTestProbe[State]()
+        r1 ! GetState(probe.ref)
+        probe.expectMessageType[State].all.toSet shouldEqual Set("from r1", "from r2")
+      }
+      eventually {
+        val probe = createTestProbe[State]()
+        r2 ! GetState(probe.ref)
+        probe.expectMessageType[State].all.toSet shouldEqual Set("from r1", "from r2")
+      }
+      val intercepted = interceptProbe.receiveMessages(2)
+      intercepted.map(_.event).toSet shouldEqual Set("from r1", "from r2")
+    }
+
+    "intercept and delay replicated events between two entities" in {
+      val entityId = nextEntityId
+      val probe = createTestProbe[Done]()
+      case class Intercepted(origin: ReplicaId, seqNr: Long, event: String)
+      val interceptProbe = createTestProbe[Intercepted]()
+      implicit val ec: ExecutionContext = system.executionContext
+      val addInterceptor: EventSourcedBehavior[Command, String, State] => EventSourcedBehavior[Command, String, State] =
+        _.withReplicatedEventInterceptor { (_, event, origin, seqNr) =>
+          interceptProbe.ref ! Intercepted(origin, seqNr, event)
+          akka.pattern.after(50.millis)(Future { Done })
+        }
+      val r1 = spawn(testBehavior(entityId, "R1", modifyBehavior = addInterceptor))
+      val r2 = spawn(testBehavior(entityId, "R2", modifyBehavior = addInterceptor))
+      r1 ! StoreMe("from r1", probe.ref)
+      r2 ! StoreMe("from r2", probe.ref)
+      eventually {
+        val probe = createTestProbe[State]()
+        r1 ! GetState(probe.ref)
+        probe.expectMessageType[State].all.toSet shouldEqual Set("from r1", "from r2")
+      }
+      eventually {
+        val probe = createTestProbe[State]()
+        r2 ! GetState(probe.ref)
+        probe.expectMessageType[State].all.toSet shouldEqual Set("from r1", "from r2")
+      }
+      val intercepted = interceptProbe.receiveMessages(2)
+      intercepted.map(_.event).toSet shouldEqual Set("from r1", "from r2")
+    }
+
+    "fail entity if replicated event interceptor fails" in {
+      val entityId = nextEntityId
+      val probe = createTestProbe[Done]()
+      val r1 = spawn(testBehavior(entityId, "R1", modifyBehavior = _.withReplicatedEventInterceptor { (_, _, _, _) =>
+        throw TestException("immediate fail")
+      }))
+      val r2 = spawn(testBehavior(entityId, "R2"))
+      r1 ! StoreMe("from r1", probe.ref)
+      r2 ! StoreMe("from r2", probe.ref)
+      probe.expectTerminated(r1)
     }
   }
 }

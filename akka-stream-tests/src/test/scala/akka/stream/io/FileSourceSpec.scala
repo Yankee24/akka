@@ -1,26 +1,30 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.io
 
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.{ Files, NoSuchFileException }
+import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.util.Random
 
 import scala.annotation.nowarn
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-import com.google.common.jimfs.{ Configuration, Jimfs }
+import com.google.common.jimfs.Configuration
+import com.google.common.jimfs.Jimfs
 
-import akka.actor.ActorSystem
 import akka.stream._
 import akka.stream.IOResult._
-import akka.stream.impl.{ PhasedFusingActorMaterializer, StreamSupervisor }
+import akka.stream.impl.PhasedFusingActorMaterializer
+import akka.stream.impl.StreamSupervisor
 import akka.stream.impl.StreamSupervisor.Children
 import akka.stream.io.FileSourceSpec.Settings
-import akka.stream.scaladsl.{ FileIO, Keep, Sink }
+import akka.stream.scaladsl.FileIO
+import akka.stream.scaladsl.Keep
+import akka.stream.scaladsl.Sink
 import akka.stream.testkit._
 import akka.stream.testkit.Utils._
 import akka.stream.testkit.scaladsl.TestSink
@@ -32,9 +36,6 @@ object FileSourceSpec {
 
 @nowarn
 class FileSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
-
-  val settings = ActorMaterializerSettings(system).withDispatcher("akka.actor.default-dispatcher")
-  implicit val materializer: ActorMaterializer = ActorMaterializer(settings)
 
   val fs = Jimfs.newFileSystem("FileSourceSpec", Configuration.unix())
 
@@ -117,7 +118,7 @@ class FileSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
       val (future, p) = FileIO
         .fromPath(testFile, chunkSize)
         .addAttributes(Attributes.inputBuffer(1, 2))
-        .toMat(TestSink.probe)(Keep.both)
+        .toMat(TestSink())(Keep.both)
         .run()(mat)
       p.request(1)
       p.expectNext().utf8String should ===(TestText.splitAt(chunkSize)._1)
@@ -158,7 +159,7 @@ class FileSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
       val (future, p) = FileIO
         .fromPath(testFile, chunkSize)
         .addAttributes(Attributes.inputBuffer(1, 2))
-        .toMat(TestSink.probe)(Keep.both)
+        .toMat(TestSink())(Keep.both)
         .run()
       p.request(1)
       p.expectNext().utf8String should ===(TestText.splitAt(chunkSize)._1)
@@ -251,45 +252,36 @@ class FileSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
     }
 
     "use dedicated blocking-io-dispatcher by default" in {
-      val sys = ActorSystem("dispatcher-testing", UnboundedMailboxConfig)
-      val materializer = ActorMaterializer()(sys)
-      try {
-        val p = FileIO.fromPath(manyLines).runWith(TestSink.probe)(materializer)
+      val p = FileIO.fromPath(manyLines).runWith(TestSink())
 
-        materializer
-          .asInstanceOf[PhasedFusingActorMaterializer]
-          .supervisor
-          .tell(StreamSupervisor.GetChildren, testActor)
-        val ref = expectMsgType[Children].children.find(_.path.toString contains "fileSource").get
-        try assertDispatcher(ref, ActorAttributes.IODispatcher.dispatcher)
-        finally p.cancel()
-      } finally shutdown(sys)
+      SystemMaterializer(system).materializer
+        .asInstanceOf[PhasedFusingActorMaterializer]
+        .supervisor
+        .tell(StreamSupervisor.GetChildren, testActor)
+      val ref = expectMsgType[Children].children.find(_.path.toString contains "fileSource").get
+      try assertDispatcher(ref, ActorAttributes.IODispatcher.dispatcher)
+      finally p.cancel()
     }
 
     "allow overriding the dispatcher using Attributes" in {
-      val sys = ActorSystem("dispatcher-testing", UnboundedMailboxConfig)
-      val materializer = ActorMaterializer()(sys)
+      val p = FileIO
+        .fromPath(manyLines)
+        .addAttributes(ActorAttributes.dispatcher("akka.actor.default-dispatcher"))
+        .runWith(TestSink())
 
-      try {
-        val p = FileIO
-          .fromPath(manyLines)
-          .addAttributes(ActorAttributes.dispatcher("akka.actor.default-dispatcher"))
-          .runWith(TestSink.probe)(materializer)
-
-        materializer
-          .asInstanceOf[PhasedFusingActorMaterializer]
-          .supervisor
-          .tell(StreamSupervisor.GetChildren, testActor)
-        val ref = expectMsgType[Children].children.find(_.path.toString contains "fileSource").get
-        try assertDispatcher(ref, "akka.actor.default-dispatcher")
-        finally p.cancel()
-      } finally shutdown(sys)
+      SystemMaterializer(system).materializer
+        .asInstanceOf[PhasedFusingActorMaterializer]
+        .supervisor
+        .tell(StreamSupervisor.GetChildren, testActor)
+      val ref = expectMsgType[Children].children.find(_.path.toString contains "fileSource").get
+      try assertDispatcher(ref, "akka.actor.default-dispatcher")
+      finally p.cancel()
     }
 
     "not signal onComplete more than once" in {
       FileIO
         .fromPath(testFile, 2 * TestText.length)
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
         .requestNext(ByteString(TestText, UTF_8.name))
         .expectComplete()
         .expectNoMessage(1.second)

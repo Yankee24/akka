@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.io
@@ -7,15 +7,13 @@ package akka.io
 import java.lang.{ Iterable => JIterable }
 import java.net.InetSocketAddress
 
-import scala.collection.immutable
-
 import scala.annotation.nowarn
+import scala.collection.immutable
 
 import akka.actor._
 import akka.io.Inet.SocketOption
 import akka.io.Udp.UdpSettings
 import akka.util.ByteString
-import akka.util.ccompat._
 
 /**
  * UDP Extension for Akka’s IO layer.
@@ -29,7 +27,6 @@ import akka.util.ccompat._
  *
  * The Java API for generating UDP commands is available at [[UdpConnectedMessage]].
  */
-@ccompatUsedUntil213
 object UdpConnected extends ExtensionId[UdpConnectedExt] with ExtensionIdProvider {
 
   override def lookup = UdpConnected
@@ -163,9 +160,8 @@ class UdpConnectedExt(system: ExtendedActorSystem) extends IO.Extension {
 
   val manager: ActorRef = {
     system.systemActorOf(
-      props = Props(classOf[UdpConnectedManager], this)
-        .withDispatcher(settings.ManagementDispatcher)
-        .withDeploy(Deploy.local),
+      props =
+        Props(new UdpConnectedManager(this)).withDispatcher(settings.ManagementDispatcher).withDeploy(Deploy.local),
       name = "IO-UDP-CONN")
   }
 
@@ -259,7 +255,7 @@ object UdpConnectedMessage {
   def resumeReading: Command = ResumeReading
 
   implicit private def fromJava[T](coll: JIterable[T]): immutable.Iterable[T] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     coll.asScala.to(immutable.Iterable)
   }
 }

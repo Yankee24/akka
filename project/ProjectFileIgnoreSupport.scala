@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka
@@ -9,12 +9,13 @@ import java.io.File
 import com.typesafe.config.ConfigFactory
 import sbt.ConsoleLogger
 
+// used by JavaFormatter
 class ProjectFileIgnoreSupport(ignoreConfigFile: File, descriptor: String) {
   private val stdoutLogger = ConsoleLogger(System.out)
 
-  private val javaSourceDirectories = Set("java", Jdk9.JAVA_SOURCE_DIRECTORY, Jdk9.JAVA_TEST_SOURCE_DIRECTORY)
+  private val javaSourceDirectories = Set("java")
 
-  private val scalaSourceDirectories = Set("scala", Jdk9.SCALA_SOURCE_DIRECTORY, Jdk9.SCALA_TEST_SOURCE_DIRECTORY)
+  private val scalaSourceDirectories = Set("scala")
 
   private lazy val ignoreConfig = {
     require(
@@ -24,13 +25,13 @@ class ProjectFileIgnoreSupport(ignoreConfigFile: File, descriptor: String) {
   }
 
   private lazy val ignoredFiles: Set[String] = {
-    import scala.collection.JavaConverters._
+    import scala.jdk.CollectionConverters._
     stdoutLogger.debug(s"Loading ignored-files from $ignoreConfigFile:[${ignoreConfig.origin().url().toURI.getPath}]")
     ignoreConfig.getStringList("ignored-files").asScala.toSet
   }
 
   private lazy val ignoredPackages: Set[String] = {
-    import scala.collection.JavaConverters._
+    import scala.jdk.CollectionConverters._
     stdoutLogger.debug(
       s"Loading ignored-packages from $ignoreConfigFile:[${ignoreConfig.origin().url().toURI.getPath}]")
     ignoreConfig.getStringList("ignored-packages").asScala.toSet

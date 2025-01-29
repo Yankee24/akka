@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.stream
@@ -13,6 +13,7 @@ import scala.concurrent.duration._
 import scala.collection.immutable
 import akka.testkit.{ AkkaSpec, TestLatch }
 
+import scala.annotation.nowarn
 import scala.concurrent.Await
 
 class RateTransformationDocSpec extends AkkaSpec {
@@ -58,7 +59,7 @@ class RateTransformationDocSpec extends AkkaSpec {
     val lastFlow = Flow[Double].extrapolate(Iterator.continually(_))
     //#extrapolate-last
 
-    val (probe, fut) = TestSource.probe[Double].via(lastFlow).grouped(10).toMat(Sink.head)(Keep.both).run()
+    val (probe, fut) = TestSource[Double]().via(lastFlow).grouped(10).toMat(Sink.head)(Keep.both).run()
 
     probe.sendNext(1.0)
     val extrapolated = fut.futureValue
@@ -72,7 +73,7 @@ class RateTransformationDocSpec extends AkkaSpec {
     val seedFlow = Flow[Double].extrapolate(Iterator.continually(_), Some(initial))
     //#extrapolate-seed
 
-    val fut = TestSource.probe[Double].via(seedFlow).grouped(10).runWith(Sink.head)
+    val fut = TestSource[Double]().via(seedFlow).grouped(10).runWith(Sink.head)
 
     val extrapolated = fut.futureValue
     extrapolated.size shouldBe 10
@@ -80,6 +81,7 @@ class RateTransformationDocSpec extends AkkaSpec {
   }
 
   "extrapolate should track drift" in {
+    @nowarn("msg=never used") // sample snippet
     //#extrapolate-drift
     val driftFlow = Flow[Double].map(_ -> 0).extrapolate[(Double, Int)] { case (i, _) => Iterator.from(1).map(i -> _) }
     //#extrapolate-drift
@@ -88,7 +90,7 @@ class RateTransformationDocSpec extends AkkaSpec {
       case (d, _) => latch.countDown(); Iterator.from(1).map(d -> _)
     }
 
-    val (pub, sub) = TestSource.probe[Double].via(realDriftFlow).toMat(TestSink[(Double, Int)]())(Keep.both).run()
+    val (pub, sub) = TestSource[Double]().via(realDriftFlow).toMat(TestSink[(Double, Int)]())(Keep.both).run()
 
     sub.request(1)
     pub.sendNext(1.0)
@@ -103,13 +105,14 @@ class RateTransformationDocSpec extends AkkaSpec {
   }
 
   "expand should track drift" in {
+    @nowarn("msg=never used") // sample snippet
     //#expand-drift
     val driftFlow = Flow[Double].expand(i => Iterator.from(0).map(i -> _))
     //#expand-drift
     val latch = TestLatch(2)
     val realDriftFlow = Flow[Double].expand(d => { latch.countDown(); Iterator.from(0).map(d -> _) })
 
-    val (pub, sub) = TestSource.probe[Double].via(realDriftFlow).toMat(TestSink[(Double, Int)]())(Keep.both).run()
+    val (pub, sub) = TestSource[Double]().via(realDriftFlow).toMat(TestSink[(Double, Int)]())(Keep.both).run()
 
     sub.request(1)
     pub.sendNext(1.0)

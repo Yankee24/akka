@@ -1,24 +1,13 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.util
 
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpec
-
 import scala.concurrent.duration._
 
-object FrequencyListSpec {
-  // controlled clock for testing recency windows
-  // durations are always in seconds
-  class TestClock extends RecencyList.Clock {
-    private var time = 0L
-    def tick(): Unit = time += 1
-    override def currentTime(): Long = time
-    override def earlierTime(duration: FiniteDuration): Long = currentTime() - duration.toSeconds
-  }
-}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
 class FrequencyListSpec extends AnyWordSpec with Matchers {
 
@@ -93,7 +82,7 @@ class FrequencyListSpec extends AnyWordSpec with Matchers {
     }
 
     "track overall recency of elements when enabled" in {
-      val clock = new RecencyListSpec.TestClock
+      val clock = new TestClock
       val frequency = new FrequencyList[String](dynamicAging = false, OptionVal.Some(clock))
 
       check(frequency, Nil)

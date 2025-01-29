@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.coordination.lease.javadsl;
+
+import static org.junit.Assert.assertEquals;
 
 import akka.actor.ActorSystem;
 import akka.coordination.lease.scaladsl.LeaseProviderSpec;
@@ -10,8 +12,6 @@ import akka.testkit.AkkaJUnitActorSystemResource;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 public class LeaseProviderTest {
   @Rule

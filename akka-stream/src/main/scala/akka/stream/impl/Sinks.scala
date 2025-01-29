@@ -1,24 +1,28 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl
 
 import java.util.function.BinaryOperator
+
+import scala.collection.Factory
 import scala.collection.immutable
 import scala.collection.mutable
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
 import scala.util.control.NonFatal
+
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
+
 import akka.NotUsed
 import akka.annotation.DoNotInherit
 import akka.annotation.InternalApi
-import akka.dispatch.ExecutionContexts
 import akka.event.Logging
 import akka.stream._
 import akka.stream.ActorAttributes.StreamSubscriptionTimeout
@@ -30,7 +34,6 @@ import akka.stream.impl.Stages.DefaultAttributes
 import akka.stream.impl.StreamLayout.AtomicModule
 import akka.stream.scaladsl.{ Keep, Sink, SinkQueueWithCancel, Source }
 import akka.stream.stage._
-import akka.util.ccompat._
 
 /**
  * INTERNAL API
@@ -372,7 +375,7 @@ import akka.util.ccompat._
           .foreach {
             case NonFatal(e) => p.tryFailure(e)
             case _           => ()
-          }(akka.dispatch.ExecutionContexts.parasitic)
+          }(ExecutionContext.parasitic)
         p.future
       }
       override def cancel(): Unit = {
@@ -548,7 +551,7 @@ import akka.util.ccompat._
               failStage(e)
           }
         try {
-          sinkFactory(element).onComplete(cb.invoke)(ExecutionContexts.parasitic)
+          sinkFactory(element).onComplete(cb.invoke)(ExecutionContext.parasitic)
         } catch {
           case NonFatal(e) =>
             promise.failure(e)

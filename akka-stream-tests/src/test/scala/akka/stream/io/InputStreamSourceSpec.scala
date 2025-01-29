@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.io
@@ -125,7 +125,7 @@ class InputStreamSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
               }
             },
           chunkSize = 1)
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.request(4)
       probe.expectNext(ByteString("M"))

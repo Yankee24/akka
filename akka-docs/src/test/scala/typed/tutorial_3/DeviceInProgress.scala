@@ -1,18 +1,17 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package typed.tutorial_3
 
 /*
 //#read-protocol-1
+//#device-with-read
 package com.example
 
+//#device-with-read
 //#read-protocol-1
  */
-
-import akka.actor.typed.PostStop
-import akka.actor.typed.Signal
 
 object DeviceInProgress1 {
 
@@ -29,14 +28,15 @@ object DeviceInProgress1 {
 }
 
 object DeviceInProgress2 {
-  import akka.actor.typed.ActorRef
 
   //#device-with-read
+  import akka.actor.typed.ActorRef
   import akka.actor.typed.Behavior
+  import akka.actor.typed.PostStop
+  import akka.actor.typed.Signal
   import akka.actor.typed.scaladsl.AbstractBehavior
   import akka.actor.typed.scaladsl.ActorContext
   import akka.actor.typed.scaladsl.Behaviors
-  import akka.actor.typed.scaladsl.LoggerOps
 
   object Device {
     def apply(groupId: String, deviceId: String): Behavior[Command] =
@@ -55,7 +55,7 @@ object DeviceInProgress2 {
 
     var lastTemperatureReading: Option[Double] = None
 
-    context.log.info2("Device actor {}-{} started", groupId, deviceId)
+    context.log.info("Device actor {}-{} started", groupId, deviceId)
 
     override def onMessage(msg: Command): Behavior[Command] = {
       msg match {
@@ -67,7 +67,7 @@ object DeviceInProgress2 {
 
     override def onSignal: PartialFunction[Signal, Behavior[Command]] = {
       case PostStop =>
-        context.log.info2("Device actor {}-{} stopped", groupId, deviceId)
+        context.log.info("Device actor {}-{} stopped", groupId, deviceId)
         this
     }
 

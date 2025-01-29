@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.routing
 
 import java.util.concurrent.ThreadLocalRandom
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.collection.immutable
 
-import scala.annotation.nowarn
 import com.typesafe.config.Config
 
 import akka.actor.ActorCell
@@ -83,7 +83,6 @@ class SmallestMailboxRoutingLogic extends RoutingLogic {
   }
 
   // TODO should we rewrite this not to use isTerminated?
-  @nowarn("msg=deprecated")
   protected def isTerminated(a: Routee): Boolean = a match {
     case ActorRefRoutee(ref) => ref.isTerminated
     case _                   => false
@@ -181,7 +180,6 @@ class SmallestMailboxRoutingLogic extends RoutingLogic {
  * @param routerDispatcher dispatcher to use for the router head actor, which handles
  *   supervision, death watch and router management messages
  */
-@nowarn("msg=@SerialVersionUID has no effect")
 @SerialVersionUID(1L)
 final case class SmallestMailboxPool(
     nrOfInstances: Int,

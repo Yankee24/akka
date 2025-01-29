@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream;
@@ -12,11 +12,10 @@ import akka.actor.Props;
 import akka.stream.*;
 import akka.stream.javadsl.*;
 import akka.testkit.javadsl.TestKit;
+import java.util.concurrent.TimeUnit;
 import jdocs.AbstractJavaTest;
 import org.junit.Test;
 import scala.concurrent.duration.FiniteDuration;
-
-import java.util.concurrent.TimeUnit;
 
 public class FlowStreamRefsDocTest extends AbstractJavaTest {
 

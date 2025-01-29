@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.serialization
@@ -7,10 +7,10 @@ package akka.remote.serialization
 import java.io.NotSerializableException
 
 import akka.actor._
-import akka.remote.artery.Flush
-import akka.remote.artery.FlushAck
 import akka.remote.{ RemoteWatcher, UniqueAddress }
 import akka.remote.artery.{ ActorSystemTerminating, ActorSystemTerminatingAck, Quarantined, SystemMessageDelivery }
+import akka.remote.artery.Flush
+import akka.remote.artery.FlushAck
 import akka.remote.artery.OutboundHandshake.{ HandshakeReq, HandshakeRsp }
 import akka.remote.artery.compress.CompressionProtocol.{
   ActorRefCompressionAdvertisement,

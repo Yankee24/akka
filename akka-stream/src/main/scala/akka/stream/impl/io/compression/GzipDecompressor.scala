@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl.io.compression
@@ -27,7 +27,7 @@ import akka.util.ByteString
     trait Step extends ParseStep[ByteString] {
       override def onTruncation(): Unit = failStage(new ZipException("Truncated GZIP stream"))
     }
-    override case object inflating extends Inflate(false) with Step
+    override case object inflating extends Inflate(noPostProcessing = false) with Step
     startWith(ReadHeaders)
 
     /** Reading the header bytes */

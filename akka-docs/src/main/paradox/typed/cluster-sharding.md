@@ -7,6 +7,14 @@ You are viewing the documentation for the new actor APIs, to view the Akka Class
 
 ## Module info
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Cluster Sharding, you must add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -110,7 +118,7 @@ Java
 ### A note about EntityRef and serialization
 
 If including @apidoc[typed.*.EntityRef]'s in messages or the `State`/`Event`s of an @apidoc[typed.*.EventSourcedBehavior], those `EntityRef`s will need to be serialized.
-The @scala[`entityId`, `typeKey`, and (in multi-DC use-cases) `dataCenter` of an `EntityRef`]@java[`getEntityId`, `getTypeKey`, and (in multi-DC use-cases) `getDataCenter` methods of an `EntityRef`]
+The @scala[`entityId` and `typeKey` of an `EntityRef`]@java[`getEntityId` and `getTypeKey` methods of an `EntityRef`]
 provide exactly the information needed upon deserialization to regenerate an `EntityRef` equivalent to the one serialized, given an expected
 type of messages to send to the entity.
 
@@ -209,7 +217,7 @@ in one rebalance round. The lower result of `rebalance-relative-limit` and `reba
 An alternative allocation strategy is the @apidoc[ExternalShardAllocationStrategy] which allows
 explicit control over where shards are allocated via the @apidoc[ExternalShardAllocation] extension.
 
-This can be used, for example, to match up Kafka Partition consumption with shard locations. The video [How to co-locate Kafka Partitions with Akka Cluster Shards](https://akka.io/blog/news/2020/03/18/akka-sharding-kafka-video) explains a setup for it. Alpakka Kafka provides [an extension for Akka Cluster Sharding](https://doc.akka.io/docs/alpakka-kafka/current/cluster-sharding.html).
+This can be used, for example, to match up Kafka Partition consumption with shard locations. The video [How to co-locate Kafka Partitions with Akka Cluster Shards](https://akka.io/blog/news/2020/03/18/akka-sharding-kafka-video) explains a setup for it. Alpakka Kafka provides [an extension for Akka Cluster Sharding](https://doc.akka.io/libraries/alpakka-kafka/current/cluster-sharding.html).
 
 To use it set it as the allocation strategy on your @apidoc[typed.*.Entity]:
 
@@ -235,9 +243,47 @@ support a greater number of shards.
 
 #### Example project for external allocation strategy
 
-@extref[Kafka to Cluster Sharding](samples:akka-samples-kafka-to-sharding)
+[akka-sample-kafka-to-sharding-scala.zip](../attachments/akka-sample-kafka-to-sharding-scala.zip)
 is an example project that can be downloaded, and with instructions of how to run, that demonstrates how to use
 external sharding to co-locate Kafka partition consumption with shards.
+
+### Colocate Shards
+
+When using the default shard allocation strategy the shards for different entity types are allocated independent of
+each other, i.e. the same shard identifier for the different entity types may be allocated to different nodes.
+Colocating shards can be useful if it's known that certain entities interact or share resources with some other
+entities and that can be defined by using the same shard identifier.
+
+To colocate such shards you can use the @apidoc[akka.cluster.sharding.ConsistentHashingShardAllocationStrategy].
+
+Let's look at an example where the purpose is to colocate `Device` entities with the `Building` entity they belong to.
+To use the same shard identifier we need to use a custom @apidoc[akka.cluster.sharding.typed.ShardingMessageExtractor]
+for the `Device` and `Building` entities:
+
+Scala
+: @@snip [ConsistentHashingShardAllocationCompileOnlySpec](/akka-cluster-sharding-typed/src/test/scala/docs/akka/cluster/sharding/typed/ConsistentHashingShardAllocationCompileOnlySpec.scala) { #building #device }
+
+Java
+: @@snip [ConsistentHashingShardAllocationCompileOnlyTest](/akka-cluster-sharding-typed/src/test/java/jdocs/akka/cluster/sharding/typed/ConsistentHashingShardAllocationCompileOnlyTest.java) { #building #device }
+
+Set the allocation strategy and message extractor on your @apidoc[typed.*.Entity]:
+
+Scala
+: @@snip [ConsistentHashingShardAllocationCompileOnlySpec](/akka-cluster-sharding-typed/src/test/scala/docs/akka/cluster/sharding/typed/ConsistentHashingShardAllocationCompileOnlySpec.scala) { #init }
+
+Java
+: @@snip [ConsistentHashingShardAllocationCompileOnlyTest](/akka-cluster-sharding-typed/src/test/java/jdocs/akka/cluster/sharding/typed/ConsistentHashingShardAllocationCompileOnlyTest.java) { #init }
+
+@@@ note
+Create a new instance of the `ConsistentHashingShardAllocationStrategy` for each entity type, i.e. a `ConsistentHashingShardAllocationStrategy` instance must not be shared between different entity types.
+@@@
+
+The allocation strategy is using [Consistent Hashing](https://tom-e-white.com/2007/11/consistent-hashing.html)
+of the Cluster membership ring to assign a shard to a node. When adding or removing nodes it will rebalance
+according to the new consistent hashing, but that means that only a few shards will be rebalanced and others
+remain on the same location. When there are changes to the Cluster membership the shards may be on different
+nodes for a while, but eventually, when the membership is stable, the shards with the same identifier will
+end up on the same node.
 
 ### Custom shard allocation
 
@@ -634,6 +680,13 @@ Reasons for disabling:
 
 For supporting remembered entities in an environment without disk storage use `eventsourced` mode instead.
 
+@@@ note { title="Java 17" }
+
+When using `remember-entities-store=ddata` the remember entities store is persisted to disk by LMDB.
+When running with Java 17 you have to add JVM flags `--add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED`.
+
+@@@
+
 #### Event sourced mode
 
 Enable `eventsourced` mode with:
@@ -704,7 +757,7 @@ for more information about `min-nr-of-members`.
 
 ## Health check
 
-An [Akka Management compatible health check](https://doc.akka.io/docs/akka-management/current/healthchecks.html) is included that returns healthy once the local shard region
+An @extref:[Akka Management compatible health check](akka-management:healthchecks.html) is included that returns healthy once the local shard region
 has registered with the coordinator. This health check should be used in cases where you don't want to receive production traffic until the local shard region is ready to retrieve locations
 for shards. For shard regions that aren't critical and therefore should not block this node becoming ready do not include them.
 
@@ -724,6 +777,8 @@ Monitoring of each shard region is off by default. Add them by defining the enti
 akka.cluster.sharding.healthcheck.names = ["counter-1", "HelloWorld"]
 ```
 
+The health check is disabled (always returns success true) after a duration of failing checks after the Cluster member is up. Otherwise, it would stall a Kubernetes rolling update when adding a new entity type in the new version.
+
 See also additional information about how to make @ref:[smooth rolling updates](../additional/rolling-updates.md#cluster-sharding).
 
 ## Inspecting cluster sharding state
@@ -731,8 +786,8 @@ See also additional information about how to make @ref:[smooth rolling updates](
 Two requests to inspect the cluster state are available:
 
 @apidoc[akka.cluster.sharding.typed.GetShardRegionState] which will reply with a 
-@apidoc[ShardRegion.CurrentShardRegionState] that contains the identifiers of the shards running in
-a Region and what entities are alive for each of them.
+@scala[@scaladoc[ShardRegion.CurrentShardRegionState](akka.cluster.sharding.ShardRegion.CurrentShardRegionState)]@java[@javadoc[ShardRegion.CurrentShardRegionState](akka.cluster.sharding.ShardRegion$)]
+that contains the identifiers of the shards running in a Region and what entities are alive for each of them.
 
 Scala
 :  @@snip [ShardingCompileOnlySpec.scala](/akka-cluster-sharding-typed/src/test/scala/docs/akka/cluster/sharding/typed/ShardingCompileOnlySpec.scala) { #get-shard-region-state }
@@ -741,8 +796,8 @@ Java
 :  @@snip [ShardingCompileOnlyTest.java](/akka-cluster-sharding-typed/src/test/java/jdocs/akka/cluster/sharding/typed/ShardingCompileOnlyTest.java) { #get-shard-region-state }
 
 @apidoc[akka.cluster.sharding.typed.GetClusterShardingStats] which will query all the regions in the cluster and reply with a
-@apidoc[ShardRegion.ClusterShardingStats] containing the identifiers of the shards running in each region and a count
-of entities that are alive in each shard.
+@scala[@scaladoc[ShardRegion.ClusterShardingStats](akka.cluster.sharding.ShardRegion.ClusterShardingStats)]@java[@javadoc[ShardRegion.ClusterShardingStats](akka.cluster.sharding.ShardRegion$)]
+containing the identifiers of the shards running in each region and a count of entities that are alive in each shard.
 
 Scala
 :  @@snip [ShardingCompileOnlySpec.scala](/akka-cluster-sharding-typed/src/test/scala/docs/akka/cluster/sharding/typed/ShardingCompileOnlySpec.scala) { #get-cluster-sharding-stats }
@@ -835,8 +890,8 @@ as described in @ref:[Shard allocation](#shard-allocation).
 
 ## Example project
 
-@java[@extref[Sharding example project](samples:akka-samples-cluster-sharding-java)]
-@scala[@extref[Sharding example project](samples:akka-samples-cluster-sharding-scala)]
+@java[[Sharding example project](../attachments/akka-sample-sharding-java.zip)]
+@scala[[Sharding example project](../attachments/akka-sample-sharding-scala.zip)]
 is an example project that can be downloaded, and with instructions of how to run.
 
 This project contains a KillrWeather sample illustrating how to use Cluster Sharding.

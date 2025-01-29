@@ -1,14 +1,15 @@
 /*
- * Copyright (C) 2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2022-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.scaladsl
+
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.UnhandledMessage
 import akka.actor.testkit.typed.TestKitSettings
 import akka.actor.testkit.typed.scaladsl.{ FishingOutcomes, LogCapturing, ScalaTestWithActorTestKit, TestProbe }
 import akka.actor.typed.{ ActorRef, Behavior }
-import org.scalatest.wordspec.AnyWordSpecLike
 
 object ActorContextDelegateSpec {
   sealed trait PingPongCommand

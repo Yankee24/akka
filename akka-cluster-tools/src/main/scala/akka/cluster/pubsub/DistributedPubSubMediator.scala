@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.pubsub
@@ -250,7 +250,7 @@ object DistributedPubSubMediator {
      * Java API
      */
     def getTopics(): java.util.Set[String] = {
-      import akka.util.ccompat.JavaConverters._
+      import scala.jdk.CollectionConverters._
       topics.asJava
     }
   }
@@ -448,7 +448,7 @@ object DistributedPubSubMediator {
       }
 
       def newGroupActor(encGroup: String): ActorRef = {
-        val g = context.actorOf(Props(classOf[Group], emptyTimeToLive, routingLogic), name = encGroup)
+        val g = context.actorOf(Props(new Group(emptyTimeToLive, routingLogic)), name = encGroup)
         context.watch(g)
         context.parent ! RegisterTopic(g)
         g
@@ -846,7 +846,7 @@ class DistributedPubSubMediator(settings: DistributedPubSubSettings)
     val topicPrefix = self.path.toStringWithoutAddress
     (for {
       (_, bucket) <- registry
-      (key, value) <- bucket.content.toSeq
+      (key, _) <- bucket.content.toSeq
       if key.startsWith(topicPrefix)
       topic = key.substring(topicPrefix.length + 1)
       if !topic.contains('/') // exclude group topics
@@ -916,7 +916,7 @@ class DistributedPubSubMediator(settings: DistributedPubSubSettings)
   }
 
   def newTopicActor(encTopic: String): ActorRef = {
-    val t = context.actorOf(Props(classOf[Topic], removedTimeToLive, routingLogic), name = encTopic)
+    val t = context.actorOf(Props(new Topic(removedTimeToLive, routingLogic)), name = encTopic)
     registerTopic(t)
     t
   }

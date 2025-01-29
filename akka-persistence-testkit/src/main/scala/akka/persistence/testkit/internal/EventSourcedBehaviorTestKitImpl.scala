@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit.internal
@@ -8,6 +8,7 @@ import scala.collection.immutable
 import scala.concurrent.Await
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
+
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.testkit.typed.scaladsl.SerializationTestKit
 import akka.actor.typed.ActorRef
@@ -93,7 +94,7 @@ import akka.stream.scaladsl.Sink
     system.log.warn(
       "Persistence TestKit serialization enabled when using EventSourcedBehaviorTestKit, this is not intended. " +
       "make sure you create the system used in the test with the config from EventSourcedBehaviorTestKit.config " +
-      "as described in the docs https://doc.akka.io/docs/akka/current/typed/persistence-testing.html#unit-testing")
+      "as described in the docs https://doc.akka.io/libraries/akka-core/current/typed/persistence-testing.html#unit-testing")
   }
 
   override val persistenceTestKit: PersistenceTestKit = PersistenceTestKit(system)

@@ -1,22 +1,22 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit
 
-import akka.NotUsed
 import java.util.{ List => JList }
 
 import scala.collection.immutable
 import scala.util.{ Failure, Success, Try }
 
+import akka.NotUsed
 import akka.annotation.InternalApi
 import akka.persistence.PersistentRepr
 import akka.persistence.journal.Tagged
 import akka.persistence.testkit.ProcessingPolicy.DefaultPolicies
 import akka.persistence.testkit.internal.TestKitStorage
 import akka.stream.scaladsl.Source
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
  * INTERNAL API

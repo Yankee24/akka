@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl
@@ -80,6 +80,7 @@ import akka.stream.Attributes._
     val mergePrioritized = name("mergePrioritized")
     val flattenMerge = name("flattenMerge")
     val recoverWith = name("recoverWith")
+    val onErrorComplete = name("onErrorComplete")
     val broadcast = name("broadcast")
     val wireTap = name("wireTap")
     val balance = name("balance")
@@ -146,6 +147,8 @@ import akka.stream.Attributes._
     val lazyFlow = name("lazyFlow")
     val futureFlow = name("futureFlow")
     val lazySource = name("lazySource")
+    val lazyFuture = name("lazyFuture")
+    val lazySingle = name("lazySingle")
     val outputStreamSink = name("outputStreamSink") and IODispatcher
     val inputStreamSink = name("inputStreamSink")
     val fileSink = name("fileSink") and IODispatcher

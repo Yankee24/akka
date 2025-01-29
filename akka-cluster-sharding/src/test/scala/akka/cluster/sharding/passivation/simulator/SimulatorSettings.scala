@@ -1,15 +1,17 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.passivation.simulator
 
-import akka.japi.Util.immutableSeq
-import akka.util.ccompat.JavaConverters._
+import java.util.Locale
+
+import scala.collection.immutable
+
 import com.typesafe.config.Config
 
-import java.util.Locale
-import scala.collection.immutable
+import akka.japi.Util.immutableSeq
+import scala.jdk.CollectionConverters._
 
 final case class SimulatorSettings(runs: immutable.Seq[SimulatorSettings.RunSettings], printDetailedStats: Boolean)
 

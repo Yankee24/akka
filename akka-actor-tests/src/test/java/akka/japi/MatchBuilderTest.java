@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.japi;
+
+import static org.junit.Assert.*;
 
 import akka.japi.pf.FI;
 import akka.japi.pf.Match;
@@ -10,8 +12,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.scalatestplus.junit.JUnitSuite;
 import scala.MatchError;
-
-import static org.junit.Assert.*;
 
 public class MatchBuilderTest extends JUnitSuite {
 

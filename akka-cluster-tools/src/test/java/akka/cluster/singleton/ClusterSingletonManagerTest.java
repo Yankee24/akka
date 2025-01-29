@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton;
 
-import akka.actor.ActorSystem;
-
 import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
 import akka.actor.Props;
 
+@SuppressWarnings("deprecation")
 public class ClusterSingletonManagerTest {
 
   @SuppressWarnings("null")

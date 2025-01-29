@@ -1,22 +1,24 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
+import akka.annotation.InternalApi
+
 import java.lang.reflect.{ Modifier, ParameterizedType, TypeVariable }
 import java.lang.reflect.Constructor
-
 import scala.annotation.tailrec
 import scala.annotation.varargs
-
 import akka.japi.Creator
 import akka.util.Reflect
 
 /**
- *
  * Java API: Factory for Props instances.
+ *
+ * INTERNAL API
  */
+@InternalApi
 private[akka] trait AbstractProps {
 
   /**

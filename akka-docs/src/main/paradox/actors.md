@@ -4,6 +4,14 @@
 
 ## Module info
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Classic Actors, add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -92,14 +100,6 @@ scala function object. It is] stored within the actor as its “initial behavior
 see @ref:[Become/Unbecome](#become-unbecome) for
 further information on changing the behavior of an actor after its
 construction.
-
-@@@ div { .group-scala }
-
-#### Here is another example that you can edit and run in the browser:
-
-@@fiddle [ActorDocSpec.scala](/akka-docs/src/test/scala/docs/actor/ActorDocSpec.scala) { #fiddle_code template="Akka" layout="v75" minheight="400px" }
-
-@@@
 
 ### Props
 
@@ -592,7 +592,7 @@ of the matching `ActorRef` if such an actor exists. It is completed with
 failure @apidoc[akka.actor.ActorNotFound] if no such actor exists or the identification
 didn't complete within the supplied `timeout`.
 
-Remote actor addresses may also be looked up, if @ref:[remoting](remoting.md) is enabled:
+Remote actor addresses may also be looked up, if @ref:[remoting](remoting-artery.md) is enabled:
 
 Scala
 :  @@snip [ActorDocSpec.scala](/akka-docs/src/test/scala/docs/actor/ActorDocSpec.scala) { #selection-remote }
@@ -834,8 +834,7 @@ That has benefits such as:
 
 The @javadoc[Receive](akka.actor.AbstractActor.Receive) can be implemented in other ways than using the `ReceiveBuilder` since in the
 end, it is just a wrapper around a Scala `PartialFunction`. In Java, you can implement `PartialFunction` by
-extending `AbstractPartialFunction`. For example, one could implement an adapter
-to [Vavr Pattern Matching DSL](https://docs.vavr.io/#_pattern_matching). See the [Akka Vavr sample project](https://github.com/akka/akka-samples/tree/2.5/akka-sample-vavr) for more details.
+extending `AbstractPartialFunction`.
 
 If the validation of the `ReceiveBuilder` match logic turns out to be a bottleneck for some of your
 actors you can consider implementing it at a lower level by extending @javadoc[UntypedAbstractActor](akka.actor.UntypedAbstractActor) instead
