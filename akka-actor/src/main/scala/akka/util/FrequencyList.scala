@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.util
 
-import akka.annotation.InternalApi
-
 import scala.collection.{ immutable, mutable }
 import scala.concurrent.duration.FiniteDuration
+
+import akka.annotation.InternalApi
 
 /**
  * INTERNAL API
@@ -18,8 +18,8 @@ private[akka] object FrequencyList {
     new FrequencyList[A](dynamicAging, clock = OptionVal.None)
 
   object withOverallRecency {
-    def empty[A](dynamicAging: Boolean = false): FrequencyList[A] =
-      new FrequencyList[A](dynamicAging, OptionVal.Some(new RecencyList.NanoClock))
+    def empty[A](clock: Clock, dynamicAging: Boolean = false): FrequencyList[A] =
+      new FrequencyList[A](dynamicAging, OptionVal.Some(clock))
   }
 
   private final class FrequencyNode[A](val priority: Long) {
@@ -51,7 +51,7 @@ private[akka] object FrequencyList {
  * Dynamic aging can be enabled for least frequently used policies, to automatically 'age' the whole cache on evictions.
  */
 @InternalApi
-private[akka] final class FrequencyList[A](dynamicAging: Boolean, clock: OptionVal[RecencyList.Clock]) {
+private[akka] final class FrequencyList[A](dynamicAging: Boolean, clock: OptionVal[Clock]) {
   import FrequencyList.{ FrequencyNode, Node }
 
   private val frequency = new DoubleLinkedList[FrequencyNode[A]](

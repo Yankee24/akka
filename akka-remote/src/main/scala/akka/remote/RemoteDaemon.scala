@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote
@@ -67,7 +67,7 @@ private[akka] class RemoteSystemDaemon(
 
   import akka.actor.SystemGuardian._
 
-  private val terminating = new Switch(false)
+  private val terminating = new Switch(startAsOn = false)
 
   AddressTerminatedTopic(system).subscribe(this)
 
@@ -75,7 +75,7 @@ private[akka] class RemoteSystemDaemon(
 
   private val allowListEnabled = system.settings.config.getBoolean("akka.remote.deployment.enable-allow-list")
   private val remoteDeploymentAllowList: immutable.Set[String] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     if (allowListEnabled)
       system.settings.config.getStringList("akka.remote.deployment.allowed-actor-classes").asScala.toSet
     else Set.empty
@@ -175,7 +175,7 @@ private[akka] class RemoteSystemDaemon(
               log.error(
                 LogMarker.Security,
                 ex,
-                "Received command to create remote Actor, but class [{}] is not white-listed! " +
+                "Received command to create remote Actor, but class [{}] is not allow-listed! " +
                 "Target path: [{}]",
                 props.actorClass(),
                 path)

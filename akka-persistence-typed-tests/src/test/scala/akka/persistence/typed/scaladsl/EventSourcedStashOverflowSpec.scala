@@ -1,8 +1,13 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+
+import scala.concurrent.duration._
+
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.LogCapturing
@@ -12,10 +17,6 @@ import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.adapter._
 import akka.persistence.journal.SteppingInmemJournal
 import akka.persistence.typed.PersistenceId
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import scala.concurrent.duration._
 
 // Reproducer for #29401
 object EventSourcedStashOverflowSpec {
@@ -40,10 +41,12 @@ object EventSourcedStashOverflowSpec {
   }
 
   def conf =
-    SteppingInmemJournal.config("EventSourcedStashOverflow").withFallback(ConfigFactory.parseString(s"""
+    SteppingInmemJournal
+      .config("EventSourcedStashOverflow")
+      .withFallback(ConfigFactory.parseString("""
        akka.persistence {
          typed {
-           stash-capacity = 1000 # enough to fail on stack size
+           stash-capacity = 5000 # enough to fail on stack size
            stash-overflow-strategy = "drop"
          }
        }

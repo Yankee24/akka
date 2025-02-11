@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton
@@ -8,8 +8,11 @@ import scala.collection.immutable
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
 import scala.util.control.NonFatal
+
 import com.typesafe.config.Config
+
 import akka.AkkaException
 import akka.Done
 import akka.actor.Actor
@@ -37,7 +40,6 @@ import akka.event.Logging
 import akka.event.MarkerLoggingAdapter
 import akka.pattern.ask
 import akka.pattern.pipe
-import akka.util.JavaDurationConverters._
 import akka.util.Timeout
 
 object ClusterSingletonManagerSettings {
@@ -60,7 +62,12 @@ object ClusterSingletonManagerSettings {
     val lease = config.getString("use-lease") match {
       case s if s.isEmpty => None
       case leaseConfigPath =>
-        Some(new LeaseUsageSettings(leaseConfigPath, config.getDuration("lease-retry-interval").asScala))
+        Some(
+          new LeaseUsageSettings(
+            leaseConfigPath,
+            config.getDuration("lease-retry-interval").toScala,
+            leaseName = "" // intentionally not in config because would be high risk of not using unique names
+          ))
     }
     new ClusterSingletonManagerSettings(
       singletonName = config.getString("singleton-name"),
@@ -110,7 +117,11 @@ object ClusterSingletonManagerSettings {
  *   over has started or the previous oldest member is removed from the cluster
  *   (+ `removalMargin`).
  *
- * @param leaseSettings LeaseSettings for acquiring before creating the singleton actor
+ * @param leaseSettings LeaseSettings for acquiring before creating the singleton actor.
+ *   Note that if you define a custom lease name and have several singletons each
+ *   one must have a unique lease name. If the lease name is undefined it will be
+ *   derived from ActorSystem name and singleton actor path, but that may result in
+ *   too long lease names.
  */
 final class ClusterSingletonManagerSettings(
     val singletonName: String,
@@ -141,6 +152,11 @@ final class ClusterSingletonManagerSettings(
   def withHandOverRetryInterval(retryInterval: FiniteDuration): ClusterSingletonManagerSettings =
     copy(handOverRetryInterval = retryInterval)
 
+  /**
+   * Note that if you define a custom lease name and have several singletons each one must have a unique
+   * lease name. If the lease name is undefined it will be derived from ActorSystem name and singleton
+   * actor path, but that may result in too long lease names.
+   */
   def withLeaseSettings(leaseSettings: LeaseUsageSettings): ClusterSingletonManagerSettings =
     copy(leaseSettings = Some(leaseSettings))
 
@@ -494,14 +510,14 @@ class ClusterSingletonManager(singletonProps: Props, terminationMessage: Any, se
     role.forall(cluster.selfRoles.contains),
     s"This cluster member [${cluster.selfAddress}] doesn't have the role [$role]")
 
-  private val singletonLeaseName = s"${context.system.name}-singleton-${self.path}"
-
   override val log: MarkerLoggingAdapter = Logging.withMarker(context.system, this)
 
-  val lease: Option[Lease] = settings.leaseSettings.map(
-    settings =>
-      LeaseProvider(context.system)
-        .getLease(singletonLeaseName, settings.leaseImplementation, cluster.selfAddress.hostPort))
+  val lease: Option[Lease] = settings.leaseSettings.map { settings =>
+    val leaseName =
+      if (settings.leaseName.isEmpty) s"${context.system.name}-singleton-${self.path}"
+      else settings.leaseName
+    LeaseProvider(context.system).getLease(leaseName, settings.leaseImplementation, cluster.selfAddress.hostPort)
+  }
   val leaseRetryInterval: FiniteDuration = settings.leaseSettings match {
     case Some(s) => s.leaseRetryInterval
     case None    => 5.seconds // won't be used
@@ -618,7 +634,7 @@ class ClusterSingletonManager(singletonProps: Props, terminationMessage: Any, se
   when(Start) {
     case Event(StartOldestChangedBuffer, _) =>
       oldestChangedBuffer =
-        context.actorOf(Props(classOf[OldestChangedBuffer], role).withDispatcher(context.props.dispatcher))
+        context.actorOf(Props(new OldestChangedBuffer(role)).withDispatcher(context.props.dispatcher))
       getNextOldestChanged()
       stay()
 

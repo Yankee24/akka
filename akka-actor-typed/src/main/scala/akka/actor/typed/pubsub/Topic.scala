@@ -1,16 +1,17 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.pubsub
 
-import scala.reflect.ClassTag
-
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
 import akka.actor.typed.internal.pubsub.TopicImpl
-import akka.actor.typed.scaladsl.Behaviors
 import akka.annotation.DoNotInherit
+
+import scala.concurrent.duration.FiniteDuration
+import scala.jdk.DurationConverters.JavaDurationOps
+import scala.reflect.ClassTag
 
 /**
  * A pub sub topic is an actor that handles subscribing to a topic and publishing messages to all subscribed actors.
@@ -24,7 +25,7 @@ import akka.annotation.DoNotInherit
  *
  * Each topic results in a [[akka.actor.typed.receptionist.ServiceKey]] in the [[akka.actor.typed.receptionist.Receptionist]]
  * so the same scaling recommendation holds for topics, see docs:
- * https://doc.akka.io/docs/akka/current/typed/actor-discovery.html#receptionist-scalability
+ * https://doc.akka.io/libraries/akka-core/current/typed/actor-discovery.html#receptionist-scalability
  */
 object Topic {
 
@@ -117,14 +118,40 @@ object Topic {
 
   /**
    * Scala API: Create a topic actor behavior for the given topic name and message type.
+   *
+   * Note: for many use cases it is more convenient to use the [[PubSub]] registry to have an ActorSystem global
+   * set of re-usable topics instead of manually creating and managing the topic actors.
    */
   def apply[T](topicName: String)(implicit classTag: ClassTag[T]): Behavior[Command[T]] =
-    Behaviors.setup[TopicImpl.Command[T]](context => new TopicImpl[T](topicName, context)).narrow
+    TopicImpl[T](topicName, None).narrow
+
+  /**
+   * Scala API: Create a topic actor behavior for the given topic name and message type with a TTL
+   * making it terminate itself after a time period with no local subscribers and no locally published messages.
+   *
+   * Note: for many use cases it is more convenient to use the [[PubSub]] registry to have an ActorSystem global
+   * set of re-usable topics instead of manually creating and managing the topic actors.
+   */
+  def apply[T](topicName: String, ttl: FiniteDuration)(implicit classTag: ClassTag[T]): Behavior[Command[T]] =
+    TopicImpl[T](topicName, Some(ttl)).narrow
 
   /**
    * Java API: Create a topic actor behavior for the given topic name and message class
+   *
+   * Note: for many use cases it is more convenient to use the [[PubSub]] registry to have an ActorSystem global
+   * set of re-usable topics instead of manually creating and managing the topic actors.
    */
   def create[T](messageClass: Class[T], topicName: String): Behavior[Command[T]] =
     apply[T](topicName)(ClassTag(messageClass))
+
+  /**
+   * Java API: Create a topic actor behavior for the given topic name and message class with a TTL
+   * making it terminate itself after a time period with no local subscribers and no locally published messages.
+   *
+   * Note: for many use cases it is more convenient to use the [[PubSub]] registry to have an ActorSystem global
+   * set of re-usable topics instead of manually creating and managing the topic actors.
+   */
+  def create[T](messageClass: Class[T], topicName: String, ttl: java.time.Duration): Behavior[Command[T]] =
+    apply[T](topicName, ttl.toScala)(ClassTag(messageClass))
 
 }

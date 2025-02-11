@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.io
@@ -9,6 +9,7 @@ import java.nio.file.StandardOpenOption.{ CREATE, WRITE }
 
 import scala.annotation.nowarn
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
 import scala.util.Success
@@ -16,7 +17,6 @@ import scala.util.Success
 import com.google.common.jimfs.{ Configuration, Jimfs }
 import org.scalatest.concurrent.ScalaFutures
 
-import akka.dispatch.ExecutionContexts
 import akka.stream._
 import akka.stream.impl.{ PhasedFusingActorMaterializer, StreamSupervisor }
 import akka.stream.impl.StreamSupervisor.Children
@@ -28,8 +28,6 @@ import akka.util.ByteString
 @nowarn
 class FileSinkSpec extends StreamSpec(UnboundedMailboxConfig) with ScalaFutures {
 
-  val settings = ActorMaterializerSettings(system).withDispatcher("akka.actor.default-dispatcher")
-  implicit val materializer: ActorMaterializer = ActorMaterializer(settings)
   val fs = Jimfs.newFileSystem("FileSinkSpec", Configuration.unix())
 
   val TestLines = {
@@ -161,7 +159,7 @@ class FileSinkSpec extends StreamSpec(UnboundedMailboxConfig) with ScalaFutures 
       targetFile { f =>
         val forever = Source.maybe.toMat(FileIO.toPath(f))(Keep.left).run()
         try {
-          materializer
+          SystemMaterializer(system).materializer
             .asInstanceOf[PhasedFusingActorMaterializer]
             .supervisor
             .tell(StreamSupervisor.GetChildren, testActor)
@@ -184,7 +182,7 @@ class FileSinkSpec extends StreamSpec(UnboundedMailboxConfig) with ScalaFutures 
           .toMat(FileIO.toPath(f).addAttributes(ActorAttributes.dispatcher("akka.actor.default-dispatcher")))(Keep.left)
           .run()
         try {
-          materializer
+          SystemMaterializer(system).materializer
             .asInstanceOf[PhasedFusingActorMaterializer]
             .supervisor
             .tell(StreamSupervisor.GetChildren, testActor)
@@ -204,9 +202,9 @@ class FileSinkSpec extends StreamSpec(UnboundedMailboxConfig) with ScalaFutures 
             .lazyInitAsync(() => Future.successful(FileIO.toPath(f)))
             // map a Future[Option[Future[IOResult]]] into a Future[Option[IOResult]]
             .mapMaterializedValue(_.flatMap {
-              case Some(future) => future.map(Some(_))(ExecutionContexts.parasitic)
+              case Some(future) => future.map(Some(_))(ExecutionContext.parasitic)
               case None         => Future.successful(None)
-            }(ExecutionContexts.parasitic)))
+            }(ExecutionContext.parasitic)))
 
         Await.result(completion, 3.seconds)
         checkFileContents(f, TestLines.head)

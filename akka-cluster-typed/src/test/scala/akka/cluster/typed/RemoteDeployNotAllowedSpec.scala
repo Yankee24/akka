@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.typed
@@ -15,13 +15,12 @@ import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 
 object RemoteDeployNotAllowedSpec {
-  def config = ConfigFactory.parseString(s"""
+  def config = ConfigFactory.parseString("""
     akka {
       loglevel = warning
       actor {
         provider = cluster
       }
-      remote.classic.netty.tcp.port = 0
       remote.artery {
         canonical {
           hostname = 127.0.0.1

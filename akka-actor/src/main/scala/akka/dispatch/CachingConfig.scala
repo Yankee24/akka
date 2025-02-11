@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.dispatch
@@ -26,9 +26,9 @@ private[akka] object CachingConfig {
   final case class ValuePathEntry(valid: Boolean, exists: Boolean, config: Config = emptyConfig) extends PathEntry
   final case class StringPathEntry(valid: Boolean, exists: Boolean, config: Config, value: String) extends PathEntry
 
-  val invalidPathEntry = ValuePathEntry(false, true)
-  val nonExistingPathEntry = ValuePathEntry(true, false)
-  val emptyPathEntry = ValuePathEntry(true, true)
+  val invalidPathEntry = ValuePathEntry(valid = false, exists = true)
+  val nonExistingPathEntry = ValuePathEntry(valid = true, exists = false)
+  val emptyPathEntry = ValuePathEntry(valid = true, exists = true)
 }
 
 /**
@@ -60,9 +60,9 @@ private[akka] class CachingConfig(_config: Config) extends Config {
               emptyPathEntry
             case Success(v) =>
               if (v.valueType() == ConfigValueType.STRING)
-                StringPathEntry(true, true, v.atKey("cached"), v.unwrapped().asInstanceOf[String])
+                StringPathEntry(valid = true, exists = true, v.atKey("cached"), v.unwrapped().asInstanceOf[String])
               else
-                ValuePathEntry(true, true, v.atKey("cached"))
+                ValuePathEntry(valid = true, exists = true, v.atKey("cached"))
           }
       }
 

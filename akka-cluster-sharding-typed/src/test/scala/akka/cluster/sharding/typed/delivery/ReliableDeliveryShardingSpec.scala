@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed.delivery
@@ -22,7 +22,6 @@ import akka.actor.typed.delivery.ConsumerController.SequencedMessage
 import akka.actor.typed.delivery.TestConsumer
 import akka.actor.typed.delivery.internal.ProducerControllerImpl
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.LoggerOps
 import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.sharding.typed.scaladsl.Entity
@@ -33,7 +32,6 @@ import akka.cluster.typed.Join
 object ReliableDeliveryShardingSpec {
   val config = ConfigFactory.parseString("""
     akka.actor.provider = cluster
-    akka.remote.classic.netty.tcp.port = 0
     akka.remote.artery.canonical.port = 0
     akka.reliable-delivery.consumer-controller.flow-control-window = 20
     """)
@@ -73,7 +71,7 @@ object ReliableDeliveryShardingSpec {
           case Tick =>
             val msg = s"msg-$n"
             val entityId = s"entity-${n % 3}"
-            ctx.log.info2("sent {} to {}", msg, entityId)
+            ctx.log.info("sent {} to {}", msg, entityId)
             sendTo ! ShardingEnvelope(entityId, TestConsumer.Job(msg))
             idle(n)
 
@@ -388,6 +386,7 @@ class ReliableDeliveryShardingSpec
             // It is possible the ProducerController re-sends msg-3 again before it has processed its acknowledgement.
             // If the ConsumerController restarts between sending the acknowledgement and receiving that re-sent msg-3,
             // it will deliver msg-3 a second time. We then expect msg-4 next:
+            delivery3cor4.confirmTo ! ConsumerController.Confirmed
             val delivery4 = consumerProbes(1).receiveMessage()
             delivery4.message should ===(TestConsumer.Job("msg-4"))
           case TestConsumer.Job("msg-4") =>
@@ -407,6 +406,7 @@ class ReliableDeliveryShardingSpec
             // It is possible the ProducerController re-sends msg-3 again before it has processed its acknowledgement.
             // If the ConsumerController restarts between sending the acknowledgement and receiving that re-sent msg-3,
             // it will deliver msg-3 a second time. We then expect msg-4 next:
+            delivery3cor4.confirmTo ! ConsumerController.Confirmed
             val delivery4 = consumerProbes(2).receiveMessage()
             delivery4.message should ===(TestConsumer.Job("msg-4"))
           case TestConsumer.Job("msg-4") =>

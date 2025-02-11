@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.util
@@ -9,12 +9,14 @@ import java.lang.{ Iterable => JIterable }
 import java.nio.{ ByteBuffer, ByteOrder }
 import java.nio.charset.{ Charset, StandardCharsets }
 import java.util.Base64
+
 import scala.annotation.{ tailrec, varargs }
+import scala.annotation.nowarn
 import scala.collection.{ immutable, mutable }
 import scala.collection.immutable.{ IndexedSeq, IndexedSeqOps, StrictOptimizedSeqOps, VectorBuilder }
 import scala.collection.mutable.{ Builder, WrappedArray }
 import scala.reflect.ClassTag
-import scala.annotation.nowarn
+import scala.jdk.CollectionConverters._
 
 object ByteString {
 
@@ -890,7 +892,7 @@ sealed abstract class ByteString
    * @param buffer a ByteBuffer to copy bytes to
    * @return the number of bytes actually copied
    */
-  def copyToBuffer(@unused buffer: ByteBuffer): Int
+  def copyToBuffer(buffer: ByteBuffer): Int
 
   /**
    * Create a new ByteString with all contents compacted into a single,
@@ -924,11 +926,7 @@ sealed abstract class ByteString
    * Java API: Returns an Iterable of read-only ByteBuffers that directly wraps this ByteStrings
    * all fragments. Will always have at least one entry.
    */
-  @nowarn
-  def getByteBuffers(): JIterable[ByteBuffer] = {
-    import scala.collection.JavaConverters.asJavaIterableConverter
-    asByteBuffers.asJava
-  }
+  def getByteBuffers(): JIterable[ByteBuffer] = asByteBuffers.asJava
 
   /**
    * Creates a new ByteBuffer with a copy of all bytes contained in this
@@ -1183,7 +1181,7 @@ final class ByteStringBuilder extends Builder[Byte, ByteString] {
           _length += seq.length
         }
       case _ =>
-        super.++=(xs)
+        super.addAll(xs)
     }
     this
   }

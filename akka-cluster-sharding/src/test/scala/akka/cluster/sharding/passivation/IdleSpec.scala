@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.passivation
 
+import scala.concurrent.duration._
+
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-
-import scala.concurrent.duration._
 
 object IdleSpec {
   val config: Config = ConfigFactory.parseString("""
@@ -28,7 +28,7 @@ class IdleSpec extends AbstractEntityPassivationSpec(IdleSpec.config, expectedEn
     "passivate entities when they haven't seen messages for the configured duration" in {
       val region = start()
 
-      val lastSendNanoTime1 = System.nanoTime()
+      val lastSendNanoTime1 = clock.currentTime()
       region ! Envelope(shard = 1, id = 1, message = "A")
       region ! Envelope(shard = 2, id = 2, message = "B")
       Thread.sleep((configuredIdleTimeout / 2).toMillis)
@@ -36,7 +36,7 @@ class IdleSpec extends AbstractEntityPassivationSpec(IdleSpec.config, expectedEn
       Thread.sleep((configuredIdleTimeout / 2).toMillis)
       region ! Envelope(shard = 2, id = 2, message = "D")
       Thread.sleep((configuredIdleTimeout / 2).toMillis)
-      val lastSendNanoTime2 = System.nanoTime()
+      val lastSendNanoTime2 = clock.currentTime()
       region ! Envelope(shard = 2, id = 2, message = "E")
 
       expectReceived(id = 1, message = "A")

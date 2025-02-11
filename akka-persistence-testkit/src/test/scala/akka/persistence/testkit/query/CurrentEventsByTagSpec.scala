@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit.query
+
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.LogCapturing
@@ -14,7 +16,6 @@ import akka.persistence.testkit.query.EventsByPersistenceIdSpec.Command
 import akka.persistence.testkit.query.EventsByPersistenceIdSpec.testBehaviour
 import akka.persistence.testkit.query.scaladsl.PersistenceTestKitReadJournal
 import akka.stream.scaladsl.Sink
-import org.scalatest.wordspec.AnyWordSpecLike
 
 class CurrentEventsByTagSpec
     extends ScalaTestWithActorTestKit(EventsByPersistenceIdSpec.config)

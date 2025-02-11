@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicLong
 
 import scala.annotation.implicitNotFound
@@ -168,12 +169,17 @@ import akka.util.OptionVal
   @InternalApi
   private[akka] def addressString: String
 
+  def systemUid: Long
+
 }
 
 /**
  * Interface implemented by ActorSystem and ActorContext, the only two places
  * from which you can get fresh actors.
+ *
+ * Not for user extension
  */
+@DoNotInherit
 @implicitNotFound(
   "implicit ActorRefFactory required: if outside of an Actor you need an implicit ActorSystem, inside of an actor this should be the implicit ActorContext")
 trait ActorRefFactory {
@@ -277,11 +283,13 @@ trait ActorRefFactory {
 /**
  * Internal Akka use only, used in implementation of system.stop(child).
  */
+@InternalApi
 private[akka] final case class StopChild(child: ActorRef)
 
 /**
  * INTERNAL API
  */
+@InternalApi
 private[akka] object SystemGuardian {
 
   /**
@@ -528,7 +536,7 @@ private[akka] class LocalActorRefProvider private[akka] (
   override lazy val rootGuardian: LocalActorRef =
     new LocalActorRef(
       system,
-      Props(classOf[LocalActorRefProvider.Guardian], rootGuardianStrategy),
+      Props(new LocalActorRefProvider.Guardian(rootGuardianStrategy)),
       internalDispatcher,
       defaultMailbox,
       theOneWhoWalksTheBubblesOfSpaceTime,
@@ -560,7 +568,7 @@ private[akka] class LocalActorRefProvider private[akka] (
       }
     val ref = new LocalActorRef(
       system,
-      system.guardianProps.getOrElse(Props(classOf[LocalActorRefProvider.Guardian], guardianStrategy)),
+      system.guardianProps.getOrElse(Props(new LocalActorRefProvider.Guardian(guardianStrategy))),
       dispatcher,
       system.guardianProps match {
         case Some(props) => system.mailboxes.lookup(props.mailbox)
@@ -578,7 +586,7 @@ private[akka] class LocalActorRefProvider private[akka] (
     cell.reserveChild("system")
     val ref = new LocalActorRef(
       system,
-      Props(classOf[LocalActorRefProvider.SystemGuardian], systemGuardianStrategy, guardian),
+      Props(new LocalActorRefProvider.SystemGuardian(systemGuardianStrategy, guardian)),
       internalDispatcher,
       defaultMailbox,
       rootGuardian,
@@ -779,4 +787,7 @@ private[akka] class LocalActorRefProvider private[akka] (
         addr
     }
   }
+
+  override val systemUid: Long =
+    ThreadLocalRandom.current.nextLong()
 }

@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
+import scala.annotation.nowarn
 import scala.collection.immutable.SortedSet
 
 import akka.actor.ActorSelection
@@ -18,6 +19,7 @@ import akka.testkit.ImplicitSender
 import akka.testkit.TestProbe
 import akka.util.Version
 
+@nowarn("msg=Use Akka Distributed Cluster")
 object CrossDcHeartbeatSenderSpec {
   class TestCrossDcHeartbeatSender(heartbeatProbe: TestProbe) extends CrossDcHeartbeatSender {
     // disable register for cluster events
@@ -38,6 +40,7 @@ class CrossDcHeartbeatSenderSpec extends AkkaSpec("""
       self-data-center = "dc1"
       failure-detector.heartbeat-interval = 0.2s
     }
+    akka.remote.artery.canonical.port = 0
   """) with ImplicitSender {
   "CrossDcHeartBeatSender" should {
     "increment heart beat sequence nr" in {

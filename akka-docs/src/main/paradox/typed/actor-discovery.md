@@ -4,6 +4,14 @@ You are viewing the documentation for the new actor APIs, to view the Akka Class
 
 ## Dependency
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Actor Typed, you must add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -29,7 +37,7 @@ applicable.
 ## Receptionist
 
 When an actor needs to be discovered by another actor but you are unable to put a reference to it in an incoming message,
-you can use the @apidoc[receptionist.Receptionist]. It supports both local and cluster(see @ref:[cluster](#cluster-receptionist)). You register the specific actors that should be discoverable 
+you can use the @apidoc[receptionist.Receptionist]. It supports both local and cluster (see @ref:[cluster](#cluster-receptionist)). You register the specific actors that should be discoverable 
 from each node in the local `Receptionist` instance. The API of the receptionist is also based on actor messages. 
 This registry of actor references is then automatically distributed to all other nodes in the case of a cluster. 
 You can lookup such actors with the key that was used when they were registered. The reply to such a `Find` request is 

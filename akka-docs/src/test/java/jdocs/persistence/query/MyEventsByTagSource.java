@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.persistence.query;
@@ -11,7 +11,6 @@ import akka.serialization.Serialization;
 import akka.serialization.SerializationExtension;
 import akka.stream.*;
 import akka.stream.stage.*;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;

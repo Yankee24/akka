@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
@@ -18,7 +18,6 @@ object ProxyShardingSpec {
   akka.actor.provider = cluster
   akka.loglevel = DEBUG
   akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
-  akka.remote.classic.netty.tcp.port = 0
   akka.remote.artery.canonical.port = 0
   akka.cluster.sharding.verbose-debug-logging = on
   akka.cluster.sharding.fail-on-invalid-entity-state-transition = on

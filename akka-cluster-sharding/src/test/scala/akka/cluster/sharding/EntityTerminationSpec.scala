@@ -1,8 +1,12 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
+
+import scala.concurrent.duration._
+
+import com.typesafe.config.ConfigFactory
 
 import akka.actor.Actor
 import akka.actor.Props
@@ -11,9 +15,6 @@ import akka.cluster.MemberStatus
 import akka.testkit.AkkaSpec
 import akka.testkit.ImplicitSender
 import akka.testkit.WithLogCapturing
-import com.typesafe.config.ConfigFactory
-
-import scala.concurrent.duration._
 
 /**
  * Verifies that the automatic restart on terminate/crash that is in place for remember entities does not apply
@@ -28,7 +29,6 @@ object EntityTerminationSpec {
       akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
       akka.actor.provider = cluster
       akka.remote.artery.canonical.port = 0
-      akka.remote.classic.netty.tcp.port = 0
       akka.cluster.sharding.state-store-mode = ddata
       # no leaks between test runs thank you
       akka.cluster.sharding.distributed-data.durable.keys = []

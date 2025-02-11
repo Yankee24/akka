@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
@@ -95,7 +95,7 @@ abstract class ExternalShardAllocationSpec
       entityProps = Props[GiveMeYourHome](),
       extractEntityId = extractEntityId,
       extractShardId = extractShardId,
-      allocationStrategy = new ExternalShardAllocationStrategy(system, typeName))
+      allocationStrategy = ExternalShardAllocationStrategy(system, typeName))
 
     "start cluster sharding" in {
       shardRegion

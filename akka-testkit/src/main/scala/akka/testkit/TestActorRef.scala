@@ -1,15 +1,14 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.testkit
 
 import java.util.concurrent.atomic.AtomicLong
 
+import scala.annotation.nowarn
 import scala.concurrent.Await
 import scala.reflect.ClassTag
-
-import scala.annotation.nowarn
 
 import akka.actor._
 import akka.dispatch._

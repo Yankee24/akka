@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -29,7 +29,6 @@ object SunnyWeatherMultiJvmSpec extends MultiNodeConfig {
       actor.provider = cluster
       loggers = ["akka.testkit.TestEventListener"]
       loglevel = INFO
-      remote.log-remote-lifecycle-events = off
       cluster {
         failure-detector.monitored-by-nr-of-members = 3
         downing-provider-class = "akka.cluster.sbr.SplitBrainResolverProvider"

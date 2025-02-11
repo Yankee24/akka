@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.internal
@@ -8,7 +8,6 @@ import akka.actor.typed.Behavior
 import akka.actor.typed.internal.PoisonPill
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.annotation.{ InternalApi, InternalStableApi }
-import akka.util.unused
 
 /**
  * INTERNAL API
@@ -37,8 +36,13 @@ private[akka] class RequestingRecoveryPermit[C, E, S](override val setup: Behavi
   onRequestingRecoveryPermit(setup.context)
 
   def createBehavior(): Behavior[InternalProtocol] = {
+    val instCtx =
+      setup.instrumentation.beforeRequestRecoveryPermit(setup.context.self)
+
     // request a permit, as only once we obtain one we can start replaying
     requestRecoveryPermit()
+
+    setup.instrumentation.afterRequestRecoveryPermit(setup.context.self, instCtx)
 
     def stay(receivedPoisonPill: Boolean): Behavior[InternalProtocol] = {
       Behaviors
@@ -67,10 +71,12 @@ private[akka] class RequestingRecoveryPermit[C, E, S](override val setup: Behavi
     stay(receivedPoisonPill = false)
   }
 
+  // FIXME remove instrumentation hook method in 2.10.0
   @InternalStableApi
-  def onRequestingRecoveryPermit(@unused context: ActorContext[_]): Unit = ()
+  def onRequestingRecoveryPermit(context: ActorContext[_]): Unit = ()
 
   private def becomeReplaying(receivedPoisonPill: Boolean): Behavior[InternalProtocol] = {
+    setup.instrumentation.recoveryStarted(setup.context.self)
     setup.internalLogger.debug(s"Initializing snapshot recovery: {}", setup.recovery)
 
     setup.holdingRecoveryPermit = true

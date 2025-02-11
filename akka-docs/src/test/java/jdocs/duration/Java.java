@@ -1,14 +1,15 @@
 /*
- * Copyright (C) 2013-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2013-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.duration;
 
 // #import
-import scala.concurrent.duration.Duration;
-import scala.concurrent.duration.Deadline;
-
 import static org.junit.Assert.assertTrue;
+
+import scala.concurrent.duration.Deadline;
+import scala.concurrent.duration.Duration;
+
 // #import
 
 class Java {

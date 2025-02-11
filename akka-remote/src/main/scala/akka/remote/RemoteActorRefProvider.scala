@@ -1,22 +1,21 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote
 
+import scala.annotation.nowarn
 import scala.concurrent.Future
 import scala.util.Failure
 import scala.util.control.Exception.Catcher
 import scala.util.control.NonFatal
 
-import scala.annotation.nowarn
-
 import akka.ConfigurationException
 import akka.Done
-import akka.actor._
 import akka.actor.SystemGuardian.RegisterTerminationHook
 import akka.actor.SystemGuardian.TerminationHook
 import akka.actor.SystemGuardian.TerminationHookDone
+import akka.actor._
 import akka.annotation.InternalApi
 import akka.dispatch.RequiresMessageQueue
 import akka.dispatch.UnboundedMessageQueueSemantics
@@ -37,7 +36,6 @@ import akka.remote.serialization.ActorRefResolveThreadLocalCache
 import akka.serialization.Serialization
 import akka.util.ErrorMessages
 import akka.util.OptionVal
-import akka.util.unused
 
 /**
  * INTERNAL API
@@ -106,19 +104,8 @@ private[akka] object RemoteActorRefProvider {
    */
   private class RemoteDeadLetterActorRef(_provider: ActorRefProvider, _path: ActorPath, _eventStream: EventStream)
       extends DeadLetterActorRef(_provider, _path, _eventStream) {
-    import EndpointManager.Send
 
-    // Still supports classic remoting as well
-    @nowarn("msg=Classic remoting is deprecated, use Artery")
     override def !(message: Any)(implicit sender: ActorRef): Unit = message match {
-      case Send(m, senderOption, recipient, seqOpt) =>
-        // else ignore: it is a reliably delivered message that might be retried later, and it has not yet deserved
-        // the dead letter status
-        if (seqOpt.isEmpty) super.!(DeadLetter(m, senderOption.getOrElse(_provider.deadLetters), recipient))
-      case DeadLetter(Send(m, senderOption, recipient, seqOpt), _, _) =>
-        // else ignore: it is a reliably delivered message that might be retried later, and it has not yet deserved
-        // the dead letter status
-        if (seqOpt.isEmpty) super.!(DeadLetter(m, senderOption.getOrElse(_provider.deadLetters), recipient))
       case env: OutboundEnvelope =>
         super.!(
           DeadLetter(
@@ -158,6 +145,10 @@ private[akka] class RemoteActorRefProvider(
     val dynamicAccess: DynamicAccess)
     extends ActorRefProvider {
   import RemoteActorRefProvider._
+
+  // One part of the system uid generation. Taking this early to allow for some execution randomness until later
+  // when actually generating the uid.
+  val systemUidTimestamp1: Long = System.nanoTime()
 
   val remoteSettings: RemoteSettings = new RemoteSettings(settings.config)
 
@@ -225,13 +216,11 @@ private[akka] class RemoteActorRefProvider(
     actorRefResolveThreadLocalCache = ActorRefResolveThreadLocalCache(system)
 
     remotingTerminator = system.systemActorOf(
-      remoteSettings.configureDispatcher(Props(classOf[RemotingTerminator], local.systemGuardian)),
+      remoteSettings.configureDispatcher(Props(new RemotingTerminator(local.systemGuardian))),
       "remoting-terminator")
 
     if (remoteSettings.Artery.Enabled && remoteSettings.Artery.Transport == AeronUpd) {
       checkAeronOnClassPath(system)
-    } else if (!remoteSettings.Artery.Enabled) {
-      checkNettyOnClassPath(system)
     } // artery tcp has no dependencies
 
     val internals = Internals(
@@ -246,11 +235,14 @@ private[akka] class RemoteActorRefProvider(
         local.registerExtraNames(Map(("remote", d)))
         d
       },
-      transport = if (remoteSettings.Artery.Enabled) remoteSettings.Artery.Transport match {
-        case ArterySettings.AeronUpd => new ArteryAeronUdpTransport(system, this)
-        case ArterySettings.Tcp      => new ArteryTcpTransport(system, this, tlsEnabled = false)
-        case ArterySettings.TlsTcp   => new ArteryTcpTransport(system, this, tlsEnabled = true)
-      } else new Remoting(system, this))
+      transport =
+        if (remoteSettings.Artery.Enabled) remoteSettings.Artery.Transport match {
+          case ArterySettings.AeronUpd => new ArteryAeronUdpTransport(system, this)
+          case ArterySettings.Tcp      => new ArteryTcpTransport(system, this, tlsEnabled = false)
+          case ArterySettings.TlsTcp   => new ArteryTcpTransport(system, this, tlsEnabled = true)
+        } else
+          throw new IllegalArgumentException(
+            "Classic remoting has been removed in Akka 2.8.0. Use default Artery remoting instead."))
     _internals = internals
     remotingTerminator ! internals
 
@@ -267,17 +259,8 @@ private[akka] class RemoteActorRefProvider(
     remoteDeploymentWatcher = createOrNone[ActorRef](createRemoteDeploymentWatcher(system))
   }
 
-  private def checkNettyOnClassPath(system: ActorSystemImpl): Unit = {
-    checkClassOrThrow(
-      system,
-      "org.jboss.netty.channel.Channel",
-      "Classic",
-      "Netty",
-      "https://doc.akka.io/docs/akka/current/remoting.html")
-  }
-
   private def checkAeronOnClassPath(system: ActorSystemImpl): Unit = {
-    val arteryLink = "https://doc.akka.io/docs/akka/current/remoting-artery.html"
+    val arteryLink = "https://doc.akka.io/libraries/akka-core/current/remoting-artery.html"
     // using classes that are used so will fail to compile if they get removed from Aeron
     checkClassOrThrow(system, "io.aeron.driver.MediaDriver", "Artery", "Aeron driver", arteryLink)
     checkClassOrThrow(system, "io.aeron.Aeron", "Artery", "Aeron client", arteryLink)
@@ -319,7 +302,7 @@ private[akka] class RemoteActorRefProvider(
 
   protected def createRemoteDeploymentWatcher(system: ActorSystemImpl): ActorRef =
     system.systemActorOf(
-      remoteSettings.configureDispatcher(Props[RemoteDeploymentWatcher]()),
+      remoteSettings.configureDispatcher(Props(new RemoteDeploymentWatcher)),
       "remote-deployment-watcher")
 
   /** Can be overridden when using RemoteActorRefProvider as a superclass rather than directly */
@@ -360,7 +343,8 @@ private[akka] class RemoteActorRefProvider(
     warnOnUnsafe(s"Remote deploy of [$path] is not allowed, falling back to local.")
 
   /** Override to add any additional checks if using `RemoteActorRefProvider` as a superclass. */
-  protected def shouldCreateRemoteActorRef(@unused system: ActorSystem, @unused address: Address): Boolean = true
+  protected def shouldCreateRemoteActorRef(system: ActorSystem, address: Address): Boolean =
+    true
 
   def actorOf(
       system: ActorSystemImpl,
@@ -428,7 +412,15 @@ private[akka] class RemoteActorRefProvider(
       (Iterator(props.deploy) ++ deployment.iterator).reduce((a, b) => b.withFallback(a)) match {
         case d @ Deploy(_, _, _, RemoteScope(address), _, _) =>
           if (hasAddress(address)) {
-            local.actorOf(system, props, supervisor, path, false, deployment.headOption, false, async)
+            local.actorOf(
+              system,
+              props,
+              supervisor,
+              path,
+              systemService = false,
+              deployment.headOption,
+              lookupDeploy = false,
+              async = async)
           } else if (props.deploy.scope == LocalScope) {
             throw new ConfigurationException(
               s"${ErrorMessages.RemoteDeploymentConfigErrorPrefix} for local-only Props at [$path]")
@@ -452,14 +444,30 @@ private[akka] class RemoteActorRefProvider(
                 new RemoteActorRef(transport, localAddress, rpath, supervisor, Some(props), Some(d))
               } else {
                 warnIfNotRemoteActorRef(path)
-                local.actorOf(system, props, supervisor, path, systemService, deployment.headOption, false, async)
+                local.actorOf(
+                  system,
+                  props,
+                  supervisor,
+                  path,
+                  systemService,
+                  deployment.headOption,
+                  lookupDeploy = false,
+                  async = async)
               }
 
             } catch {
               case NonFatal(e) => throw new IllegalArgumentException(s"remote deployment failed for [$path]", e)
             }
         case _ =>
-          local.actorOf(system, props, supervisor, path, systemService, deployment.headOption, false, async)
+          local.actorOf(
+            system,
+            props,
+            supervisor,
+            path,
+            systemService,
+            deployment.headOption,
+            lookupDeploy = false,
+            async = async)
       }
     }
 
@@ -640,6 +648,10 @@ private[akka] class RemoteActorRefProvider(
         local.addressString
     }
   }
+
+  override def systemUid: Long =
+    transport.systemUid
+
 }
 
 private[akka] trait RemoteRef extends ActorRefScope {

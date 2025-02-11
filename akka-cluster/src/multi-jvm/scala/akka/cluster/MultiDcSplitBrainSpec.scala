@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
+import scala.annotation.nowarn
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -12,8 +13,8 @@ import com.typesafe.config.ConfigFactory
 import akka.actor.ActorSystem
 import akka.cluster.ClusterEvent._
 import akka.remote.testconductor.RoleName
+import akka.remote.testkit.Direction
 import akka.remote.testkit.MultiNodeConfig
-import akka.remote.transport.ThrottlerTransportAdapter.Direction
 import akka.testkit.TestProbe
 
 object MultiDcSplitBrainMultiJvmSpec extends MultiNodeConfig {
@@ -23,14 +24,10 @@ object MultiDcSplitBrainMultiJvmSpec extends MultiNodeConfig {
   val fourth = role("fourth")
   val fifth = role("fifth")
 
-  commonConfig(
-    ConfigFactory
-      .parseString("""
+  commonConfig(ConfigFactory.parseString("""
       akka.loglevel = DEBUG # issue #24955
       akka.cluster.debug.verbose-heartbeat-logging = on
       akka.cluster.debug.verbose-gossip-logging = on
-      akka.remote.classic.netty.tcp.connection-timeout = 5 s # speedup in case of connection issue
-      akka.remote.retry-gate-closed-for = 1 s
       akka.cluster.multi-data-center {
         failure-detector {
           acceptable-heartbeat-pause = 4s
@@ -43,8 +40,7 @@ object MultiDcSplitBrainMultiJvmSpec extends MultiNodeConfig {
         downing-provider-class = akka.cluster.testkit.AutoDowning
         testkit.auto-down-unreachable-after = 1s
       }
-    """)
-      .withFallback(MultiNodeClusterSpec.clusterConfig))
+    """).withFallback(MultiNodeClusterSpec.clusterConfig))
 
   nodeConfig(first, second)(ConfigFactory.parseString("""
       akka.cluster.multi-data-center.self-data-center = "dc1"
@@ -63,6 +59,7 @@ class MultiDcSplitBrainMultiJvmNode3 extends MultiDcSplitBrainSpec
 class MultiDcSplitBrainMultiJvmNode4 extends MultiDcSplitBrainSpec
 class MultiDcSplitBrainMultiJvmNode5 extends MultiDcSplitBrainSpec
 
+@nowarn("msg=Use Akka Distributed Cluster")
 abstract class MultiDcSplitBrainSpec extends MultiNodeClusterSpec(MultiDcSplitBrainMultiJvmSpec) {
 
   import MultiDcSplitBrainMultiJvmSpec._
@@ -257,7 +254,6 @@ abstract class MultiDcSplitBrainSpec extends MultiNodeClusterSpec(MultiDcSplitBr
         val restartedSystem = ActorSystem(
           system.name,
           ConfigFactory.parseString(s"""
-            akka.remote.classic.netty.tcp.port = $port
             akka.remote.artery.canonical.port = $port
             akka.coordinated-shutdown.terminate-actor-system = on
             """).withFallback(system.settings.config))

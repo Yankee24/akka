@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata
@@ -52,7 +52,6 @@ class LocalConcurrencySpec(_system: ActorSystem)
         "LocalConcurrencySpec",
         ConfigFactory.parseString("""
       akka.actor.provider = "cluster"
-      akka.remote.classic.netty.tcp.port=0
       akka.remote.artery.canonical.port = 0
       """)))
 

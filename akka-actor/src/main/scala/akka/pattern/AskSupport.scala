@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.pattern
@@ -7,20 +7,19 @@ package akka.pattern
 import java.net.URLEncoder
 import java.util.concurrent.TimeoutException
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
+import scala.concurrent.ExecutionContext
 import scala.concurrent.{ Future, Promise }
 import scala.language.implicitConversions
 import scala.util.{ Failure, Success }
-import scala.annotation.nowarn
 import scala.util.control.NoStackTrace
 
 import akka.actor._
 import akka.annotation.{ InternalApi, InternalStableApi }
-import akka.dispatch.ExecutionContexts
 import akka.dispatch.sysmsg._
 import akka.util.{ Timeout, Unsafe }
 import akka.util.ByteString
-import akka.util.unused
 
 /**
  * This is what is used to complete a Future that is returned from an ask/? call,
@@ -530,11 +529,11 @@ private[akka] final class PromiseActorRef(
    * Stopped               => stopped, path not yet created
    */
   @volatile
-  @nowarn("msg=never used")
+  @nowarn("msg=never updated")
   private[this] var _stateDoNotCallMeDirectly: AnyRef = _
 
   @volatile
-  @nowarn("msg=never used")
+  @nowarn("msg=never updated")
   private[this] var _watchedByDoNotCallMeDirectly: Set[ActorRef] = ActorCell.emptyActorRefSet
 
   @nowarn private def _preventPrivateUnusedErasure = {
@@ -602,7 +601,7 @@ private[akka] final class PromiseActorRef(
     case StoppedWithPath(p) => p
     case Stopped            =>
       // even if we are already stopped we still need to produce a proper path
-      updateState(Stopped, StoppedWithPath(provider.tempPath()))
+      updateState(Stopped, StoppedWithPath(provider.tempPath(refPathPrefix)))
       path
     case Registering => path // spin until registration is completed
     case unexpected  => throw new IllegalStateException(s"Unexpected state: $unexpected")
@@ -610,7 +609,7 @@ private[akka] final class PromiseActorRef(
 
   override def !(message: Any)(implicit sender: ActorRef = Actor.noSender): Unit = state match {
     case Stopped | _: StoppedWithPath =>
-      provider.deadLetters ! message
+      provider.deadLetters ! DeadLetter(message, if (sender eq Actor.noSender) provider.deadLetters else sender, this)
       onComplete(message, alreadyCompleted = true)
     case _ =>
       if (message == null) throw InvalidMessageException("Message is null")
@@ -675,22 +674,25 @@ private[akka] final class PromiseActorRef(
   }
 
   @InternalStableApi
-  private[akka] def ask(actorSel: ActorSelection, message: Any, @unused timeout: Timeout): Future[Any] = {
+  private[akka] def ask(
+      actorSel: ActorSelection,
+      message: Any,
+      @nowarn("msg=never used") timeout: Timeout): Future[Any] = {
     actorSel.tell(message, this)
     result.future
   }
 
   @InternalStableApi
-  private[akka] def ask(actorRef: ActorRef, message: Any, @unused timeout: Timeout): Future[Any] = {
+  private[akka] def ask(actorRef: ActorRef, message: Any, @nowarn("msg=never used") timeout: Timeout): Future[Any] = {
     actorRef.tell(message, this)
     result.future
   }
 
   @InternalStableApi
-  private[akka] def onComplete(@unused message: Any, @unused alreadyCompleted: Boolean): Unit = {}
+  private[akka] def onComplete(message: Any, alreadyCompleted: Boolean): Unit = {}
 
   @InternalStableApi
-  private[akka] def onTimeout(@unused timeout: Timeout): Unit = {}
+  private[akka] def onTimeout(timeout: Timeout): Unit = {}
 }
 
 /**
@@ -718,7 +720,7 @@ private[akka] object PromiseActorRef {
     val result = Promise[Any]()
     val scheduler = provider.guardian.underlying.system.scheduler
     val a = new PromiseActorRef(provider, result, messageClassName, refPathPrefix)
-    implicit val ec = ExecutionContexts.parasitic
+    implicit val ec = ExecutionContext.parasitic
     val f = scheduler.scheduleOnce(timeout.duration) {
       val timedOut = result.tryComplete {
         val wasSentBy = if (sender == ActorRef.noSender) "" else s" was sent by [$sender]"

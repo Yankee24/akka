@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.protobuf
@@ -19,25 +19,23 @@ import akka.actor.ExtendedActorSystem
 import akka.cluster.sharding.Shard
 import akka.cluster.sharding.ShardCoordinator
 import akka.cluster.sharding.ShardRegion._
-import akka.cluster.sharding.protobuf.msg.{ ClusterShardingMessages => sm }
-import akka.cluster.sharding.protobuf.msg.ClusterShardingMessages
 import akka.cluster.sharding.internal.EventSourcedRememberEntitiesCoordinatorStore.{
   MigrationMarker,
   State => RememberShardsState
 }
-import akka.cluster.sharding.internal.EventSourcedRememberEntitiesShardStore.{ State => EntityState }
 import akka.cluster.sharding.internal.EventSourcedRememberEntitiesShardStore.{ EntitiesStarted, EntitiesStopped }
+import akka.cluster.sharding.internal.EventSourcedRememberEntitiesShardStore.{ State => EntityState }
+import akka.cluster.sharding.protobuf.msg.{ ClusterShardingMessages => sm }
+import akka.cluster.sharding.protobuf.msg.ClusterShardingMessages
 import akka.protobufv3.internal.MessageLite
 import akka.serialization.BaseSerializer
 import akka.serialization.Serialization
 import akka.serialization.SerializerWithStringManifest
-import akka.util.ccompat._
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
  * INTERNAL API: Protobuf serializer of ClusterSharding messages.
  */
-@ccompatUsedUntil213
 private[akka] class ClusterShardingMessageSerializer(val system: ExtendedActorSystem)
     extends SerializerWithStringManifest
     with BaseSerializer {
@@ -95,7 +93,9 @@ private[akka] class ClusterShardingMessageSerializer(val system: ExtendedActorSy
   private val CurrentShardRegionStateManifest = "FE"
 
   private val EventSourcedRememberShardsMigrationMarkerManifest = "SM"
-  private val EventSourcedRememberShardsState = "SS"
+  private val EventSourcedRememberShardsStateManifest = "SS"
+
+  private val StopShardsManifest = "ST"
 
   private val fromBinaryMap = collection.immutable.HashMap[String, Array[Byte] => AnyRef](
     EntityStateManifest -> entityStateFromBinary,
@@ -202,9 +202,10 @@ private[akka] class ClusterShardingMessageSerializer(val system: ExtendedActorSy
     EventSourcedRememberShardsMigrationMarkerManifest -> { _ =>
       MigrationMarker
     },
-    EventSourcedRememberShardsState -> { bytes =>
+    EventSourcedRememberShardsStateManifest -> { bytes =>
       rememberShardsStateFromBinary(bytes)
-    })
+    },
+    StopShardsManifest -> stopShardsFromBinary)
 
   override def manifest(obj: AnyRef): String = obj match {
     case _: EntityState     => EntityStateManifest
@@ -253,7 +254,9 @@ private[akka] class ClusterShardingMessageSerializer(val system: ExtendedActorSy
     case _: CurrentShardRegionState => CurrentShardRegionStateManifest
 
     case MigrationMarker        => EventSourcedRememberShardsMigrationMarkerManifest
-    case _: RememberShardsState => EventSourcedRememberShardsState
+    case _: RememberShardsState => EventSourcedRememberShardsStateManifest
+
+    case _: StopShards => StopShardsManifest
 
     case _ =>
       throw new IllegalArgumentException(s"Can't serialize object of type ${obj.getClass} in [${getClass.getName}]")
@@ -309,6 +312,8 @@ private[akka] class ClusterShardingMessageSerializer(val system: ExtendedActorSy
     case MigrationMarker        => Array.emptyByteArray
     case m: RememberShardsState => rememberShardsStateToProto(m).toByteArray
 
+    case ss: StopShards => stopShardsToProto(ss).toByteArray
+
     case _ =>
       throw new IllegalArgumentException(s"Can't serialize object of type ${obj.getClass} in [${getClass.getName}]")
   }
@@ -331,6 +336,17 @@ private[akka] class ClusterShardingMessageSerializer(val system: ExtendedActorSy
   private def rememberShardsStateFromBinary(bytes: Array[Byte]): RememberShardsState = {
     val proto = sm.RememberedShardState.parseFrom(bytes)
     RememberShardsState(proto.getShardIdList.asScala.toSet, proto.getMarker)
+  }
+
+  private def stopShardsFromBinary(bytes: Array[Byte]): StopShards = {
+    val proto = sm.StopShards.parseFrom(bytes)
+    StopShards(proto.getShardsList.asScala.toSet)
+  }
+
+  private def stopShardsToProto(ss: StopShards): sm.StopShards = {
+    val builder = sm.StopShards.newBuilder()
+    builder.addAllShards(ss.shards.asJava)
+    builder.build()
   }
 
   private def coordinatorStateToProto(state: State): sm.CoordinatorState = {

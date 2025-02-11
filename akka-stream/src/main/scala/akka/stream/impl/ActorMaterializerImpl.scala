@@ -1,15 +1,16 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl
 
 import java.util.concurrent.atomic.AtomicBoolean
 
+import scala.annotation.nowarn
 import scala.collection.immutable
 import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration._
-import scala.annotation.nowarn
+
 import akka.actor._
 import akka.annotation.DoNotInherit
 import akka.annotation.InternalApi
@@ -52,7 +53,9 @@ import akka.util.OptionVal
     val effectiveProps = props.dispatcher match {
       case Dispatchers.DefaultDispatcherId =>
         // the caller said to use the default dispatcher, but that can been trumped by the dispatcher attribute
-        props.withDispatcher(context.effectiveAttributes.mandatoryAttribute[ActorAttributes.Dispatcher].dispatcher)
+        props
+          .withDispatcher(context.effectiveAttributes.mandatoryAttribute[ActorAttributes.Dispatcher].dispatcher)
+          .withMailbox(PhasedFusingActorMaterializer.Mailbox)
       case _ => props
     }
 
@@ -189,6 +192,7 @@ private[akka] class SubFusingActorMaterializerImpl(
     Props(new StreamSupervisor(haveShutDown))
       .withDeploy(Deploy.local)
       .withDispatcher(attributes.mandatoryAttribute[ActorAttributes.Dispatcher].dispatcher)
+      .withMailbox(PhasedFusingActorMaterializer.Mailbox)
   private[stream] val baseName = "StreamSupervisor"
   private val actorName = SeqActorName(baseName)
   def nextName(): String = actorName.next()

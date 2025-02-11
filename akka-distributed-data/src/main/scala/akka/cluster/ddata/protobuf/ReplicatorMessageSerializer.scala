@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata.protobuf
@@ -7,11 +7,13 @@ package akka.cluster.ddata.protobuf
 import java.io.NotSerializableException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+
 import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.FiniteDuration
+
 import akka.actor.Address
 import akka.actor.ExtendedActorSystem
 import akka.annotation.InternalApi
@@ -31,13 +33,11 @@ import akka.serialization.BaseSerializer
 import akka.serialization.Serialization
 import akka.serialization.SerializerWithStringManifest
 import akka.util.{ ByteString => AkkaByteString }
-import akka.util.ccompat._
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
  * INTERNAL API
  */
-@ccompatUsedUntil213
 @InternalApi
 private[akka] object ReplicatorMessageSerializer {
 
@@ -264,12 +264,15 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     val b = dm.Status.newBuilder()
     b.setChunk(status.chunk).setTotChunks(status.totChunks)
     status.digests.foreach {
-      case (key, digest) =>
-        b.addEntries(
+      case (key, (digest, usedTimestamp)) =>
+        val entryBuilder =
           dm.Status.Entry
             .newBuilder()
             .setKey(key)
-            .setDigest(ByteStringUtils.toProtoByteStringUnsafe(digest.toArrayUnsafe())))
+            .setDigest(ByteStringUtils.toProtoByteStringUnsafe(digest.toArrayUnsafe()))
+        if (usedTimestamp != 0L)
+          entryBuilder.setUsedTimestamp(usedTimestamp)
+        b.addEntries(entryBuilder)
     }
     status.toSystemUid.foreach(b.setToSystemUid) // can be None when sending back to a node of version 2.5.21
     b.setFromSystemUid(status.fromSystemUid.get)
@@ -282,7 +285,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     val fromSystemUid = if (status.hasFromSystemUid) Some(status.getFromSystemUid) else None
     Status(
       status.getEntriesList.asScala.iterator
-        .map(e => e.getKey -> AkkaByteString.fromArrayUnsafe(e.getDigest.toByteArray()))
+        .map(e => e.getKey -> (AkkaByteString.fromArrayUnsafe(e.getDigest.toByteArray()) -> e.getUsedTimestamp))
         .toMap,
       status.getChunk,
       status.getTotChunks,
@@ -293,8 +296,12 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
   private def gossipToProto(gossip: Gossip): dm.Gossip = {
     val b = dm.Gossip.newBuilder().setSendBack(gossip.sendBack)
     gossip.updatedData.foreach {
-      case (key, data) =>
-        b.addEntries(dm.Gossip.Entry.newBuilder().setKey(key).setEnvelope(dataEnvelopeToProto(data)))
+      case (key, (data, usedTimestamp)) =>
+        val entryBuilder =
+          dm.Gossip.Entry.newBuilder().setKey(key).setEnvelope(dataEnvelopeToProto(data))
+        if (usedTimestamp != 0L)
+          entryBuilder.setUsedTimestamp(usedTimestamp)
+        b.addEntries(entryBuilder)
     }
     gossip.toSystemUid.foreach(b.setToSystemUid) // can be None when sending back to a node of version 2.5.21
     b.setFromSystemUid(gossip.fromSystemUid.get)
@@ -306,7 +313,9 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     val toSystemUid = if (gossip.hasToSystemUid) Some(gossip.getToSystemUid) else None
     val fromSystemUid = if (gossip.hasFromSystemUid) Some(gossip.getFromSystemUid) else None
     Gossip(
-      gossip.getEntriesList.asScala.iterator.map(e => e.getKey -> dataEnvelopeFromProto(e.getEnvelope)).toMap,
+      gossip.getEntriesList.asScala.iterator
+        .map(e => e.getKey -> (dataEnvelopeFromProto(e.getEnvelope) -> e.getUsedTimestamp))
+        .toMap,
       sendBack = gossip.getSendBack,
       toSystemUid,
       fromSystemUid)

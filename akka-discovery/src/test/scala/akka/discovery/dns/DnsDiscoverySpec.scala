@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.discovery.dns
@@ -7,7 +7,9 @@ package akka.discovery.dns
 import java.net.InetAddress
 
 import scala.concurrent.duration._
+
 import com.typesafe.config.ConfigFactory
+
 import akka.actor.ActorSystem
 import akka.discovery.{ Discovery, Lookup }
 import akka.discovery.ServiceDiscovery

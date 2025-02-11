@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed
@@ -7,12 +7,16 @@ package internal
 
 import java.util.concurrent.ThreadLocalRandom
 
+import scala.annotation.nowarn
 import scala.concurrent.duration.Deadline
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
+import scala.util.Try
 import scala.util.control.Exception.Catcher
 import scala.util.control.NonFatal
+
 import org.slf4j.event.Level
+
 import akka.actor.DeadLetterSuppression
 import akka.actor.Dropped
 import akka.actor.typed.BehaviorInterceptor.PreStartTarget
@@ -24,9 +28,6 @@ import akka.actor.typed.scaladsl.StashBuffer
 import akka.annotation.InternalApi
 import akka.event.Logging
 import akka.util.OptionVal
-import akka.util.unused
-
-import scala.util.Try
 
 /**
  * INTERNAL API
@@ -132,7 +133,7 @@ private abstract class SimpleSupervisor[T, Thr <: Throwable: ClassTag](ss: Super
     } catch handleReceiveException(ctx, target)
   }
 
-  protected def handleException(@unused ctx: TypedActorContext[Any]): Catcher[Behavior[T]] = {
+  protected def handleException(@nowarn("msg=never used") ctx: TypedActorContext[Any]): Catcher[Behavior[T]] = {
     case NonFatal(t) if isInstanceOfTheThrowableClass(t) =>
       BehaviorImpl.failed(t)
   }
@@ -146,7 +147,9 @@ private abstract class SimpleSupervisor[T, Thr <: Throwable: ClassTag](ss: Super
     handleException(ctx)
 }
 
-private class StopSupervisor[T, Thr <: Throwable: ClassTag](@unused initial: Behavior[T], strategy: Stop)
+private class StopSupervisor[T, Thr <: Throwable: ClassTag](
+    @nowarn("msg=never used") initial: Behavior[T],
+    strategy: Stop)
     extends SimpleSupervisor[T, Thr](strategy) {
 
   override def handleException(ctx: TypedActorContext[Any]): Catcher[Behavior[T]] = {
@@ -283,7 +286,7 @@ private class RestartSupervisor[T, Thr <: Throwable: ClassTag](initial: Behavior
 
   override protected def handleExceptionOnStart(
       ctx: TypedActorContext[Any],
-      @unused target: PreStartTarget[T]): Catcher[Behavior[T]] = {
+      target: PreStartTarget[T]): Catcher[Behavior[T]] = {
     case NonFatal(t) if isInstanceOfTheThrowableClass(t) =>
       ctx.asScala.cancelAllTimers()
       strategy match {
@@ -353,9 +356,12 @@ private class RestartSupervisor[T, Thr <: Throwable: ClassTag](initial: Behavior
     val stashCapacity =
       if (strategy.stashCapacity >= 0) strategy.stashCapacity
       else ctx.asScala.system.settings.RestartStashCapacity
-    restartingInProgress = OptionVal.Some(
-      (StashBuffer[Any](ctx.asScala.asInstanceOf[scaladsl.ActorContext[Any]], stashCapacity), childrenToStop))
-
+    // new stash only if there is no already on-going restart with previously stashed messages
+    val stashBufferForRestart = restartingInProgress match {
+      case OptionVal.Some((stashBuffer, _)) => stashBuffer
+      case _                                => StashBuffer[Any](ctx.asScala.asInstanceOf[scaladsl.ActorContext[Any]], stashCapacity)
+    }
+    restartingInProgress = OptionVal.Some((stashBufferForRestart, childrenToStop))
     strategy match {
       case backoff: Backoff =>
         val restartDelay =
@@ -386,8 +392,10 @@ private class RestartSupervisor[T, Thr <: Throwable: ClassTag](initial: Behavior
       val newBehavior = Behavior.validateAsInitial(Behavior.start(initial, ctx.asInstanceOf[TypedActorContext[T]]))
       val nextBehavior = restartingInProgress match {
         case OptionVal.Some((stashBuffer, _)) =>
+          val behavior = stashBuffer.unstashAll(newBehavior.unsafeCast)
+          // restart unstash was successful for all stashed messages, drop stash buffer
           restartingInProgress = OptionVal.None
-          stashBuffer.unstashAll(newBehavior.unsafeCast)
+          behavior
         case _ => newBehavior
       }
       nextBehavior.narrow
@@ -408,10 +416,11 @@ private class RestartSupervisor[T, Thr <: Throwable: ClassTag](initial: Behavior
 
   private def updateRestartCount(): Unit = {
     strategy match {
-      case restart: Restart =>
+      case restartStrategy: Restart =>
         val timeLeft = deadlineHasTimeLeft
         val newDeadline =
-          if (deadline.isDefined && timeLeft) deadline else OptionVal.Some(Deadline.now + restart.withinTimeRange)
+          if (deadline.isDefined && timeLeft) deadline
+          else OptionVal.Some(Deadline.now + restartStrategy.withinTimeRange)
         restartCount = if (timeLeft) restartCount + 1 else 1
         deadline = newDeadline
       case _: Backoff =>

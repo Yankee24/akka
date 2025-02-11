@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.passivation.simulator
+
+import java.nio.file.Paths
 
 import akka.NotUsed
 import akka.cluster.sharding.ShardRegion.EntityId
 import akka.stream.scaladsl._
 import akka.util.ByteString
-
-import java.nio.file.Paths
 
 trait AccessPattern {
   def isSynthetic: Boolean

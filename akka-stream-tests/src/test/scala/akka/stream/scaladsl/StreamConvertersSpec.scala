@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -13,18 +13,18 @@ import java.util.stream.BaseStream
 import java.util.stream.Collector
 import java.util.stream.Collector.Characteristics
 import java.util.stream.Collectors
-
 import scala.concurrent.Await
 import scala.concurrent.duration._
-
 import org.scalatest.time.Millis
 import org.scalatest.time.Span
-
 import akka.stream.ActorAttributes
 import akka.stream.testkit.StreamSpec
 import akka.stream.testkit.Utils.TE
 import akka.testkit.DefaultTimeout
 import akka.util.ByteString
+
+import java.util.Spliterator
+import java.util.function.Consumer
 
 class StreamConvertersSpec extends StreamSpec with DefaultTimeout {
 
@@ -34,7 +34,7 @@ class StreamConvertersSpec extends StreamSpec with DefaultTimeout {
     import java.util.stream.IntStream
     import java.util.stream.Stream
 
-    import scala.compat.java8.FunctionConverters._
+    import scala.jdk.FunctionConverters._
 
     def javaStreamInts =
       IntStream.iterate(1, { (i: Int) =>
@@ -100,13 +100,18 @@ class StreamConvertersSpec extends StreamSpec with DefaultTimeout {
         override def parallel(): EmptyStream = this
         override def isParallel: Boolean = false
 
-        override def spliterator(): util.Spliterator[Unit] = ???
+        override def spliterator(): util.Spliterator[Unit] = new Spliterator[Unit] {
+          override def tryAdvance(action: Consumer[_ >: Unit]): Boolean = false
+
+          override def trySplit(): Spliterator[Unit] = ???
+
+          override def estimateSize(): Long = 0
+
+          override def characteristics(): Int = Spliterator.ORDERED & Spliterator.SIZED & Spliterator.DISTINCT
+        }
         override def onClose(closeHandler: Runnable): EmptyStream = ???
 
-        override def iterator(): util.Iterator[Unit] = new util.Iterator[Unit] {
-          override def next(): Unit = ???
-          override def hasNext: Boolean = false
-        }
+        override def iterator(): util.Iterator[Unit] = ???
 
         override def close(): Unit = closed = true
       }
@@ -125,14 +130,14 @@ class StreamConvertersSpec extends StreamSpec with DefaultTimeout {
         override def parallel(): FailingStream = this
         override def isParallel: Boolean = false
 
-        override def spliterator(): util.Spliterator[Unit] = ???
-        override def onClose(closeHandler: Runnable): FailingStream = ???
-
-        override def iterator(): util.Iterator[Unit] = new util.Iterator[Unit] {
-          override def next(): Unit = throw new TE("ouch")
-          override def hasNext: Boolean = true
+        override def spliterator(): util.Spliterator[Unit] = new Spliterator[Unit] {
+          override def tryAdvance(action: Consumer[_ >: Unit]): Boolean = throw TE("ouch")
+          override def trySplit(): Spliterator[Unit] = ???
+          override def estimateSize(): Long = ???
+          override def characteristics(): Int = ???
         }
-
+        override def onClose(closeHandler: Runnable): FailingStream = ???
+        override def iterator(): util.Iterator[Unit] = ???
         override def close(): Unit = closed = true
       }
 

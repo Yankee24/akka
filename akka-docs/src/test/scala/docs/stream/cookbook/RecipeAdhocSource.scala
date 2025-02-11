@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.stream.cookbook
@@ -23,7 +23,7 @@ class RecipeAdhocSource extends RecipeSpec {
         source
           .backpressureTimeout(timeout)
           .recoverWithRetries(maxRetries, {
-            case t: TimeoutException =>
+            case _: TimeoutException =>
               Source.lazySource(() => source.backpressureTimeout(timeout)).mapMaterializedValue(_ => NotUsed)
           }))
   //#adhoc-source
@@ -118,7 +118,7 @@ class RecipeAdhocSource extends RecipeSpec {
       startedCount.get() should be(4) //startCount == 4, which means "re"-tried 3 times
 
       Thread.sleep(500)
-      sink.expectError().getClass should be(classOf[TimeoutException])
+      sink.expectError() shouldBe a[TimeoutException]
       sink.request(1) //send demand
       sink.expectNoMessage(200.milliseconds) //but no more restart
     }

@@ -1,30 +1,26 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.persistence;
 
-import java.sql.Connection;
-import java.time.Duration;
-import java.util.HashSet;
-import java.util.Set;
-
 import akka.NotUsed;
-import akka.persistence.query.Sequence;
-import akka.persistence.query.Offset;
-import com.typesafe.config.Config;
-
 import akka.actor.*;
 import akka.persistence.query.*;
+import akka.persistence.query.Offset;
+import akka.persistence.query.Sequence;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
-
+import com.typesafe.config.Config;
+import java.sql.Connection;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletionStage;
 import jdocs.persistence.query.MyEventsByTagSource;
 import org.reactivestreams.Subscriber;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletionStage;
 
 public class PersistenceQueryDocTest {
 
@@ -193,7 +189,7 @@ public class PersistenceQueryDocTest {
 
     public akka.stream.scaladsl.Source<RichEvent, QueryMetadata> byTagsWithMeta(
         scala.collection.Set<String> tags) {
-      Set<String> jTags = scala.collection.JavaConverters.setAsJavaSetConverter(tags).asJava();
+      Set<String> jTags = scala.jdk.javaapi.CollectionConverters.asJava(tags);
       return javadslReadJournal.byTagsWithMeta(jTags).asScala();
     }
   }

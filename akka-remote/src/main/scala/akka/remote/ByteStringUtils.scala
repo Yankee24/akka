@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote
 
 import akka.annotation.InternalApi
+import akka.protobufv3.internal.{ ByteString => ProtoByteString }
 import akka.protobufv3.internal.UnsafeByteOperations
 import akka.util.ByteString
-import akka.protobufv3.internal.{ ByteString => ProtoByteString }
 import akka.util.ByteString.ByteString1
 import akka.util.ByteString.ByteString1C
 

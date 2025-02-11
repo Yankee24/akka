@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.event
@@ -71,7 +71,7 @@ private[akka] object EventStreamUnsubscriber {
   final case class UnregisterIfNoMoreSubscribedChannels(actor: ActorRef)
 
   private def props(eventStream: EventStream, debug: Boolean) =
-    Props(classOf[EventStreamUnsubscriber], eventStream, debug).withDispatcher(Dispatchers.InternalDispatcherId)
+    Props(new EventStreamUnsubscriber(eventStream, debug)).withDispatcher(Dispatchers.InternalDispatcherId)
 
   def start(system: ActorSystem, stream: EventStream) = {
     val debug = system.settings.config.getBoolean("akka.actor.debug.event-stream")

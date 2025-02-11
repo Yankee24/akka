@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -136,7 +136,6 @@ trait ClusterTestKit extends TestKitBase {
       actorSystems = actorSystems.filterNot(_ == actorSystem)
 
       val newConfig = ConfigFactory.parseString(s"""
-          akka.remote.classic.netty.tcp.port = $port
           akka.remote.artery.canonical.port = $port
           """).withFallback(config)
 

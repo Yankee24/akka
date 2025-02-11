@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton
@@ -15,14 +15,12 @@ import akka.actor.Props
 import akka.cluster.Cluster
 import akka.cluster.MemberStatus
 import akka.remote.testconductor.RoleName
+import akka.remote.testkit.Direction
 import akka.remote.testkit.MultiNodeConfig
 import akka.remote.testkit.MultiNodeSpec
 import akka.remote.testkit.STMultiNodeSpec
-import akka.remote.transport.ThrottlerTransportAdapter
 import akka.testkit._
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 object ClusterSingletonManagerDownedSpec extends MultiNodeConfig {
   val first = role("first")
   val second = role("second")
@@ -31,7 +29,6 @@ object ClusterSingletonManagerDownedSpec extends MultiNodeConfig {
   commonConfig(ConfigFactory.parseString("""
     akka.loglevel = INFO
     akka.actor.provider = "cluster"
-    akka.remote.log-remote-lifecycle-events = off
     """))
 
   testTransport(on = true)
@@ -105,8 +102,8 @@ class ClusterSingletonManagerDownedSpec
 
     "stop instance when member is downed" in {
       runOn(first) {
-        testConductor.blackhole(first, third, ThrottlerTransportAdapter.Direction.Both).await
-        testConductor.blackhole(second, third, ThrottlerTransportAdapter.Direction.Both).await
+        testConductor.blackhole(first, third, Direction.Both).await
+        testConductor.blackhole(second, third, Direction.Both).await
 
         within(15.seconds) {
           awaitAssert {
@@ -117,7 +114,7 @@ class ClusterSingletonManagerDownedSpec
       enterBarrier("blackhole-1")
       runOn(first) {
         // another blackhole so that second can't mark gossip as seen and thereby deferring shutdown of first
-        testConductor.blackhole(first, second, ThrottlerTransportAdapter.Direction.Both).await
+        testConductor.blackhole(first, second, Direction.Both).await
         cluster.down(node(second).address)
         cluster.down(cluster.selfAddress)
         // singleton instance stopped, before failure detection of first-second

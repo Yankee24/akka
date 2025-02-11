@@ -1,13 +1,14 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.testkit.typed.javadsl
 
 import java.time.Duration
 
-import akka.actor.typed.{ ActorRef, Behavior, Props }
-import akka.util.JavaDurationConverters._
+import scala.jdk.DurationConverters._
+
+import akka.actor.typed.{ ActorRef, Behavior, Props, RecipientRef }
 
 /**
  * Factories for behavior effects for [[BehaviorTestKit]], each effect has a suitable equals and can be used to compare
@@ -15,6 +16,18 @@ import akka.util.JavaDurationConverters._
  */
 object Effects {
   import akka.actor.testkit.typed.Effect._
+
+  /**
+   * The behavior initiated an ask via its context.  Note that the effect returned from this method should only
+   * be used to compare with an actual effect.
+   */
+  @annotation.nowarn("msg=never used") // messageClass is just a pretend param
+  def askInitiated[Req, Res, T](
+      target: RecipientRef[Req],
+      responseTimeout: Duration,
+      responseClass: Class[Res],
+      messageClass: Class[T]): AskInitiated[Req, Res, T] =
+    AskInitiated(target, responseTimeout.toScala, responseClass)(null.asInstanceOf[Req], null, null)
 
   /**
    * The behavior spawned a named child with the given behavior with no specific props
@@ -84,14 +97,14 @@ object Effects {
   /**
    * The behavior set a new receive timeout, with `message` as timeout notification
    */
-  def receiveTimeoutSet[T](d: Duration, message: T): ReceiveTimeoutSet[T] = ReceiveTimeoutSet(d.asScala, message)
+  def receiveTimeoutSet[T](d: Duration, message: T): ReceiveTimeoutSet[T] = ReceiveTimeoutSet(d.toScala, message)
 
   /**
    * The behavior used `context.schedule` to schedule `message` to be sent to `target` after `delay`
    * FIXME what about events scheduled through the scheduler?
    */
   def scheduled[U](delay: Duration, target: ActorRef[U], message: U): Scheduled[U] =
-    Scheduled(delay.asScala, target, message)
+    Scheduled(delay.toScala, target, message)
 
   def timerScheduled[U](
       key: Any,
@@ -100,7 +113,7 @@ object Effects {
       mode: TimerScheduled.TimerMode,
       overriding: Boolean,
       send: akka.japi.function.Effect): TimerScheduled[U] =
-    TimerScheduled(key, msg, delay.asScala, mode, overriding)(send.apply _)
+    TimerScheduled(key, msg, delay.toScala, mode, overriding)(send.apply _)
 
   /**
    * Used to represent an empty list of effects - in other words, the behavior didn't do anything observable

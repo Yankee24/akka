@@ -13,7 +13,7 @@ Microservices has many attractive properties, such as the independent nature of 
 multiple smaller and more focused teams that can deliver new functionality more frequently and can
 respond quicker to business opportunities. Reactive Microservices should be isolated, autonomous, and have
 a single responsibility as identified by Jonas Bonér in the book
-[Reactive Microsystems: The Evolution of Microservices at Scale](https://www.lightbend.com/ebooks/reactive-microsystems-evolution-of-microservices-scalability-oreilly).
+[Reactive Microsystems: The Evolution of Microservices at Scale](https://www.oreilly.com/library/view/reactive-microsystems/9781491994368/).
 
 In a microservices architecture, you should consider communication within a service and between services.
 
@@ -29,10 +29,10 @@ during a rolling deployment, but deployment of the entire set has a single point
 intra-service communication can take advantage of Akka Cluster, failure management and actor messaging, which
 is convenient to use and has great performance.
 
-Between different services [Akka HTTP](https://doc.akka.io/docs/akka-http/current/) or
-[Akka gRPC](https://doc.akka.io/docs/akka-grpc/current/) can be used for synchronous (yet non-blocking)
-communication and [Akka Streams Kafka](https://doc.akka.io/docs/alpakka-kafka/current/) or other
-[Alpakka](https://doc.akka.io/docs/alpakka/current/) connectors for integration asynchronous communication.
+Between different services [Akka HTTP](https://doc.akka.io/libraries/akka-http/current/) or
+[Akka gRPC](https://doc.akka.io/libraries/akka-grpc/current/) can be used for synchronous (yet non-blocking)
+communication and [Akka Streams Kafka](https://doc.akka.io/libraries/alpakka-kafka/current/) or other
+[Alpakka](https://doc.akka.io/libraries/alpakka/current/) connectors for integration asynchronous communication.
 All those communication mechanisms work well with streaming of messages with end-to-end back-pressure, and the
 synchronous communication tools can also be used for single request response interactions. It is also important
 to note that when using these tools both sides of the communication do not have to be implemented with Akka,
@@ -63,8 +63,7 @@ that are built and deployed independently from each other, but they have a tight
 very risky, such as a shared cluster, shared code and dependencies for service API calls, or a shared
 database schema. There is a false sense of autonomy because of the physical separation of the code and
 deployment units, but you are likely to encounter problems because of changes in the implementation of
-one service leaking into the behavior of others. See Ben Christensen's
-[Don’t Build a Distributed Monolith](https://www.microservices.com/talks/dont-build-a-distributed-monolith/).
+one service leaking into the behavior of others.
 
 Organizations that find themselves in this situation often react by trying to centrally coordinate deployment
 of multiple services, at which point you have lost the principal benefit of microservices while taking on

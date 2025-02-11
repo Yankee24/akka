@@ -1,16 +1,16 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
 
+import scala.concurrent.Await
 import scala.concurrent.duration._
+
 import akka.actor._
 import akka.cluster.sharding.ShardCoordinator.ShardAllocationStrategy
 import akka.remote.testconductor.RoleName
 import akka.testkit._
-
-import scala.concurrent.Await
 
 abstract class ClusterShardingGracefulShutdownOldestSpecConfig(mode: String)
     extends MultiNodeClusterShardingConfig(

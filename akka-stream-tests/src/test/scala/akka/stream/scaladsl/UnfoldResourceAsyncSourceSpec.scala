@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -16,6 +16,7 @@ import akka.Done
 import akka.stream.ActorAttributes
 import akka.stream.Materializer
 import akka.stream.Supervision
+import akka.stream.SystemMaterializer
 import akka.stream.impl.PhasedFusingActorMaterializer
 import akka.stream.impl.StreamSupervisor
 import akka.stream.impl.StreamSupervisor.Children
@@ -167,7 +168,7 @@ class UnfoldResourceAsyncSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
     "continue when Strategy is Resume and read throws" in {
       val result = Source
         .unfoldResourceAsync[Int, Iterator[Any]](
-          () => Future.successful(List(1, 2, TE("read-error"), 3).iterator),
+          () => Future.successful(List[Any](1, 2, TE("read-error"), 3).iterator),
           iterator =>
             if (iterator.hasNext) {
               iterator.next() match {
@@ -186,7 +187,7 @@ class UnfoldResourceAsyncSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
     "continue when Strategy is Resume and read returns failed future" in {
       val result = Source
         .unfoldResourceAsync[Int, Iterator[Any]](
-          () => Future.successful(List(1, 2, TE("read-error"), 3).iterator),
+          () => Future.successful(List[Any](1, 2, TE("read-error"), 3).iterator),
           iterator =>
             if (iterator.hasNext) {
               iterator.next() match {
@@ -315,9 +316,6 @@ class UnfoldResourceAsyncSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
     }
 
     "use dedicated blocking-io-dispatcher by default" in {
-      // use a separate materializer to ensure we know what child is our stream
-      implicit val materializer = Materializer(system)
-
       Source
         .unfoldResourceAsync[String, Unit](
           () => Promise[Unit]().future, // never complete
@@ -325,7 +323,10 @@ class UnfoldResourceAsyncSourceSpec extends StreamSpec(UnboundedMailboxConfig) {
           _ => ???)
         .runWith(Sink.ignore)
 
-      materializer.asInstanceOf[PhasedFusingActorMaterializer].supervisor.tell(StreamSupervisor.GetChildren, testActor)
+      SystemMaterializer(system).materializer
+        .asInstanceOf[PhasedFusingActorMaterializer]
+        .supervisor
+        .tell(StreamSupervisor.GetChildren, testActor)
       val ref = expectMsgType[Children].children.find(_.path.toString contains "unfoldResourceSourceAsync").get
       assertDispatcher(ref, ActorAttributes.IODispatcher.dispatcher)
     }

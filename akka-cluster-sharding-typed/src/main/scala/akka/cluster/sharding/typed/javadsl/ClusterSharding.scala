@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
@@ -10,6 +10,8 @@ import java.util.Optional
 import java.util.concurrent.CompletionStage
 
 import scala.annotation.nowarn
+import scala.jdk.OptionConverters._
+
 import akka.actor.typed.ActorRef
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.Behavior
@@ -22,7 +24,6 @@ import akka.cluster.sharding.ShardCoordinator.ShardAllocationStrategy
 import akka.cluster.sharding.typed.internal.EntityTypeKeyImpl
 import akka.japi.function.{ Function => JFunction }
 import akka.pattern.StatusReply
-import scala.compat.java8.OptionConverters._
 @FunctionalInterface
 trait EntityFactory[M] {
   def apply(shardRegion: ActorRef[ClusterSharding.ShardCommand], entityId: String): Behavior[M]
@@ -204,12 +205,21 @@ abstract class ClusterSharding {
    *
    * For in-depth documentation of its semantics, see [[EntityRef]].
    */
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def entityRefFor[M](typeKey: EntityTypeKey[M], entityId: String, dataCenter: String): EntityRef[M]
 
   /**
    * Actor for querying Cluster Sharding state
    */
   def shardState: ActorRef[ClusterShardingQuery]
+
+  /**
+   * Access to the `ActorRef` to send `ShardCommand` for a given entity type. For example
+   * [[ClusterSharding.Passivate]] can be sent to this `ActorRef`. Note that this `ActorRef`
+   * is also available in the [[EntityContext]]. The entity type must first be initialized
+   * with the [[ClusterSharding.init]] method.
+   */
+  def shard(typeKey: EntityTypeKey[_]): ActorRef[ClusterSharding.ShardCommand]
 
   /**
    * The default `ShardAllocationStrategy` is configured by `least-shard-allocation-strategy` properties.
@@ -311,6 +321,7 @@ final class Entity[M, E] private (
    * dataCenter does not match the data center of the current node the `ShardRegion` will be started
    * in proxy mode.
    */
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def withDataCenter(newDataCenter: String): Entity[M, E] = copy(dataCenter = Optional.ofNullable(newDataCenter))
 
   /**
@@ -349,13 +360,13 @@ final class Entity[M, E] private (
     new akka.cluster.sharding.typed.scaladsl.Entity(
       eCtx => createBehavior(eCtx.toJava),
       typeKey.asScala,
-      stopMessage.asScala,
+      stopMessage.toScala,
       entityProps,
-      settings.asScala,
-      messageExtractor.asScala,
-      allocationStrategy.asScala,
-      role.asScala,
-      dataCenter.asScala)
+      settings.toScala,
+      messageExtractor.toScala,
+      allocationStrategy.toScala,
+      role.toScala,
+      dataCenter.toScala)
 
 }
 
@@ -385,7 +396,7 @@ final class EntityContext[M](
 
 }
 
-@nowarn // for unused msgClass to make class type explicit in the Java API. Not using @unused as the user is likely to see it
+@nowarn // for unused msgClass to make class type explicit in the Java API. Not using @nowarn("msg=never used") as the user is likely to see it
 /** Allows starting a specific Sharded Entity by its entity identifier */
 object StartEntity {
 
@@ -456,6 +467,7 @@ object EntityTypeKey {
    * The specified datacenter of the incarnation of the particular entity referenced by this EntityRef,
    * if a datacenter was specified.
    */
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def getDataCenter: Optional[String] =
     Optional.ofNullable(dataCenter.orNull)
 

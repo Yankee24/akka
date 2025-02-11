@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.eventstream
 
-import akka.actor.InvalidMessageException
-
 import scala.reflect.ClassTag
+
+import akka.actor.InvalidMessageException
 import akka.actor.typed.ActorRef
 import akka.annotation.{ DoNotInherit, InternalApi }
 
@@ -29,8 +29,9 @@ object EventStream {
   }
 
   /**
-   * Subscribe a typed actor to listen for types or subtypes of E
+   * Subscribe a typed actor to listen for types and subtypes of E
    * by sending this command to the [[akka.actor.typed.ActorSystem.eventStream]].
+   * The same actor can create multiple subscriptions for different types.
    *
    * ==Simple example==
    * {{{
@@ -59,7 +60,7 @@ object EventStream {
   }
 
   /**
-   * Unsubscribe an actor ref from the event stream
+   * Unsubscribe all subscriptions created by this actor from the event stream
    * by sending this command to the [[akka.actor.typed.ActorSystem.eventStream]].
    */
   final case class Unsubscribe[E](subscriber: ActorRef[E]) extends Command

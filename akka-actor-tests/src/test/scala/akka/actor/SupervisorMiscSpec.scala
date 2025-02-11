@@ -1,22 +1,21 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
 import java.util.concurrent.{ CountDownLatch, TimeUnit }
-
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
-
-import scala.annotation.nowarn
 import language.postfixOps
-
 import akka.pattern.ask
 import akka.testkit.{ filterEvents, EventFilter }
 import akka.testkit.AkkaSpec
 import akka.testkit.DefaultTimeout
+import akka.testkit.TestException
+
+import java.util.concurrent.atomic.AtomicInteger
 
 object SupervisorMiscSpec {
   val config = """
@@ -29,7 +28,6 @@ object SupervisorMiscSpec {
     """
 }
 
-@nowarn
 class SupervisorMiscSpec extends AkkaSpec(SupervisorMiscSpec.config) with DefaultTimeout {
 
   "A Supervisor" must {
@@ -168,6 +166,33 @@ class SupervisorMiscSpec extends AkkaSpec(SupervisorMiscSpec.config) with Defaul
       val p = expectMsgType[ActorRef].path
       p.parent should ===(parent.path)
       p.name should ===("child")
+    }
+
+    "allow supervision of ActorInitializationException" in {
+      val counter = new AtomicInteger(2)
+
+      val supervisor =
+        system.actorOf(Props(new Supervisor(OneForOneStrategy(maxNrOfRetries = 3, withinTimeRange = 50 seconds) {
+          case _: ActorInitializationException => SupervisorStrategy.Restart
+          case _                               => SupervisorStrategy.Escalate
+        })))
+
+      val workerProps = Props(new Actor {
+        override def preStart(): Unit = {
+          if (counter.decrementAndGet() > 0)
+            throw TestException("BOOM")
+        }
+
+        def receive = {
+          case "status" => this.sender() ! "OK"
+          case _        => this.context.stop(self)
+        }
+      })
+
+      val actor1 =
+        Await.result((supervisor ? workerProps).mapTo[ActorRef], timeout.duration)
+
+      Await.result((actor1 ? "status").mapTo[String], timeout.duration) should ===("OK")
     }
   }
 }

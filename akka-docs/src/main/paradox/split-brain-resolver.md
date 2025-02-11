@@ -12,6 +12,14 @@ how the Split Brain Resolver works.
 
 ## Module info
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Split Brain Resolver is part of `akka-cluster` and you probably already have that
 dependency included. Otherwise, add the following dependency in your project:
 
@@ -79,8 +87,6 @@ This works great for crashes and short transient network partitions, but not for
 partitions. Both sides of the network partition will see the other side as unreachable and
 after a while remove it from its cluster membership. Since this happens on both sides the result
 is that two separate disconnected clusters have been created.
-This approach is provided by the opt-in (off by default) auto-down feature in the OSS version of
-Akka Cluster.
 
 If you use the timeout based auto-down feature in combination with Cluster Singleton or Cluster Sharding
 that would mean that two singleton instances or two sharded entities with the same identifier would be running.
@@ -227,22 +233,22 @@ of 4 and 5 nodes the side with 5 nodes will survive and the other 4 nodes will b
 in the 5 node cluster, no more failures can be handled, because the remaining cluster size would be
 less than 5. In the case of another failure in that 5 node cluster all nodes will be downed.
 
-Therefore it is important that you join new nodes when old nodes have been removed.
+Therefore, it is important that you join new nodes when old nodes have been removed.
 
 Another consequence of this is that if there are unreachable nodes when starting up the cluster,
 before reaching this limit, the cluster may shut itself down immediately. This is not an issue
 if you start all nodes at approximately the same time or use the `akka.cluster.min-nr-of-members`
-to define required number of members before the leader changes member status of 'Joining' members to 'Up'
+to define required number of members before the leader changes member status of 'Joining' members to 'Up'.
 You can tune the timeout after which downing decisions are made using the `stable-after` setting.
 
 You should not add more members to the cluster than **quorum-size * 2 - 1**. A warning is logged
-if this recommendation is violated. If the exceeded cluster size remains when a SBR decision is
+if this recommendation is violated. If the exceeded cluster size remains when an SBR decision is
 needed it will down all nodes because otherwise there is a risk that both sides may down each
 other and thereby form two separate clusters.
 
-For rolling updates it's best to leave the cluster gracefully via
+For rolling updates, it's best to leave the cluster gracefully via
 @ref:[Coordinated Shutdown](coordinated-shutdown.md) (SIGTERM).
-For successful leaving SBR will not be used (no downing) but if there is an unreachability problem
+For successful leaving, SBR will not be used (no downing) but if there is an unreachability problem
 at the same time as the rolling update is in progress there could be an SBR decision. To avoid that
 the total number of members limit is not exceeded during the rolling update it's recommended to
 leave and fully remove one node before adding a new one, when using `static-quorum`.
@@ -337,7 +343,7 @@ See also @ref[Down all when unstable](#down-all-when-unstable) and @ref:[indirec
 ### Lease
 
 The strategy named `lease-majority` is using a distributed lease (lock) to decide what nodes that are allowed to
-survive. Only one SBR instance can acquire the lease make the decision to remain up. The other side will
+survive. Only one SBR instance can acquire the lease and make the decision to remain up. The other side will
 not be able to aquire the lease and will therefore down itself.
 
 Best effort is to keep the side that has most nodes, i.e. the majority side. This is achieved by adding a delay
@@ -345,7 +351,7 @@ before trying to acquire the lease on the minority side.
 
 There is currently one supported implementation of the lease which is backed by a
 [Custom Resource Definition (CRD)](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
-in Kubernetes. It is described in the [Kubernetes Lease](https://doc.akka.io/docs/akka-management/current/kubernetes-lease.html)
+in Kubernetes. It is described in the @extref:[Kubernetes Lease](akka-management:kubernetes-lease.html)
 documentation.
 
 This strategy is very safe since coordination is added by an external arbiter. The trade-off compared to other
@@ -376,12 +382,12 @@ akka {
 
 @@snip [reference.conf](/akka-cluster/src/main/resources/reference.conf) { #lease-majority }
 
-See also configuration and additional dependency in [Kubernetes Lease](https://doc.akka.io/docs/akka-management/current/kubernetes-lease.html)
+See also configuration and additional dependency in @extref:[Kubernetes Lease](akka-management:kubernetes-lease.html)
 
 ## Indirectly connected nodes
 
-In a malfunctional network there can be situations where nodes are observed as unreachable via some network
-links but they are still indirectly connected via other nodes, i.e. it's not a clean network partition (or node crash).
+In a malfunctioning network there can be situations where nodes are observed as unreachable via some network
+links, but they are still indirectly connected via other nodes, i.e. it's not a clean network partition (or node crash).
 
 When this situation is detected the Split Brain Resolvers will keep fully connected nodes and down all the indirectly
 connected nodes.
@@ -400,8 +406,7 @@ partition.
 
 As a precaution for that scenario all nodes are downed if no decision is made within
 `stable-after + down-all-when-unstable` from the first unreachability event.
-The measurement is reset if all unreachable have been healed, downed or removed, or
-if there are no changes within `stable-after * 2`.
+The measurement is reset if all unreachable have been healed, downed or removed.
 
 This is enabled by default for all strategies and by default the duration is derived to
 be 3/4 of `stable-after`.
@@ -425,16 +430,6 @@ in the case of a clean network partition followed by continued instability on th
 That could result in that members are removed from one side but are still running on the other side.
 
 @@@
-
-## Multiple data centers
-
-Akka Cluster has @ref:[support for multiple data centers](cluster-dc.md), where the cluster
-membership is managed by each data center separately and independently of network partitions across different
-data centers. The Split Brain Resolver is embracing that strategy and will not count nodes or down nodes in
-another data center.
-
-When there is a network partition across data centers the typical solution is to wait the partition out until it heals, i.e.
-do nothing. Other decisions should be performed by an external monitoring tool or human operator.
 
 ## Cluster Singleton and Cluster Sharding
 

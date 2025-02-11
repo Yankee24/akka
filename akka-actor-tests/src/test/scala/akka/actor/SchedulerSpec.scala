@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
@@ -15,7 +15,6 @@ import scala.util.control.NoStackTrace
 import scala.util.control.NonFatal
 
 import atomic.{ AtomicInteger, AtomicReference }
-import scala.annotation.nowarn
 import com.typesafe.config.{ Config, ConfigFactory }
 import language.postfixOps
 import org.scalatest.BeforeAndAfterEach
@@ -684,7 +683,6 @@ class LightArrayRevolverSchedulerSpec extends AkkaSpec(SchedulerSpec.testConfRev
     def reportFailure(t: Throwable): Unit = { t.printStackTrace() }
   }
 
-  @nowarn
   def withScheduler(start: Long = 0L, _startTick: Int = 0, config: Config = ConfigFactory.empty)(
       thunk: (Scheduler with Closeable, Driver) => Unit): Unit = {
     val lbq = new AtomicReference[LinkedBlockingQueue[Long]](new LinkedBlockingQueue[Long])

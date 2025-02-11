@@ -1,12 +1,11 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
 import scala.concurrent.duration._
 
-import scala.annotation.nowarn
 import com.typesafe.config.ConfigFactory
 import language.postfixOps
 
@@ -17,7 +16,6 @@ import akka.testkit.AkkaSpec
 import akka.util.Helpers.ConfigOps
 import akka.util.Version
 
-@nowarn
 class ClusterConfigSpec extends AkkaSpec {
 
   "Clustering" must {

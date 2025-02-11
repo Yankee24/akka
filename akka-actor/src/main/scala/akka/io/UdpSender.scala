@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.io
 
+import scala.annotation.nowarn
 import scala.collection.immutable
 import scala.util.control.NonFatal
 
@@ -11,7 +12,6 @@ import akka.actor._
 import akka.dispatch.{ RequiresMessageQueue, UnboundedMessageQueueSemantics }
 import akka.io.Inet.{ DatagramChannelCreator, SocketOption }
 import akka.io.Udp._
-import scala.annotation.nowarn
 
 /**
  * INTERNAL API

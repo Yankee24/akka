@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.akka.cluster.typed;
@@ -9,7 +9,6 @@ import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorRefResolver;
 import akka.actor.typed.javadsl.Adapter;
 import akka.serialization.SerializerWithStringManifest;
-
 import java.nio.charset.StandardCharsets;
 
 public class PingSerializerExampleTest {

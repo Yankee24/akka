@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
 import java.util.concurrent.ThreadLocalRandom
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.collection.SortedSet
 import scala.collection.immutable
@@ -14,12 +15,10 @@ import scala.util.Random
 import akka.annotation.InternalApi
 import akka.cluster.ClusterSettings.DataCenter
 import akka.cluster.MemberStatus._
-import akka.util.ccompat._
 
 /**
  * INTERNAL API
  */
-@ccompatUsedUntil213
 @InternalApi private[akka] object MembershipState {
   import MemberStatus._
   private val leaderMemberStatus = Set[MemberStatus](Up, Leaving, PreparingForShutdown, ReadyForShutdown)
@@ -34,6 +33,7 @@ import akka.util.ccompat._
 /**
  * INTERNAL API
  */
+@nowarn("msg=Use Akka Distributed Cluster")
 @InternalApi private[akka] final case class MembershipState(
     latestGossip: Gossip,
     selfUniqueAddress: UniqueAddress,
@@ -235,6 +235,7 @@ import akka.util.ccompat._
 /**
  * INTERNAL API
  */
+@nowarn("msg=Use Akka Distributed Cluster")
 @InternalApi private[akka] class GossipTargetSelector(
     reduceGossipDifferentViewProbability: Double,
     crossDcGossipProbability: Double) {

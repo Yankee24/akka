@@ -1,22 +1,19 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.persistence;
-
-import docs.persistence.ExampleJsonMarshaller;
-import docs.persistence.proto.FlightAppModels;
-
-import java.io.NotSerializableException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-
-import spray.json.JsObject;
 
 import akka.persistence.journal.EventAdapter;
 import akka.persistence.journal.EventSeq;
 import akka.protobufv3.internal.InvalidProtocolBufferException;
 import akka.serialization.SerializerWithStringManifest;
+import docs.persistence.ExampleJsonMarshaller;
+import docs.persistence.proto.FlightAppModels;
+import java.io.NotSerializableException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import spray.json.JsObject;
 
 public class PersistenceSchemaEvolutionDocTest {
 

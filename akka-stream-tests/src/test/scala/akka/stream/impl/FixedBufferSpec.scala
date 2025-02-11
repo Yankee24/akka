@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl
@@ -82,6 +82,14 @@ class FixedBufferSpec extends StreamSpec {
         buf.dropHead()
         buf.isEmpty should be(size == 1)
         buf.isFull should be(false)
+      }
+
+      "peek shows head of queue" in {
+        val buf = FixedSizeBuffer[Int](size)
+        for (n <- 1 to size) {
+          buf.enqueue(n)
+          buf.peek() should ===(1)
+        }
       }
 
       "work properly with full-range filling/draining cycles" in {

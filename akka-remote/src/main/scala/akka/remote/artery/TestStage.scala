@@ -1,15 +1,17 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
 
 import java.util.concurrent.atomic.AtomicReference
+
 import scala.annotation.tailrec
+
 import akka.actor.Address
 import akka.event.Logging
 import akka.remote.artery.OutboundHandshake.HandshakeReq
-import akka.remote.transport.ThrottlerTransportAdapter.Direction
+import akka.remote.testkit.Direction
 import akka.stream.Attributes
 import akka.stream.FlowShape
 import akka.stream.Inlet

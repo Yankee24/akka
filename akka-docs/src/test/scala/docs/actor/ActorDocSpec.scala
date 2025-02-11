@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.actor
@@ -8,6 +8,7 @@ import akka.actor.Kill
 import jdocs.actor.ImmutableMessage
 
 import language.postfixOps
+import scala.annotation.nowarn
 
 //#imports1
 import akka.actor.Actor
@@ -22,7 +23,6 @@ import akka.testkit._
 import akka.util._
 import scala.concurrent.duration._
 import scala.concurrent.Await
-import akka.Done
 import akka.actor.CoordinatedShutdown
 
 //#my-actor
@@ -50,12 +50,16 @@ class FirstActor extends Actor {
 }
 //#context-actorOf
 
+@nowarn("msg=never used") // sample snippets
 class ActorWithArgs(arg: String) extends Actor {
   def receive = { case _ => () }
 }
 
 //#actor-with-value-class-argument
 class Argument(val value: String) extends AnyVal
+//#actor-with-value-class-argument
+@nowarn("msg=never used") // sample snippets
+//#actor-with-value-class-argument
 class ValueClassActor(arg: Argument) extends Actor {
   def receive = { case _ => () }
 }
@@ -87,6 +91,7 @@ class DemoActorWrapper extends Actor {
     }
   }
 
+  @nowarn("msg=never used") // sample snippets
   class SomeOtherActor extends Actor {
     // Props(new DemoActor(42)) would not be safe
     context.actorOf(DemoActor.props(42), "demo")
@@ -276,41 +281,6 @@ final case class Give(thing: Any)
 
 //#receive-orElse
 
-//#fiddle_code
-import akka.actor.{ Actor, ActorRef, ActorSystem, PoisonPill, Props }
-import language.postfixOps
-import scala.concurrent.duration._
-
-case object Ping
-case object Pong
-
-class Pinger extends Actor {
-  var countDown = 100
-
-  def receive = {
-    case Pong =>
-      println(s"${self.path} received pong, count down $countDown")
-
-      if (countDown > 0) {
-        countDown -= 1
-        sender() ! Ping
-      } else {
-        sender() ! PoisonPill
-        self ! PoisonPill
-      }
-  }
-}
-
-class Ponger(pinger: ActorRef) extends Actor {
-  def receive = {
-    case Ping =>
-      println(s"${self.path} received ping")
-      pinger ! Pong
-  }
-}
-
-//#fiddle_code
-
 //#immutable-message-definition
 case class User(name: String)
 
@@ -318,6 +288,7 @@ case class User(name: String)
 case class Register(user: User)
 //#immutable-message-definition
 
+@nowarn("msg=never used") // sample snippets
 class ActorDocSpec extends AkkaSpec("""
   akka.loglevel = INFO
   akka.loggers = []
@@ -365,29 +336,6 @@ class ActorDocSpec extends AkkaSpec("""
     system.stop(myActor)
   }
 
-  "run basic Ping Pong" in {
-    //#fiddle_code
-    val system = ActorSystem("pingpong")
-
-    val pinger = system.actorOf(Props[Pinger](), "pinger")
-
-    val ponger = system.actorOf(Props(classOf[Ponger], pinger), "ponger")
-
-    import system.dispatcher
-    system.scheduler.scheduleOnce(500 millis) {
-      ponger ! Ping
-    }
-
-    //#fiddle_code
-
-    val testProbe = new TestProbe(system)
-    testProbe.watch(pinger)
-    testProbe.expectTerminated(pinger)
-    testProbe.watch(ponger)
-    testProbe.expectTerminated(ponger)
-    system.terminate()
-  }
-
   "instantiates a case class" in {
     //#immutable-message-instantiation
     val user = User("Mike")
@@ -431,6 +379,9 @@ class ActorDocSpec extends AkkaSpec("""
     //#system-actorOf
     shutdown(system)
   }
+  private abstract class DummyActorProxy {
+    def actorRef: ActorRef
+  }
 
   "creating actor with IndirectActorProducer" in {
     class Echo(name: String) extends Actor {
@@ -444,7 +395,7 @@ class ActorDocSpec extends AkkaSpec("""
       }
     }
 
-    val a: { def actorRef: ActorRef } = new AnyRef {
+    val a: DummyActorProxy = new DummyActorProxy() {
       val applicationContext = this
 
       //#creating-indirectly
@@ -461,13 +412,12 @@ class ActorDocSpec extends AkkaSpec("""
         //#obtain-fresh-Actor-instance-from-DI-framework
       }
 
-      val actorRef = system.actorOf(Props(classOf[DependencyInjector], applicationContext, "hello"), "helloBean")
+      val actorRef: ActorRef =
+        system.actorOf(Props(classOf[DependencyInjector], applicationContext, "hello"), "helloBean")
       //#creating-indirectly
     }
-    val actorRef = {
-      import scala.language.reflectiveCalls
-      a.actorRef
-    }
+
+    val actorRef = a.actorRef
 
     val message = 42
     implicit val self = testActor

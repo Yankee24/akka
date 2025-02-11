@@ -2,6 +2,14 @@
 
 ## Module info
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Cluster Metrics Extension, you must add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -82,7 +90,7 @@ ClusterMetricsExtension.get(system).subscribe(metricsListenerActor);
 
 ## Hyperic Sigar Provisioning
 
-Both user-provided and built-in metrics collectors can optionally use [Hyperic Sigar](http://www.hyperic.com/products/sigar)
+Both user-provided and built-in metrics collectors can optionally use [Hyperic Sigar](https://github.com/hyperic/sigar)
 for a wider and more accurate range of metrics compared to what can be retrieved from ordinary JMX MBeans.
 
 Sigar is using a native o/s library, and requires library provisioning, i.e.

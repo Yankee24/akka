@@ -1,12 +1,17 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed
 
+import com.typesafe.config.{ Config, ConfigFactory }
+import org.scalatest.wordspec.AnyWordSpecLike
+
+import akka.Done
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.LoggingTestKit
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
+import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import akka.persistence.testkit.PersistenceTestKitPlugin
@@ -15,11 +20,6 @@ import akka.persistence.typed.EventSourcedBehaviorLoggingSpec.ChattyEventSourcin
 import akka.persistence.typed.scaladsl.Effect
 import akka.persistence.typed.scaladsl.EventSourcedBehavior
 import akka.serialization.jackson.CborSerializable
-import com.typesafe.config.{ Config, ConfigFactory }
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import akka.Done
-import akka.actor.typed.ActorRef
 
 object EventSourcedBehaviorLoggingSpec {
 
@@ -33,6 +33,8 @@ object EventSourcedBehaviorLoggingSpec {
 
     def apply(id: PersistenceId): Behavior[Command] = {
       Behaviors.setup { ctx =>
+        // default resolved logger name is slightly different in Scala 2.13 and 3.3 due to the object/object nesting
+        ctx.setLoggerName("test.ChattyEventSourcingBehavior")
         EventSourcedBehavior[Command, Event, Set[Event]](
           id,
           Set.empty,
@@ -66,13 +68,10 @@ abstract class EventSourcedBehaviorLoggingSpec(config: Config)
 
     "always log user message in context.log" in {
       val doneProbe = createTestProbe[Done]()
-      LoggingTestKit
-        .info("received message 'Mary'")
-        .withLoggerName("akka.persistence.typed.EventSourcedBehaviorLoggingSpec$ChattyEventSourcingBehavior$")
-        .expect {
-          chattyActor ! Hello("Mary", doneProbe.ref)
-          doneProbe.receiveMessage()
-        }
+      LoggingTestKit.info("received message 'Mary'").withLoggerName("test.ChattyEventSourcingBehavior").expect {
+        chattyActor ! Hello("Mary", doneProbe.ref)
+        doneProbe.receiveMessage()
+      }
     }
 
     s"log internal messages in '$loggerId' logger without logging user data (Persist)" in {
@@ -129,6 +128,6 @@ object EventSourcedBehaviorLoggingContextLoggerSpec {
 }
 class EventSourcedBehaviorLoggingContextLoggerSpec
     extends EventSourcedBehaviorLoggingSpec(EventSourcedBehaviorLoggingContextLoggerSpec.config) {
-  override def loggerName = "akka.persistence.typed.EventSourcedBehaviorLoggingSpec$ChattyEventSourcingBehavior$"
+  override def loggerName = "test.ChattyEventSourcingBehavior"
   override def loggerId = "context.log"
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -143,7 +143,7 @@ class FlowGroupBySpec extends StreamSpec("""
         .groupBy(3, e => if (e.startsWith("A")) null else e.substring(0, 1))
         .grouped(10)
         .mergeSubstreams
-        .runWith(TestSink.probe[Seq[String]])
+        .runWith(TestSink[Seq[String]]())
       down.request(1)
       val ex = down.expectError()
       ex.getMessage.indexOf("Key cannot be null") should not be (-1)
@@ -326,7 +326,7 @@ class FlowGroupBySpec extends StreamSpec("""
 
     "fail when exceeding maxSubstreams" in {
       val (up, down) =
-        Flow[Int].groupBy(1, _ % 2).prefixAndTail(0).mergeSubstreams.runWith(TestSource.probe[Int], TestSink.probe)
+        Flow[Int].groupBy(1, _ % 2).prefixAndTail(0).mergeSubstreams.runWith(TestSource[Int](), TestSink())
 
       down.request(2)
 
@@ -349,7 +349,7 @@ class FlowGroupBySpec extends StreamSpec("""
         .groupBy(0, identity)
         .mergeSubstreams
         .withAttributes(ActorAttributes.supervisionStrategy(resumingDecider))
-        .runWith(TestSource.probe[Int], TestSink.probe)
+        .runWith(TestSource[Int](), TestSink())
 
       down.request(1)
 
@@ -489,7 +489,7 @@ class FlowGroupBySpec extends StreamSpec("""
         .groupBy(2, identity, true)
         .take(1) // close the substream after 1 element
         .mergeSubstreams
-        .runWith(TestSource.probe[Int], TestSink.probe)
+        .runWith(TestSource[Int](), TestSink())
 
       down.request(4)
 
@@ -678,6 +678,23 @@ class FlowGroupBySpec extends StreamSpec("""
       // let 1 pass so stream can complete
       blockSubStream1.open()
       queue.complete()
+    }
+
+    "not throw tooManySubstreamsOpenException for element on closed substream" in {
+      val publisher = TestPublisher.Probe[(Int, Boolean)]()
+      val outProbe =
+        Source.fromPublisher(publisher).groupBy(2, _._1).takeWhile(_._2 != false).mergeSubstreams.runWith(TestSink())
+      outProbe.request(4)
+      publisher.sendNext((1, true))
+      outProbe.expectNext((1, true))
+      publisher.sendNext((2, true))
+      outProbe.expectNext((2, true))
+      publisher.sendNext((2, false)) // substream 2 completed
+      publisher.sendNext((2, false)) // should be dropped, not crash the stream
+      publisher.sendNext((1, true))
+      outProbe.expectNext((1, true))
+
+      outProbe.cancel()
     }
 
   }

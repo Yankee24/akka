@@ -1,21 +1,20 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
+import scala.annotation.nowarn
 import scala.collection.mutable
 import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration._
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.FiniteDuration
 
-import scala.annotation.nowarn
 import language.implicitConversions
 
 import akka.annotation.InternalApi
 import akka.routing.{ Deafen, Listen, Listeners }
-import akka.util.{ unused, JavaDurationConverters }
 
 object FSM {
 
@@ -284,8 +283,8 @@ object FSM {
      * Use Duration.Inf to deactivate an existing timeout.
      */
     def forMax(timeout: java.time.Duration): State[S, D] = {
-      import JavaDurationConverters._
-      forMax(timeout.asScala)
+      import scala.jdk.DurationConverters._
+      forMax(timeout.toScala)
     }
 
     /**
@@ -845,7 +844,7 @@ trait FSM[S, D] extends Actor with Listeners with ActorLogging {
     processEvent(event, source)
   }
 
-  private[akka] def processEvent(event: Event, @unused source: AnyRef): Unit = {
+  private[akka] def processEvent(event: Event, @nowarn("msg=never used") source: AnyRef): Unit = {
     val stateFunc = stateFunctions(currentState.stateName)
     val nextState = if (stateFunc.isDefinedAt(event)) {
       stateFunc(event)

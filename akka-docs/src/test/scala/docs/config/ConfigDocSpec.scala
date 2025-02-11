@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.config
@@ -9,11 +9,14 @@ import akka.actor.typed.scaladsl.Behaviors
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
+import scala.annotation.nowarn
+
 //#imports
 import akka.actor.typed.ActorSystem
 import com.typesafe.config.ConfigFactory
 //#imports
 
+@nowarn("msg=never used") // sample snippets
 class ConfigDocSpec extends AnyWordSpec with Matchers {
   val rootBehavior = Behaviors.empty[String]
 
