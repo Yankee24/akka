@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 import java.lang.{ StringBuilder => JStringBuilder }
 import java.net.MalformedURLException
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.collection.immutable
-
-import scala.annotation.nowarn
+import scala.jdk.CollectionConverters._
 
 import akka.japi.Util.immutableSeq
 
@@ -204,9 +204,7 @@ sealed trait ActorPath extends Comparable[ActorPath] with Serializable {
   /**
    * Java API: Sequence of names for this path from root to this. Performance implication: has to allocate a list.
    */
-  @nowarn("msg=deprecated")
-  def getElements: java.lang.Iterable[String] =
-    scala.collection.JavaConverters.asJavaIterableConverter(elements).asJava
+  def getElements: java.lang.Iterable[String] = elements.asJava
 
   /**
    * Walk up the tree to obtain and return the RootActorPath.
@@ -312,6 +310,9 @@ final case class RootActorPath(address: Address, name: String = "/") extends Act
 
 }
 
+/**
+ * Not for user instantiation
+ */
 @SerialVersionUID(1L)
 final class ChildActorPath private[akka] (val parent: ActorPath, val name: String, override private[akka] val uid: Int)
     extends ActorPath {

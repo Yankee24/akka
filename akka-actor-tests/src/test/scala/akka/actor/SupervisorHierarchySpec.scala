@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
@@ -16,7 +16,6 @@ import scala.util.Random
 import scala.util.control.NoStackTrace
 
 import SupervisorStrategy.{ Directive, Restart, Resume, Stop }
-import scala.annotation.nowarn
 import com.typesafe.config.{ Config, ConfigFactory }
 import language.postfixOps
 
@@ -598,7 +597,6 @@ object SupervisorHierarchySpec {
     when(Stopping, stateTimeout = 5.seconds.dilated) {
       case this.Event(PongOfDeath, _) => stay()
       case this.Event(Terminated(r), _) if r == hierarchy =>
-        @nowarn
         val undead = children.filterNot(_.isTerminated)
         if (undead.nonEmpty) {
           log.info("undead:\n" + undead.mkString("\n"))

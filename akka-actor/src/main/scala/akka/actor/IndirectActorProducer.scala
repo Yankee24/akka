@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
-import scala.collection.immutable
+import akka.annotation.InternalApi
 
 import scala.annotation.nowarn
-
+import scala.collection.immutable
 import akka.japi.Creator
 import akka.util.Reflect
 
@@ -69,6 +69,7 @@ private[akka] object IndirectActorProducer {
 /**
  * INTERNAL API
  */
+@InternalApi
 private[akka] class CreatorFunctionConsumer(creator: () => Actor) extends IndirectActorProducer {
   override def actorClass = classOf[Actor]
   override def produce() = creator()
@@ -77,6 +78,7 @@ private[akka] class CreatorFunctionConsumer(creator: () => Actor) extends Indire
 /**
  * INTERNAL API
  */
+@InternalApi
 private[akka] class CreatorConsumer(clazz: Class[_ <: Actor], creator: Creator[Actor]) extends IndirectActorProducer {
   override def actorClass = clazz
   override def produce() = creator.create()
@@ -85,6 +87,7 @@ private[akka] class CreatorConsumer(clazz: Class[_ <: Actor], creator: Creator[A
 /**
  * INTERNAL API
  */
+@InternalApi
 private[akka] class TypedCreatorFunctionConsumer(clz: Class[_ <: Actor], creator: () => Actor)
     extends IndirectActorProducer {
   override def actorClass = clz
@@ -94,6 +97,7 @@ private[akka] class TypedCreatorFunctionConsumer(clz: Class[_ <: Actor], creator
 /**
  * INTERNAL API
  */
+@InternalApi
 private[akka] class ArgsReflectConstructor(clz: Class[_ <: Actor], args: immutable.Seq[Any])
     extends IndirectActorProducer {
   private[this] val constructor = Reflect.findConstructor(clz, args)
@@ -104,6 +108,7 @@ private[akka] class ArgsReflectConstructor(clz: Class[_ <: Actor], args: immutab
 /**
  * INTERNAL API
  */
+@InternalApi
 private[akka] class NoArgsReflectConstructor(clz: Class[_ <: Actor]) extends IndirectActorProducer {
   Reflect.findConstructor(clz, List.empty)
   override def actorClass = clz

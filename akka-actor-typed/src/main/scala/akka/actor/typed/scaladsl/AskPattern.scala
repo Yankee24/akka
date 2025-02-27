@@ -1,13 +1,14 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.scaladsl
 
 import java.util.concurrent.TimeoutException
 
-import scala.concurrent.Future
 import scala.annotation.nowarn
+import scala.concurrent.Future
+
 import akka.actor.typed.ActorRef
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.RecipientRef
@@ -17,7 +18,7 @@ import akka.actor.typed.internal.InternalRecipientRef
 import akka.annotation.InternalStableApi
 import akka.pattern.PromiseActorRef
 import akka.pattern.StatusReply
-import akka.util.{ unused, Timeout }
+import akka.util.Timeout
 
 /**
  * The ask-pattern implements the initiator side of a request–reply protocol.
@@ -157,7 +158,10 @@ object AskPattern {
     val promiseRef: PromiseActorRef = _promiseRef
 
     @InternalStableApi
-    private[akka] def ask[T](target: InternalRecipientRef[T], message: T, @unused timeout: Timeout): Future[U] = {
+    private[akka] def ask[T](
+        target: InternalRecipientRef[T],
+        message: T,
+        @nowarn("msg=never used") timeout: Timeout): Future[U] = {
       target ! message
       future
     }

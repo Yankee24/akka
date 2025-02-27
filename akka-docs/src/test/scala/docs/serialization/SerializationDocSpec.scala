@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.serialization {
@@ -16,6 +16,13 @@ package docs.serialization {
   import com.typesafe.config.ConfigFactory
   import akka.actor.ExtendedActorSystem
   import java.nio.charset.StandardCharsets
+  import scala.annotation.nowarn
+
+  //#marker-interface
+  import akka.serialization.jackson.JsonSerializable
+
+  final case class MyMessage(name: String, nr: Int) extends JsonSerializable
+  //#marker-interface
 
   //#my-own-serializer
   class MyOwnSerializer extends Serializer {
@@ -99,16 +106,6 @@ package docs.serialization {
   final case class Customer(name: String) extends MyOwnSerializable
   final case class User(name: String) extends MyOwnSerializable
 
-  /**
-   * Marker trait for serialization with Jackson CBOR
-   */
-  trait CborSerializable
-
-  /**
-   * Marker trait for serialization with Jackson JSON
-   */
-  trait JsonSerializable
-
   object SerializerIdConfig {
     val config =
       """
@@ -124,6 +121,7 @@ package docs.serialization {
         """
   }
 
+  @nowarn("msg=never used") // sample snippets
   class SerializationDocSpec extends AkkaSpec {
     "demonstrate configuration of serialize messages" in {
       val config = ConfigFactory.parseString("""
@@ -187,8 +185,6 @@ package docs.serialization {
           }
 
           serialization-bindings {
-            "docs.serialization.JsonSerializable" = jackson-json
-            "docs.serialization.CborSerializable" = jackson-cbor
             "com.google.protobuf.Message" = proto
             "docs.serialization.MyOwnSerializable" = myown
           }

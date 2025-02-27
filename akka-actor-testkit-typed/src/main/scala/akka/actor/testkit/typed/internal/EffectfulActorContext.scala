@@ -1,20 +1,26 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.testkit.typed.internal
 
+import java.time.Duration
 import java.util.concurrent.ConcurrentLinkedQueue
 
+import scala.concurrent.duration.FiniteDuration
+import scala.jdk.DurationConverters._
+import scala.reflect.ClassTag
+import scala.util.Try
+import scala.util.control.NonFatal
+
+import akka.actor.{ ActorPath, Cancellable }
 import akka.actor.testkit.typed.Effect
 import akka.actor.testkit.typed.Effect._
-import akka.actor.typed.internal.TimerSchedulerCrossDslSupport
 import akka.actor.typed.{ ActorRef, Behavior, Props }
-import akka.actor.{ ActorPath, Cancellable }
+import akka.actor.typed.RecipientRef
+import akka.actor.typed.internal.TimerSchedulerCrossDslSupport
 import akka.annotation.InternalApi
-
-import scala.concurrent.duration.FiniteDuration
-import scala.reflect.ClassTag
+import akka.util.Timeout
 
 /**
  * INTERNAL API
@@ -22,10 +28,68 @@ import scala.reflect.ClassTag
 @InternalApi private[akka] final class EffectfulActorContext[T](
     system: ActorSystemStub,
     path: ActorPath,
-    currentBehaviorProvider: () => Behavior[T])
+    currentBehaviorProvider: () => Behavior[T],
+    behaviorTestKit: BehaviorTestKitImpl[T])
     extends StubbedActorContext[T](system, path, currentBehaviorProvider) {
 
   private[akka] val effectQueue = new ConcurrentLinkedQueue[Effect]
+
+  override def ask[Req, Res](target: RecipientRef[Req], createRequest: ActorRef[Res] => Req)(
+      mapResponse: Try[Res] => T)(implicit responseTimeout: Timeout, classTag: ClassTag[Res]): Unit = {
+    // In the real implementation, this propagates as an immediately-failed future,
+    // but since an illegal timeout is the sort of thing that ideally would have been
+    // a type error, blowing up the test is the next-best thing
+    require(responseTimeout.duration.length > 0, s"Timeout length must be positive, question not sent to [$target]")
+
+    val responseClass = classTag.runtimeClass.asInstanceOf[Class[Res]]
+
+    commonAsk(responseClass, createRequest, target, responseTimeout.duration, mapResponse)
+  }
+
+  override def ask[Req, Res](
+      resClass: Class[Res],
+      target: RecipientRef[Req],
+      responseTimeout: Duration,
+      createRequest: akka.japi.function.Function[ActorRef[Res], Req],
+      applyToResponse: akka.japi.function.Function2[Res, Throwable, T]): Unit = {
+    require(
+      responseTimeout.getSeconds > 0 || responseTimeout.getNano > 0,
+      s"Timeout length must be positive, question not sent to [$target]")
+
+    val scalaCreateRequest = createRequest(_)
+    val scalaMapResponse = { (result: Try[Res]) =>
+      result
+        .map(applyToResponse(_, null))
+        .recover {
+          case NonFatal(ex) => applyToResponse(null.asInstanceOf[Res], ex)
+        }
+        .get
+    }
+
+    commonAsk(resClass, scalaCreateRequest, target, responseTimeout.toScala, scalaMapResponse)
+  }
+
+  private def commonAsk[Req, Res](
+      responseClass: Class[Res],
+      createRequest: ActorRef[Res] => Req,
+      target: RecipientRef[Req],
+      responseTimeout: FiniteDuration,
+      mapResponse: Try[Res] => T): Unit = {
+    val replyTo = system.ignoreRef[Res]
+    val askMessage = createRequest(replyTo)
+    target ! askMessage
+
+    val responseForwarder = { (t: Try[Res]) =>
+      import akka.actor.typed.internal.AdaptMessage
+
+      // Yay erasure
+      val adaptedTestKit = behaviorTestKit.asInstanceOf[BehaviorTestKitImpl[AdaptMessage[Try[Res], T]]]
+
+      adaptedTestKit.run(AdaptMessage(t, mapResponse))
+    }
+
+    effectQueue.offer(AskInitiated(target, responseTimeout, responseClass)(askMessage, responseForwarder, mapResponse))
+  }
 
   override def spawnAnonymous[U](behavior: Behavior[U], props: Props = Props.empty): ActorRef[U] = {
     val ref = super.spawnAnonymous(behavior, props)

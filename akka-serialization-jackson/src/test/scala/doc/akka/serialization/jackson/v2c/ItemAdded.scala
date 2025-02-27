@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package doc.akka.serialization.jackson.v2c
 
-import doc.akka.serialization.jackson.MySerializable
+import akka.serialization.jackson.JsonSerializable
 
 // #rename
-case class ItemAdded(shoppingCartId: String, itemId: String, quantity: Int) extends MySerializable
+case class ItemAdded(shoppingCartId: String, itemId: String, quantity: Int) extends JsonSerializable
 // #rename

@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sbr
 
+import scala.annotation.nowarn
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
@@ -14,6 +15,7 @@ import akka.actor.ActorRef
 import akka.actor.Address
 import akka.actor.ExtendedActorSystem
 import akka.actor.Props
+import akka.cluster._
 import akka.cluster.ClusterEvent.LeaderChanged
 import akka.cluster.ClusterEvent.MemberExited
 import akka.cluster.ClusterEvent.MemberRemoved
@@ -26,7 +28,6 @@ import akka.cluster.ClusterEvent.UnreachableDataCenter
 import akka.cluster.ClusterEvent.UnreachableMember
 import akka.cluster.ClusterSettings.DataCenter
 import akka.cluster.MemberStatus._
-import akka.cluster._
 import akka.coordination.lease.LeaseSettings
 import akka.coordination.lease.TestLease
 import akka.coordination.lease.TimeoutSettings
@@ -92,17 +93,16 @@ object SplitBrainResolverSpec {
   }
 }
 
+@nowarn("msg=Use Akka Distributed Cluster")
 class SplitBrainResolverSpec
     extends AkkaSpec("""
   |akka {
   |  actor.provider = cluster
   |  cluster.downing-provider-class = "akka.cluster.sbr.SplitBrainResolverProvider"
   |  cluster.split-brain-resolver.active-strategy=keep-majority
-  |  remote {
-  |    netty.tcp {
-  |      hostname = "127.0.0.1"
-  |      port = 0
-  |    }
+  |  remote.artery.canonical {
+  |    hostname = "127.0.0.1"
+  |    port = 0
   |  }
   |}
   """.stripMargin)

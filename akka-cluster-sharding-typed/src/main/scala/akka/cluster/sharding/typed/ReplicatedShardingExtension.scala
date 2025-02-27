@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
+
+import java.util.{ Map => JMap }
 
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.Extension
@@ -11,7 +13,6 @@ import akka.annotation.DoNotInherit
 import akka.cluster.sharding.typed.internal.ReplicatedShardingExtensionImpl
 import akka.cluster.sharding.typed.scaladsl.EntityRef
 import akka.persistence.typed.ReplicaId
-import java.util.{ Map => JMap }
 
 /**
  * Extension for running Replicated Event Sourcing in sharding by starting one separate instance of sharding per replica.

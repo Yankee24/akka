@@ -1,12 +1,11 @@
 /*
- * Copyright (C) 2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2022-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream.operators.sourceorflow;
 
 import akka.actor.ActorSystem;
 import akka.stream.javadsl.Source;
-
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;

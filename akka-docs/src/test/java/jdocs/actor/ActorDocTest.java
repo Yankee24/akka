@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.actor;
@@ -841,7 +841,8 @@ public class ActorDocTest extends AbstractJavaTest {
         // using timeout from above
         CompletableFuture<Object> future2 = ask(actorB, "another request", t).toCompletableFuture();
 
-        CompletableFuture<Result> transformed = future1.thenCombine(future2, (x, s) -> new Result((String) x, (String) s));
+        CompletableFuture<Result> transformed =
+            future1.thenCombine(future2, (x, s) -> new Result((String) x, (String) s));
 
         pipe(transformed, system.dispatcher()).to(actorC);
         // #ask-pipe

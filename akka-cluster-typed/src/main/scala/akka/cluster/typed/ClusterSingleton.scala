@@ -1,10 +1,14 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.typed
 
+import scala.annotation.nowarn
 import scala.concurrent.duration.{ Duration, FiniteDuration, _ }
+import scala.jdk.DurationConverters._
+
+import com.typesafe.config.Config
 
 import akka.actor.typed._
 import akka.annotation.{ DoNotInherit, InternalApi }
@@ -15,9 +19,9 @@ import akka.cluster.singleton.{
 }
 import akka.cluster.typed.internal.AdaptedClusterSingletonImpl
 import akka.coordination.lease.LeaseUsageSettings
-import akka.util.JavaDurationConverters._
-import com.typesafe.config.Config
+import org.slf4j.LoggerFactory
 
+@nowarn("msg=Use Akka Distributed Cluster")
 object ClusterSingletonSettings {
   def apply(system: ActorSystem[_]): ClusterSingletonSettings =
     fromConfig(system.settings.config.getConfig("akka.cluster"))
@@ -43,8 +47,10 @@ object ClusterSingletonSettings {
   }
 }
 
+@nowarn("msg=Use Akka Distributed Cluster")
 final class ClusterSingletonSettings(
     val role: Option[String],
+    @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
     val dataCenter: Option[DataCenter],
     val singletonIdentificationInterval: FiniteDuration,
     val removalMargin: FiniteDuration,
@@ -67,23 +73,30 @@ final class ClusterSingletonSettings(
 
   def withNoRole(): ClusterSingletonSettings = copy(role = None)
 
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def withDataCenter(dataCenter: DataCenter): ClusterSingletonSettings = copy(dataCenter = Some(dataCenter))
 
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def withNoDataCenter(): ClusterSingletonSettings = copy(dataCenter = None)
 
   def withRemovalMargin(removalMargin: FiniteDuration): ClusterSingletonSettings = copy(removalMargin = removalMargin)
 
   def withRemovalMargin(removalMargin: java.time.Duration): ClusterSingletonSettings =
-    withRemovalMargin(removalMargin.asScala)
+    withRemovalMargin(removalMargin.toScala)
 
   def withHandoverRetryInterval(handOverRetryInterval: FiniteDuration): ClusterSingletonSettings =
     copy(handOverRetryInterval = handOverRetryInterval)
 
   def withHandoverRetryInterval(handOverRetryInterval: java.time.Duration): ClusterSingletonSettings =
-    withHandoverRetryInterval(handOverRetryInterval.asScala)
+    withHandoverRetryInterval(handOverRetryInterval.toScala)
 
   def withBufferSize(bufferSize: Int): ClusterSingletonSettings = copy(bufferSize = bufferSize)
 
+  /**
+   * Note that if you define a custom lease name and have several singletons each one must have a unique
+   * lease name. If the lease name is undefined it will be derived from ActorSystem name and singleton
+   * actor path, but that may result in too long lease names.
+   */
   def withLeaseSettings(leaseSettings: LeaseUsageSettings) = copy(leaseSettings = Option(leaseSettings))
 
   private def copy(
@@ -235,11 +248,21 @@ object ClusterSingletonManagerSettings {
    * the default configuration `akka.cluster.singleton`.
    */
   def apply(config: Config): ClusterSingletonManagerSettings = {
-    val lease = config.getString("use-lease") match {
-      case s if s.isEmpty => None
-      case leaseConfigPath =>
-        Some(new LeaseUsageSettings(leaseConfigPath, config.getDuration("lease-retry-interval").asScala))
-    }
+
+    val lease: Option[LeaseUsageSettings] =
+      if (config.hasPath("use-lease") && config.getString("use-lease").nonEmpty) {
+        val settings = LeaseUsageSettings(config)
+        // intentionally not in config because would be high risk of not using unique names
+        if (settings.leaseName != "") {
+          LoggerFactory
+            .getLogger(classOf[ClusterSingletonManagerSettings])
+            .warn(
+              "Ignoring singleton lease-name [{}] from configuration, lease names must be programmatically configured through 'LeaseUsageSettings'",
+              settings.leaseName)
+          Some(settings.withLeaseName(""))
+        } else Some(settings)
+      } else None
+
     new ClusterSingletonManagerSettings(
       singletonName = config.getString("singleton-name"),
       role = roleOption(config.getString("role")),
@@ -284,7 +307,11 @@ object ClusterSingletonManagerSettings {
  *                              retried with this interval until the previous oldest confirms that the hand
  *                              over has started or the previous oldest member is removed from the cluster
  *                              (+ `removalMargin`).
- * @param leaseSettings         LeaseSettings for acquiring before creating the singleton actor
+ * @param leaseSettings         LeaseSettings for acquiring before creating the singleton actor.
+ *                              Note that if you define a custom lease name and have several singletons each
+ *                              one must have a unique lease name. If the lease name is undefined it will be
+ *                              derived from ActorSystem name and singleton actor path, but that may result in
+ *                              too long lease names.
  */
 final class ClusterSingletonManagerSettings(
     val singletonName: String,
@@ -313,14 +340,19 @@ final class ClusterSingletonManagerSettings(
     copy(removalMargin = removalMargin)
 
   def withRemovalMargin(removalMargin: java.time.Duration): ClusterSingletonManagerSettings =
-    withRemovalMargin(removalMargin.asScala)
+    withRemovalMargin(removalMargin.toScala)
 
   def withHandOverRetryInterval(retryInterval: FiniteDuration): ClusterSingletonManagerSettings =
     copy(handOverRetryInterval = retryInterval)
 
   def withHandOverRetryInterval(retryInterval: java.time.Duration): ClusterSingletonManagerSettings =
-    withHandOverRetryInterval(retryInterval.asScala)
+    withHandOverRetryInterval(retryInterval.toScala)
 
+  /**
+   * Note that if you define a custom lease name and have several singletons each one must have a unique
+   * lease name. If the lease name is undefined it will be derived from ActorSystem name and singleton
+   * actor path, but that may result in too long lease names.
+   */
   def withLeaseSettings(leaseSettings: LeaseUsageSettings) = copy(leaseSettings = Option(leaseSettings))
 
   private def copy(

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.util
@@ -8,9 +8,8 @@ import java.io.IOException
 import java.util.jar.Attributes
 import java.util.jar.Manifest
 
-import scala.collection.immutable
-
 import scala.annotation.nowarn
+import scala.collection.immutable
 
 import akka.actor.ActorSystem
 import akka.actor.ClassicActorSystemProvider
@@ -93,7 +92,7 @@ object ManifestInfo extends ExtensionId[ManifestInfo] with ExtensionIdProvider {
         s"You can solve this by adding an explicit dependency on version $highestVersion " +
         s"of the [$toBeUpdated] artifacts to your project. " +
         s"Here's a complete collection of detected artifacts: ${groupedByVersion}. " +
-        "See also: https://doc.akka.io/docs/akka/current/common/binary-compatibility-rules.html#mixed-versioning-is-not-allowed")
+        "See also: https://doc.akka.io/libraries/akka-core/current/common/binary-compatibility-rules.html#mixed-versioning-is-not-allowed")
     } else None
   }
 }

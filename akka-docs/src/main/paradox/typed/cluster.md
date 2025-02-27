@@ -4,7 +4,7 @@ project.description: Build distributed applications that scale across the networ
 # Cluster Usage
   
 This document describes how to use Akka Cluster and the Cluster APIs. 
-The [Stateful or Stateless Applications: To Akka Cluster or not](https://akka.io/blog/news/2020/06/01/akka-cluster-motivation) video is a good starting point to understand the motivation to use Akka Cluster.
+The [Stateful or Stateless Applications: To Akka Cluster or not](https://www.youtube.com/watch?v=CiVsKjZV-Ys) video is a good starting point to understand the motivation to use Akka Cluster.
 
 For specific documentation topics see: 
 
@@ -22,6 +22,14 @@ You have to enable @ref:[serialization](../serialization.md)  to send messages b
 recommendation if you don't have other preferences or constraints.
 
 ## Module info
+
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
 
 To use Akka Cluster add the following dependency in your project:
 
@@ -142,7 +150,7 @@ way as other nodes.
 #### Joining automatically to seed nodes with Cluster Bootstrap
 
 Automatic discovery of nodes for the joining process is available
-using the open source Akka Management project's module, 
+using the Akka Management project's module, 
 @ref:[Cluster Bootstrap](../additional/operations.md#cluster-bootstrap).
 Please refer to its documentation for more details.
 
@@ -449,16 +457,13 @@ See @ref:[Distributed Publish Subscribe](distributed-pub-sub.md).
 @@include[cluster.md](../includes/cluster.md) { #cluster-router }
 See @ref:[Group Routers](routers.md#group-router). 
 
-@@include[cluster.md](../includes/cluster.md) { #cluster-multidc }
-See @ref:[Cluster Multi-DC](cluster-dc.md).
-
 @@include[cluster.md](../includes/cluster.md) { #reliable-delivery }
 See @ref:[Reliable Delivery](reliable-delivery.md)
 
 ## Example project
 
-@java[@extref[Cluster example project](samples:akka-samples-cluster-java)]
-@scala[@extref[Cluster example project](samples:akka-samples-cluster-scala)]
+@java[[Cluster example project](https://github.com/akka/akka/tree/main/samples/akka-sample-cluster-java#readme) [(sources zip)](../attachments/akka-samples-cluster-java.zip)]
+@scala[[Cluster example project](https://github.com/akka/akka/tree/main/samples/akka-sample-cluster-scala#readme) [(sources zip)](../attachments/akka-samples-cluster-scala.zip)]
 is an example project that can be downloaded, and with instructions of how to run.
 
 This project contains samples illustrating different Cluster features, such as

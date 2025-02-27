@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
@@ -7,21 +7,20 @@ package akka.remote.artery
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.util.control.NonFatal
 
-import akka.actor.ActorSystem
-import akka.actor.WrappedMessage
 import akka.actor.ActorRef
+import akka.actor.ActorSystem
 import akka.actor.ExtendedActorSystem
+import akka.actor.WrappedMessage
 import akka.annotation.InternalApi
 import akka.annotation.InternalStableApi
 import akka.event.Logging
 import akka.event.LoggingAdapter
 import akka.remote.RemoteActorRefProvider
-import akka.util.ccompat._
 import akka.util.OptionVal
-import akka.util.unused
 
 /**
  * INTERNAL API
@@ -35,7 +34,6 @@ import akka.util.unused
  * will be created for each encoder and decoder. It's only called from the operator, so if it doesn't
  * delegate to any shared instance it doesn't have to be thread-safe.
  */
-@ccompatUsedUntil213
 abstract class RemoteInstrument {
 
   /**
@@ -402,10 +400,10 @@ private[remote] object RemoteInstruments {
   def getLength(kl: Int): Int = kl & lengthMask
 
   @InternalStableApi
-  def create(system: ExtendedActorSystem, @unused log: LoggingAdapter): Vector[RemoteInstrument] = {
+  def create(system: ExtendedActorSystem, @nowarn("msg=never used") log: LoggingAdapter): Vector[RemoteInstrument] = {
     val c = system.settings.config
     val path = "akka.remote.artery.advanced.instruments"
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     val configuredInstruments = c
       .getStringList(path)
       .asScala

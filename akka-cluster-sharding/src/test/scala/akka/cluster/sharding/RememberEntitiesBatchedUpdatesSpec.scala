@@ -1,14 +1,15 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
 
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
+
 import akka.actor.{ Actor, ActorLogging, ActorRef, Props }
 import akka.cluster.{ Cluster, MemberStatus }
 import akka.testkit.{ AkkaSpec, ImplicitSender, TestProbe }
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
 
 object RememberEntitiesBatchedUpdatesSpec {
 
@@ -44,7 +45,6 @@ object RememberEntitiesBatchedUpdatesSpec {
       # akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
       akka.actor.provider = cluster
       akka.remote.artery.canonical.port = 0
-      akka.remote.classic.netty.tcp.port = 0
       akka.cluster.sharding.state-store-mode = ddata
       akka.cluster.sharding.remember-entities = on
       # no leaks between test runs thank you

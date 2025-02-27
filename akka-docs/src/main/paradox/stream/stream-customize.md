@@ -2,6 +2,14 @@
 
 ## Dependency
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Streams, add the module to your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -112,7 +120,7 @@ From the @apidoc[stage.GraphStageLogic] the following operations are available o
 The events corresponding to an *output* port can be received in an @scala[@scaladoc[OutHandler](akka.stream.stage.OutHandler)]@java[@javadoc[AbstractOutHandler](akka.stream.stage.AbstractOutHandler)] instance registered to the
 output port using `setHandler(out,handler)`. This handler has two callbacks:
 
- * @apidoc[onPull()](akka.stream.stage.OutHandler) {scala="#onPull():Unit" java="#onPull()"] is called when the output port is ready to emit the next element, `push(out, elem)` is now allowed
+ * @apidoc[onPull()](akka.stream.stage.OutHandler) {scala="#onPull():Unit" java="#onPull()"} is called when the output port is ready to emit the next element, `push(out, elem)` is now allowed
 to be called on this port.
  * @apidoc[onDownstreamFinish()](akka.stream.stage.OutHandler) {scala="#onDownstreamFinish(cause:Throwable):Unit" java="#onDownstreamFinish(java.lang.Throwable)"} is called once the downstream has cancelled and no longer allows messages to be pushed to it.
 No more `onPull()` will arrive after this event. If not overridden this will default to stopping the operator.
@@ -305,7 +313,7 @@ more advanced operators which may need to be debugged at some point.
 
 @@@ div { .group-scala }
 
-The helper trait @scaladoc[akka.stream.stage.StageLogging](StageLogging) is provided to enable you to obtain a @apidoc[akka.event.LoggingAdapter]
+The helper trait @scaladoc[StageLogging](akka.stream.stage.StageLogging) is provided to enable you to obtain a @apidoc[akka.event.LoggingAdapter]
 inside of a @apidoc[stage.GraphStage] as long as the @apidoc[stream.Materializer] you're using is able to provide you with a logger.
 In that sense, it serves a very similar purpose as @apidoc[actor.ActorLogging] does for Actors. 
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.routing
@@ -17,8 +17,8 @@ import akka.actor.Props
 import akka.actor.Terminated
 import akka.cluster.MultiNodeClusterSpec
 import akka.pattern.ask
+import akka.remote.testkit.Direction
 import akka.remote.testkit.MultiNodeConfig
-import akka.remote.transport.ThrottlerTransportAdapter.Direction
 import akka.routing.ActorRefRoutee
 import akka.routing.ActorSelectionRoutee
 import akka.routing.FromConfig
@@ -134,7 +134,7 @@ abstract class ClusterRoundRobinSpec
    */
   private def fullAddress(actorRef: ActorRef): Address = actorRef.path.address match {
     case Address(_, _, None, None) => cluster.selfAddress
-    case a                         => a
+    case fa                        => fa
   }
 
   def currentRoutees(router: ActorRef) =

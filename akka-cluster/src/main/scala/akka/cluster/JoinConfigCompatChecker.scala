@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -10,8 +10,7 @@ import com.typesafe.config.{ Config, ConfigFactory, ConfigValue }
 
 import akka.actor.ExtendedActorSystem
 import akka.annotation.{ DoNotInherit, InternalApi }
-import akka.util.ccompat._
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 abstract class JoinConfigCompatChecker {
 
@@ -97,7 +96,6 @@ object JoinConfigCompatChecker {
    * information that users may have added to their configuration.
    */
   @InternalApi
-  @ccompatUsedUntil213
   private[cluster] def filterWithKeys(requiredKeys: im.Seq[String], config: Config): Config = {
 
     val filtered = for {
@@ -148,17 +146,18 @@ object JoinConfigCompatChecker {
           .get // can't continue if we can't load it
       }
 
-    // composite checker
-    new JoinConfigCompatChecker {
-      override val requiredKeys: im.Seq[String] = {
-        // Always include akka.version (used in join logging)
-        "akka.version" +: checkers.flatMap(_.requiredKeys).to(im.Seq)
-      }
-      override def check(toValidate: Config, clusterConfig: Config): ConfigValidation =
-        checkers.foldLeft(Valid: ConfigValidation) { (acc, checker) =>
-          acc ++ checker.check(toValidate, clusterConfig)
-        }
+    new CompositeChecker(checkers)
+  }
+
+  private final class CompositeChecker(checkers: Set[JoinConfigCompatChecker]) extends JoinConfigCompatChecker {
+    override val requiredKeys: im.Seq[String] = {
+      // Always include akka.version (used in join logging)
+      "akka.version" +: checkers.flatMap(_.requiredKeys).to(im.Seq)
     }
+    override def check(toValidate: Config, clusterConfig: Config): ConfigValidation =
+      checkers.foldLeft(Valid: ConfigValidation) { (acc, checker) =>
+        acc ++ checker.check(toValidate, clusterConfig)
+      }
   }
 }
 

@@ -1,35 +1,34 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
+import akka.annotation.InternalApi
 import java.util.concurrent.CompletionStage
 import java.util.regex.Pattern
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.collection.immutable
-import scala.compat.java8.FutureConverters
+import scala.concurrent.ExecutionContext
+import scala.jdk.FutureConverters.FutureOps
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
 import scala.language.implicitConversions
 import scala.util.Success
 
-import scala.annotation.nowarn
-
-import akka.dispatch.ExecutionContexts
 import akka.pattern.ask
 import akka.routing.MurmurHash
-import akka.util.{ Helpers, JavaDurationConverters, Timeout }
-import akka.util.ccompat._
+import akka.util.{ Helpers, Timeout }
 
 /**
  * An ActorSelection is a logical view of a section of an ActorSystem's tree of Actors,
  * allowing for broadcasting of messages to that section.
  */
 @SerialVersionUID(1L)
-@ccompatUsedUntil213
 abstract class ActorSelection extends Serializable {
   this: ScalaActorSelection =>
 
@@ -67,7 +66,7 @@ abstract class ActorSelection extends Serializable {
    * [[ActorRef]].
    */
   def resolveOne()(implicit timeout: Timeout): Future[ActorRef] = {
-    implicit val ec = ExecutionContexts.parasitic
+    implicit val ec = ExecutionContext.parasitic
     val p = Promise[ActorRef]()
     this.ask(Identify(None)).onComplete {
       case Success(ActorIdentity(_, Some(ref))) => p.success(ref)
@@ -98,36 +97,8 @@ abstract class ActorSelection extends Serializable {
    * supplied `timeout`.
    *
    */
-  @deprecated("Use the overloaded method resolveOne which accepts java.time.Duration instead.", since = "2.5.20")
-  def resolveOneCS(timeout: FiniteDuration): CompletionStage[ActorRef] =
-    FutureConverters.toJava[ActorRef](resolveOne(timeout))
-
-  /**
-   * Java API for [[#resolveOne]]
-   *
-   * Resolve the [[ActorRef]] matching this selection.
-   * The result is returned as a CompletionStage that is completed with the [[ActorRef]]
-   * if such an actor exists. It is completed with failure [[ActorNotFound]] if
-   * no such actor exists or the identification didn't complete within the
-   * supplied `timeout`.
-   *
-   */
-  @deprecated("Use the overloaded method resolveOne which accepts java.time.Duration instead.", since = "2.5.20")
-  def resolveOneCS(timeout: java.time.Duration): CompletionStage[ActorRef] = resolveOne(timeout)
-
-  /**
-   * Java API for [[#resolveOne]]
-   *
-   * Resolve the [[ActorRef]] matching this selection.
-   * The result is returned as a CompletionStage that is completed with the [[ActorRef]]
-   * if such an actor exists. It is completed with failure [[ActorNotFound]] if
-   * no such actor exists or the identification didn't complete within the
-   * supplied `timeout`.
-   *
-   */
   def resolveOne(timeout: java.time.Duration): CompletionStage[ActorRef] = {
-    import JavaDurationConverters._
-    FutureConverters.toJava[ActorRef](resolveOne(timeout.asScala))
+    resolveOne(timeout.toScala).asJava
   }
 
   override def toString: String = {
@@ -335,6 +306,7 @@ private[akka] sealed trait SelectionPathElement
 /**
  * INTERNAL API
  */
+@InternalApi
 @SerialVersionUID(2L)
 private[akka] final case class SelectChildName(name: String) extends SelectionPathElement {
   override def toString: String = name
@@ -343,6 +315,7 @@ private[akka] final case class SelectChildName(name: String) extends SelectionPa
 /**
  * INTERNAL API
  */
+@InternalApi
 @SerialVersionUID(2L)
 private[akka] final case class SelectChildPattern(patternStr: String) extends SelectionPathElement {
   val pattern: Pattern = Helpers.makePattern(patternStr)
@@ -352,6 +325,7 @@ private[akka] final case class SelectChildPattern(patternStr: String) extends Se
 /**
  * INTERNAL API
  */
+@InternalApi
 @SerialVersionUID(2L)
 private[akka] case object SelectParent extends SelectionPathElement {
   override def toString: String = ".."

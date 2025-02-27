@@ -1,11 +1,15 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery.compress
 
+import java.io.NotSerializableException
+
 import scala.concurrent.duration._
+
 import com.typesafe.config.ConfigFactory
+
 import akka.actor._
 import akka.actor.ExtendedActorSystem
 import akka.remote.artery.ArteryMultiNodeSpec
@@ -13,11 +17,9 @@ import akka.remote.artery.compress.CompressionProtocol.Events
 import akka.serialization.SerializerWithStringManifest
 import akka.testkit._
 
-import java.io.NotSerializableException
-
 object CompressionIntegrationSpec {
 
-  val commonConfig = ConfigFactory.parseString(s"""
+  val commonConfig = ConfigFactory.parseString("""
      akka {
        loglevel = INFO
 

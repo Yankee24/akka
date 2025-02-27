@@ -1,8 +1,13 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
+
+import scala.concurrent.Future
+import scala.concurrent.duration._
+import scala.util.Success
+import scala.util.control.NoStackTrace
 
 import akka.actor.Actor
 import akka.actor.ActorLogging
@@ -16,11 +21,6 @@ import akka.testkit.EventFilter
 import akka.testkit.TestProbe
 import akka.testkit.WithLogCapturing
 
-import scala.concurrent.Future
-import scala.concurrent.duration._
-import scala.util.Success
-import scala.util.control.NoStackTrace
-
 // FIXME this looks like it is the same test as ClusterShardingLeaseSpec is there any difference?
 object ShardWithLeaseSpec {
   val config =
@@ -28,7 +28,6 @@ object ShardWithLeaseSpec {
       akka.loglevel = DEBUG
       akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
       akka.actor.provider = "cluster"
-      akka.remote.classic.netty.tcp.port = 0
       akka.remote.artery.canonical.port = 0
       test-lease {
           lease-class = akka.coordination.lease.TestLease

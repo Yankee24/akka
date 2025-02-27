@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.query.typed.scaladsl
@@ -7,7 +7,6 @@ package akka.persistence.query.typed.scaladsl
 import scala.collection.immutable
 
 import akka.NotUsed
-import akka.annotation.ApiMayChange
 import akka.persistence.query.DurableStateChange
 import akka.persistence.query.Offset
 import akka.persistence.state.scaladsl.DurableStateStore
@@ -17,10 +16,7 @@ import akka.stream.scaladsl.Source
  * Query API for reading durable state objects.
  *
  * For Java API see [[DurableStateStoreBySliceQuery]].
- *
- * API May Change
  */
-@ApiMayChange
 trait DurableStateStoreBySliceQuery[A] extends DurableStateStore[A] {
 
   /**

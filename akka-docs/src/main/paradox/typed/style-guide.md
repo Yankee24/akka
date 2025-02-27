@@ -45,7 +45,7 @@ A few differences to note:
 * There is no class in the functional style, but that is not strictly a requirement and sometimes it's
   convenient to use a class also with the functional style to reduce number of parameters in the methods.
 * Mutable state, such as the @scala[`var n`]@java[`int n`] is typically used in the object-oriented style.
-* In the functional style the state is is updated by returning a new behavior that holds the new immutable state,
+* In the functional style the state is updated by returning a new behavior that holds the new immutable state,
   the @scala[`n: Int`]@java[`final int n`] parameter of the `counter` method.
 * The object-oriented style must use a new instance of the initial `Behavior` for each spawned actor instance,
   since the state in `AbstractBehavior` instance must not be shared between actor instances.
@@ -465,10 +465,9 @@ Using the `ReceiveBuilder` is the typical, and recommended, way of defining mess
 be good to know that it's optional in case you would prefer a different approach. Alternatives could be like:
 
 * direct processing because there is only one message type
+* pattern matching ([Java 21 documentation](https://docs.oracle.com/en/java/javase/21/language/pattern-matching.html))
 * if or switch statements
 * annotation processor
-* [Vavr Pattern Matching DSL](https://www.vavr.io/vavr-docs/#_pattern_matching)
-* pattern matching since JDK 14 ([JEP 305](https://openjdk.java.net/jeps/305))
 
 In `Behaviors` there are `receive`, `receiveMessage` and `receiveSignal` factory methods that takes functions
 instead of using the `ReceiveBuilder`, which is the `receive` with the class parameter.

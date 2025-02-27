@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
+import java.util.StringJoiner
+
 import akka.stream.testkit._
 import akka.stream.testkit.scaladsl.StreamTestKit._
 import akka.stream.testkit.scaladsl.TestSink
-
-import java.util.StringJoiner
 
 class FlowInterleaveAllSpec extends StreamSpec("""
     akka.stream.materializer.initial-input-buffer-size = 2
@@ -20,20 +20,20 @@ class FlowInterleaveAllSpec extends StreamSpec("""
     "work in the happy case" in assertAllStagesStopped {
       val sub = Source(List(1, 2, 7))
         .interleaveAll(List(Source(List(3, 4, 8)), Source(List(5, 6, 9, 10))), 2, eagerClose = false)
-        .runWith(TestSink.probe[Int])
+        .runWith(TestSink[Int]())
       sub.expectSubscription().request(10)
       sub.expectNext(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).expectComplete()
     }
 
     "work with none other sources" in {
-      val sub = Source(List(1, 2, 3)).interleaveAll(Nil, 2, eagerClose = false).runWith(TestSink.probe[Int])
+      val sub = Source(List(1, 2, 3)).interleaveAll(Nil, 2, eagerClose = false).runWith(TestSink[Int]())
       sub.expectSubscription().request(3)
       sub.expectNext(1, 2, 3).expectComplete()
     }
 
     "work with empty other source" in {
       val sub =
-        Source(List(1, 2, 3)).interleaveAll(List(Source.empty), 2, eagerClose = false).runWith(TestSink.probe[Int])
+        Source(List(1, 2, 3)).interleaveAll(List(Source.empty), 2, eagerClose = false).runWith(TestSink[Int]())
       sub.expectSubscription().request(3)
       sub.expectNext(1, 2, 3).expectComplete()
     }
@@ -41,7 +41,7 @@ class FlowInterleaveAllSpec extends StreamSpec("""
     "eagerClose = true, first stream closed" in assertAllStagesStopped {
       val sub = Source(List(1, 2, 7))
         .interleaveAll(List(Source(List(3, 4, 8)), Source(List(5, 6, 9, 10))), 2, eagerClose = true)
-        .runWith(TestSink.probe[Int])
+        .runWith(TestSink[Int]())
       sub.expectSubscription().request(10)
       sub.expectNext(1, 2, 3, 4, 5, 6, 7).expectComplete()
     }

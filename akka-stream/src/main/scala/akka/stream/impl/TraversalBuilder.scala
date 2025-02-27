@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl
@@ -15,7 +15,6 @@ import akka.stream.impl.fusing.GraphStageModule
 import akka.stream.impl.fusing.GraphStages.SingleSource
 import akka.stream.scaladsl.Keep
 import akka.util.OptionVal
-import akka.util.unused
 
 /**
  * INTERNAL API
@@ -28,8 +27,7 @@ import akka.util.unused
  * number (and those which are not receive different numbers). This feature can be used to
  *  - materialize a graph, using the slots as indices to an array of Publishers/Subscribers that need to be wired
  *    together
- *  - fuse a graph, using the slots to construct a [[akka.stream.impl.fusing.GraphInterpreter.GraphAssembly]] which
- *    uses a similar layout
+ *  - fuse a graph
  *  - create a DOT formatted output for visualization
  *  - convert the graph to another data structure
  *
@@ -47,7 +45,7 @@ import akka.util.unused
     Concat.normalizeConcat(this, that)
   }
 
-  def rewireFirstTo(@unused relativeOffset: Int): Traversal = null
+  def rewireFirstTo(relativeOffset: Int): Traversal = null
 }
 
 /**
@@ -56,7 +54,7 @@ import akka.util.unused
 @InternalApi private[akka] object Concat {
 
   /**
-   * An optimizatzion to remove cheaply recognizable patterns of redundancy, for example PushNotUsed immediately
+   * An optimization to remove cheaply recognizable patterns of redundancy, for example PushNotUsed immediately
    * followed by a Pop. It also rotates the tree to make it more left-leaning, which makes the tree more readable
    * and require less stack-space when traversing. This is only a single rotation, otherwise this implementation
    * would be O(N^2).
@@ -370,6 +368,16 @@ import akka.util.unused
         }
     }
   }
+
+  /**
+   * Test if a Graph is an empty Source.
+   * */
+  def isEmptySource(graph: Graph[SourceShape[_], _]): Boolean = graph match {
+    case source: scaladsl.Source[_, _] if source eq scaladsl.Source.empty => true
+    case source: javadsl.Source[_, _] if source eq javadsl.Source.empty() => true
+    case _                                                                => false
+  }
+
 }
 
 /**
@@ -617,7 +625,6 @@ import akka.util.unused
  */
 @InternalApi private[akka] object LinearTraversalBuilder {
 
-  // TODO: Remove
   private val cachedEmptyLinear =
     LinearTraversalBuilder(OptionVal.None, OptionVal.None, 0, 0, PushNotUsed, OptionVal.None, Attributes.none)
 

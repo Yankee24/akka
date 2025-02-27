@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.testkit
 
 import java.util.concurrent.ThreadLocalRandom
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 
-import scala.annotation.nowarn
 import org.reactivestreams.Publisher
 import org.scalatest.matchers.should.Matchers
 

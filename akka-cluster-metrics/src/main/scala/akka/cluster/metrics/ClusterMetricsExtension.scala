@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.metrics
@@ -63,7 +63,7 @@ class ClusterMetricsExtension(system: ExtendedActorSystem) extends Extension {
    * Accepts subtypes of [[CollectionControlMessage]]s to manage metrics collection at runtime.
    */
   val supervisor = system.systemActorOf(
-    Props(classOf[ClusterMetricsSupervisor]).withDispatcher(MetricsDispatcher).withDeploy(Deploy.local),
+    Props(new ClusterMetricsSupervisor).withDispatcher(MetricsDispatcher).withDeploy(Deploy.local),
     SupervisorName)
 
   /**

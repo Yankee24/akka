@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed
@@ -62,7 +62,7 @@ import akka.util.OptionVal
   // when the adapter is used for the user guardian (which avoids touching context until it is safe)
   private var _ctx: ActorContextAdapter[T] = _
   def ctx: ActorContextAdapter[T] = {
-    if (_ctx eq null) _ctx = new ActorContextAdapter[T](context, this)
+    if (_ctx eq null) _ctx = new ActorContextAdapter[T](this)
     _ctx
   }
 
@@ -90,7 +90,9 @@ import akka.util.OptionVal
             } else Terminated(ActorRefAdapter(ref))
           handleSignal(msg)
         case classic.ReceiveTimeout =>
-          handleMessage(ctx.receiveTimeoutMsg)
+          // discard when null as timeout was cancelled after RecieveTimeout was already enqueued into the mailbox
+          if (ctx.receiveTimeoutMsg != null)
+            handleMessage(ctx.receiveTimeoutMsg)
         case wrapped: AdaptMessage[Any, T] @unchecked =>
           withSafelyAdapted(() => wrapped.adapt()) {
             case AdaptWithRegisteredMessageAdapter(msg) =>
@@ -218,7 +220,7 @@ import akka.util.OptionVal
       super.unhandled(other)
   }
 
-  override val supervisorStrategy = classic.OneForOneStrategy(loggingEnabled = false) {
+  final override def supervisorStrategy = classic.OneForOneStrategy(loggingEnabled = false) {
     case ex =>
       ctx.setCurrentActorThread()
       try ex match {
@@ -237,8 +239,8 @@ import akka.util.OptionVal
           val logMessage = ex match {
             case e: ActorInitializationException if e.getCause ne null =>
               e.getCause match {
-                case ex: InvocationTargetException if ex.getCause ne null => ex.getCause.getMessage
-                case ex                                                   => ex.getMessage
+                case cause: InvocationTargetException if ex.getCause ne null => cause.getCause.getMessage
+                case cause                                                   => cause.getMessage
               }
             case e => e.getMessage
           }

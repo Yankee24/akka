@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.dispatch
@@ -7,12 +7,12 @@ package akka.dispatch
 import java.{ util => ju }
 import java.util.concurrent._
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.util.control.NonFatal
 
-import scala.annotation.nowarn
 import com.typesafe.config.Config
 
 import akka.actor._
@@ -21,7 +21,7 @@ import akka.dispatch.affinity.AffinityPoolConfigurator
 import akka.dispatch.sysmsg._
 import akka.event.EventStream
 import akka.event.Logging.{ Debug, Error, LogEventException }
-import akka.util.{ unused, Index, Unsafe }
+import akka.util.{ Index, Unsafe }
 
 final case class Envelope private (message: Any, sender: ActorRef) {
 
@@ -149,7 +149,7 @@ abstract class MessageDispatcher(val configurator: MessageDispatcherConfigurator
    */
   final def attach(actor: ActorCell): Unit = {
     register(actor)
-    registerForExecution(actor.mailbox, false, true)
+    registerForExecution(actor.mailbox, hasMessageHint = false, hasSystemMessageHint = true)
   }
 
   /**
@@ -277,7 +277,7 @@ abstract class MessageDispatcher(val configurator: MessageDispatcherConfigurator
   protected[akka] def resume(actor: ActorCell): Unit = {
     val mbox = actor.mailbox
     if ((mbox.actor eq actor) && (mbox.dispatcher eq this) && mbox.resume())
-      registerForExecution(mbox, false, false)
+      registerForExecution(mbox, hasMessageHint = false, hasSystemMessageHint = false)
   }
 
   /**
@@ -338,7 +338,9 @@ abstract class MessageDispatcher(val configurator: MessageDispatcherConfigurator
 /**
  * An ExecutorServiceConfigurator is a class that given some prerequisites and a configuration can create instances of ExecutorService
  */
-abstract class ExecutorServiceConfigurator(@unused config: Config, @unused prerequisites: DispatcherPrerequisites)
+abstract class ExecutorServiceConfigurator(
+    @nowarn("msg=never used") config: Config,
+    @nowarn("msg=never used") prerequisites: DispatcherPrerequisites)
     extends ExecutorServiceFactoryProvider
 
 /**
@@ -397,7 +399,7 @@ class ThreadPoolExecutorConfigurator(config: Config, prerequisites: DispatcherPr
 
   protected def createThreadPoolConfigBuilder(
       config: Config,
-      @unused prerequisites: DispatcherPrerequisites): ThreadPoolConfigBuilder = {
+      @nowarn("msg=never used") prerequisites: DispatcherPrerequisites): ThreadPoolConfigBuilder = {
     import akka.util.Helpers.ConfigOps
     val builder =
       ThreadPoolConfigBuilder(ThreadPoolConfig())
@@ -407,7 +409,7 @@ class ThreadPoolExecutorConfigurator(config: Config, prerequisites: DispatcherPr
           case size if size > 0 =>
             Some(config.getString("task-queue-type"))
               .map {
-                case "array"       => ThreadPoolConfig.arrayBlockingQueue(size, false) //TODO config fairness?
+                case "array"       => ThreadPoolConfig.arrayBlockingQueue(size, fair = false) //TODO config fairness?
                 case "" | "linked" => ThreadPoolConfig.linkedBlockingQueue(size)
                 case x =>
                   throw new IllegalArgumentException("[%s] is not a valid task-queue-type [array|linked]!".format(x))

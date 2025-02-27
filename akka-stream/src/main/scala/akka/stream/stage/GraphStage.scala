@@ -1,28 +1,30 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.stage
 
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
+
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.collection.{ immutable, mutable }
 import scala.concurrent.{ Future, Promise }
 import scala.concurrent.duration.FiniteDuration
-import scala.annotation.nowarn
+
 import akka.{ Done, NotUsed }
 import akka.actor._
 import akka.annotation.InternalApi
 import akka.japi.function.{ Effect, Procedure }
-import akka.stream.Attributes.SourceLocation
 import akka.stream._
+import akka.stream.Attributes.SourceLocation
 import akka.stream.impl.{ ReactiveStreamsCompliance, TraversalBuilder }
 import akka.stream.impl.ActorSubscriberMessage
 import akka.stream.impl.fusing.{ GraphInterpreter, GraphStageModule, SubSink, SubSource }
 import akka.stream.scaladsl.GenericGraphWithChangedAttributes
 import akka.stream.stage.ConcurrentAsyncCallbackState.{ NoPendingEvents, State }
 import akka.util.OptionVal
-import akka.util.unused
 
 /**
  * Scala API: A GraphStage represents a reusable graph stream processing operator.
@@ -46,7 +48,8 @@ abstract class GraphStageWithMaterializedValue[+S <: Shape, +M] extends Graph[S,
   @InternalApi
   private[akka] def createLogicAndMaterializedValue(
       inheritedAttributes: Attributes,
-      @unused materializer: Materializer): (GraphStageLogic, M) = createLogicAndMaterializedValue(inheritedAttributes)
+      @nowarn("msg=never used") materializer: Materializer): (GraphStageLogic, M) =
+    createLogicAndMaterializedValue(inheritedAttributes)
 
   @throws(classOf[Exception])
   def createLogicAndMaterializedValue(inheritedAttributes: Attributes): (GraphStageLogic, M)
@@ -817,7 +820,7 @@ abstract class GraphStageLogic private[stream] (val inCount: Int, val outCount: 
       andThen: Procedure[java.util.List[T]],
       onClose: Procedure[java.util.List[T]]): Unit = {
     //FIXME `onClose` is a poor name for `onComplete` rename this at the earliest possible opportunity
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     readN(in, n)(seq => andThen(seq.asJava), seq => onClose(seq.asJava))
   }
 
@@ -927,7 +930,7 @@ abstract class GraphStageLogic private[stream] (val inCount: Int, val outCount: 
    * signal.
    */
   final protected def emitMultiple[T](out: Outlet[T], elems: java.util.Iterator[T]): Unit = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     emitMultiple(out, elems.asScala, DoNothing)
   }
 
@@ -940,7 +943,7 @@ abstract class GraphStageLogic private[stream] (val inCount: Int, val outCount: 
    * signal.
    */
   final protected def emitMultiple[T](out: Outlet[T], elems: java.util.Iterator[T], andThen: Effect): Unit = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     emitMultiple(out, elems.asScala, andThen.apply _)
   }
 
@@ -1214,13 +1217,15 @@ abstract class GraphStageLogic private[stream] (val inCount: Int, val outCount: 
        * Add this promise to the owning logic, so it can be completed afterPostStop if it was never handled otherwise.
        * Returns whether the logic is still running.
        */
-      @tailrec
       def addToWaiting(): Boolean = {
         val previous = asyncCallbacksInProgress.get()
         if (previous != null) { // not stopped
-          val updated = promise :: previous
-          if (!asyncCallbacksInProgress.compareAndSet(previous, updated)) addToWaiting()
-          else true
+          previous.add(promise)
+
+          // Need to read that again to make sure the stage hasn't been stopped in the meantime and the cleanup
+          // process is already running.
+          // If the cleanup process is already running (ref eq null) the promise needs to be dropped
+          asyncCallbacksInProgress.get() ne null
         } else // logic was already stopped
           false
       }
@@ -1269,7 +1274,8 @@ abstract class GraphStageLogic private[stream] (val inCount: Int, val outCount: 
   private var callbacksWaitingForInterpreter: List[ConcurrentAsyncCallback[_]] = Nil
   // is used for two purposes: keep track of running callbacks and signal that the
   // stage has stopped to fail incoming async callback invocations by being set to null
-  private val asyncCallbacksInProgress = new AtomicReference[List[Promise[Done]]](Nil)
+  private val asyncCallbacksInProgress: AtomicReference[java.util.Set[Promise[Done]]] =
+    new AtomicReference(ConcurrentHashMap.newKeySet[Promise[Done]]())
 
   private var _stageActor: StageActor = _
   final def stageActor: StageActor = _stageActor match {
@@ -1359,9 +1365,14 @@ abstract class GraphStageLogic private[stream] (val inCount: Int, val outCount: 
       _stageActor.stop()
       _stageActor = null
     }
+
+    import scala.jdk.CollectionConverters._
     // make sure any invokeWithFeedback after this fails fast
     // and fail current outstanding invokeWithFeedback promises
-    val inProgress = asyncCallbacksInProgress.getAndSet(null)
+    val inProgress =
+      asyncCallbacksInProgress
+        .getAndSet(null) // remove reference to signify that we are in the process of shutting down
+        .asScala
     if (inProgress.nonEmpty) {
       val exception = streamDetachedException
       inProgress.foreach(_.tryFailure(exception))
@@ -1369,29 +1380,12 @@ abstract class GraphStageLogic private[stream] (val inCount: Int, val outCount: 
     cleanUpSubstreams(OptionVal.None)
   }
 
-  private[this] var asyncCleanupCounter = 0L
-
   /** Called from interpreter thread by GraphInterpreter.runAsyncInput */
-  private[stream] def onFeedbackDispatched(): Unit = {
-    asyncCleanupCounter += 1
-
-    // 256 seemed to be a sweet spot in SendQueueBenchmark.queue benchmarks
-    // It means that at most 255 completed promises are retained per logic that
-    // uses invokeWithFeedback callbacks.
-    //
-    // TODO: add periodical cleanup to get rid of those 255 promises as well
-    if (asyncCleanupCounter % 256 == 0) {
-      @tailrec def cleanup(): Unit = {
-        val previous = asyncCallbacksInProgress.get()
-        if (previous != null) {
-          val updated = previous.filterNot(_.isCompleted)
-          if (!asyncCallbacksInProgress.compareAndSet(previous, updated)) cleanup()
-        }
-      }
-
-      cleanup()
+  private[stream] def onFeedbackDispatched(p: Promise[Done]): Unit =
+    asyncCallbacksInProgress.get() match {
+      case null => // already finished, nothing to do here
+      case x    => x.remove(p)
     }
-  }
 
   private def streamDetachedException =
     new StreamDetachedException(s"Stage with GraphStageLogic ${this} stopped before async invocation was processed")
@@ -1672,7 +1666,7 @@ abstract class TimerGraphStageLogic(_shape: Shape) extends GraphStageLogic(_shap
    * @param timerKey key of the scheduled timer
    */
   @throws(classOf[Exception])
-  protected def onTimer(@unused timerKey: Any): Unit = ()
+  protected def onTimer(timerKey: Any): Unit = ()
 
   // Internal hooks to avoid reliance on user calling super in postStop
   protected[stream] override def afterPostStop(): Unit = {
@@ -1703,8 +1697,8 @@ abstract class TimerGraphStageLogic(_shape: Shape) extends GraphStageLogic(_shap
    * adding the new timer.
    */
   final protected def scheduleOnce(timerKey: Any, delay: java.time.Duration): Unit = {
-    import akka.util.JavaDurationConverters._
-    scheduleOnce(timerKey, delay.asScala)
+    import scala.jdk.DurationConverters._
+    scheduleOnce(timerKey, delay.toScala)
   }
 
   /**
@@ -1737,8 +1731,8 @@ abstract class TimerGraphStageLogic(_shape: Shape) extends GraphStageLogic(_shap
       timerKey: Any,
       initialDelay: java.time.Duration,
       interval: java.time.Duration): Unit = {
-    import akka.util.JavaDurationConverters._
-    scheduleWithFixedDelay(timerKey, initialDelay.asScala, interval.asScala)
+    import scala.jdk.DurationConverters._
+    scheduleWithFixedDelay(timerKey, initialDelay.toScala, interval.toScala)
   }
 
   /**
@@ -1771,8 +1765,8 @@ abstract class TimerGraphStageLogic(_shape: Shape) extends GraphStageLogic(_shap
       timerKey: Any,
       initialDelay: java.time.Duration,
       interval: java.time.Duration): Unit = {
-    import akka.util.JavaDurationConverters._
-    scheduleAtFixedRate(timerKey, initialDelay.asScala, interval.asScala)
+    import scala.jdk.DurationConverters._
+    scheduleAtFixedRate(timerKey, initialDelay.toScala, interval.toScala)
   }
 
   /**
@@ -1805,8 +1799,8 @@ abstract class TimerGraphStageLogic(_shape: Shape) extends GraphStageLogic(_shap
       timerKey: Any,
       initialDelay: java.time.Duration,
       interval: java.time.Duration): Unit = {
-    import akka.util.JavaDurationConverters._
-    schedulePeriodicallyWithInitialDelay(timerKey, initialDelay.asScala, interval.asScala)
+    import scala.jdk.DurationConverters._
+    schedulePeriodicallyWithInitialDelay(timerKey, initialDelay.toScala, interval.toScala)
   }
 
   /**
@@ -1831,8 +1825,8 @@ abstract class TimerGraphStageLogic(_shape: Shape) extends GraphStageLogic(_shap
     "scheduleAtFixedRate, but scheduleWithFixedDelay is often preferred.",
     since = "2.6.0")
   final protected def schedulePeriodically(timerKey: Any, interval: java.time.Duration): Unit = {
-    import akka.util.JavaDurationConverters._
-    schedulePeriodically(timerKey, interval.asScala)
+    import scala.jdk.DurationConverters._
+    schedulePeriodically(timerKey, interval.toScala)
   }
 
   /**

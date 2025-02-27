@@ -1,20 +1,19 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
 import java.util.concurrent.atomic.AtomicReference
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
 import scala.util.control.NoStackTrace
 
-import scala.annotation.nowarn
-
 import akka.annotation.InternalApi
-import akka.util.JavaDurationConverters
 
 /**
  * This exception is thrown by Scheduler.schedule* when scheduling is not
@@ -72,6 +71,7 @@ trait Scheduler {
    */
   def scheduleWithFixedDelay(initialDelay: FiniteDuration, delay: FiniteDuration)(runnable: Runnable)(
       implicit executor: ExecutionContext): Cancellable = {
+    if (delay.length <= 0L) throw new IllegalArgumentException(s"Scheduling must use a positive delay (was $delay)")
     try new AtomicReference[Cancellable](Cancellable.initialNotCancelled) with Cancellable { self =>
       compareAndSet(
         Cancellable.initialNotCancelled,
@@ -143,8 +143,7 @@ trait Scheduler {
       delay: java.time.Duration,
       runnable: Runnable,
       executor: ExecutionContext): Cancellable = {
-    import JavaDurationConverters._
-    scheduleWithFixedDelay(initialDelay.asScala, delay.asScala)(runnable)(executor)
+    scheduleWithFixedDelay(initialDelay.toScala, delay.toScala)(runnable)(executor)
   }
 
   /**
@@ -162,7 +161,6 @@ trait Scheduler {
    *
    * Note: For scheduling within actors `with Timers` should be preferred.
    */
-  @nowarn("msg=deprecated")
   final def scheduleWithFixedDelay(
       initialDelay: FiniteDuration,
       delay: FiniteDuration,
@@ -202,8 +200,7 @@ trait Scheduler {
       message: Any,
       executor: ExecutionContext,
       sender: ActorRef): Cancellable = {
-    import JavaDurationConverters._
-    scheduleWithFixedDelay(initialDelay.asScala, delay.asScala, receiver, message)(executor, sender)
+    scheduleWithFixedDelay(initialDelay.toScala, delay.toScala, receiver, message)(executor, sender)
   }
 
   /**
@@ -239,8 +236,11 @@ trait Scheduler {
    */
   @nowarn("msg=deprecated")
   final def scheduleAtFixedRate(initialDelay: FiniteDuration, interval: FiniteDuration)(runnable: Runnable)(
-      implicit executor: ExecutionContext): Cancellable =
+      implicit executor: ExecutionContext): Cancellable = {
+    if (interval.length <= 0L)
+      throw new IllegalArgumentException(s"Scheduling must use a positive interval (was $interval)")
     schedule(initialDelay, interval, runnable)(executor)
+  }
 
   /**
    * Java API: Schedules a `Runnable` to be run repeatedly with an initial delay and
@@ -278,8 +278,7 @@ trait Scheduler {
       interval: java.time.Duration,
       runnable: Runnable,
       executor: ExecutionContext): Cancellable = {
-    import JavaDurationConverters._
-    scheduleAtFixedRate(initialDelay.asScala, interval.asScala)(runnable)(executor)
+    scheduleAtFixedRate(initialDelay.toScala, interval.toScala)(runnable)(executor)
   }
 
   /**
@@ -348,8 +347,7 @@ trait Scheduler {
       message: Any,
       executor: ExecutionContext,
       sender: ActorRef): Cancellable = {
-    import JavaDurationConverters._
-    scheduleAtFixedRate(initialDelay.asScala, interval.asScala, receiver, message)(executor, sender)
+    scheduleAtFixedRate(initialDelay.toScala, interval.toScala, receiver, message)(executor, sender)
   }
 
   /**
@@ -359,7 +357,6 @@ trait Scheduler {
     "Use scheduleWithFixedDelay or scheduleAtFixedRate instead. This has the same semantics as " +
     "scheduleAtFixedRate, but scheduleWithFixedDelay is often preferred.",
     since = "2.6.0")
-  @nowarn("msg=deprecated")
   final def schedule(initialDelay: FiniteDuration, interval: FiniteDuration, receiver: ActorRef, message: Any)(
       implicit
       executor: ExecutionContext,
@@ -389,8 +386,7 @@ trait Scheduler {
       message: Any,
       executor: ExecutionContext,
       sender: ActorRef): Cancellable = {
-    import JavaDurationConverters._
-    schedule(initialDelay.asScala, interval.asScala, receiver, message)(executor, sender)
+    schedule(initialDelay.toScala, interval.toScala, receiver, message)(executor, sender)
   }
 
   /**
@@ -424,8 +420,7 @@ trait Scheduler {
     since = "2.6.0")
   def schedule(initialDelay: java.time.Duration, interval: java.time.Duration, runnable: Runnable)(
       implicit executor: ExecutionContext): Cancellable = {
-    import JavaDurationConverters._
-    schedule(initialDelay.asScala, interval.asScala, runnable)
+    schedule(initialDelay.toScala, interval.toScala, runnable)
   }
 
   /**
@@ -460,8 +455,7 @@ trait Scheduler {
       message: Any,
       executor: ExecutionContext,
       sender: ActorRef): Cancellable = {
-    import JavaDurationConverters._
-    scheduleOnce(delay.asScala, receiver, message)(executor, sender)
+    scheduleOnce(delay.toScala, receiver, message)(executor, sender)
   }
 
   /**
@@ -499,8 +493,7 @@ trait Scheduler {
    * Note: For scheduling within actors `AbstractActorWithTimers` should be preferred.
    */
   def scheduleOnce(delay: java.time.Duration, runnable: Runnable)(implicit executor: ExecutionContext): Cancellable = {
-    import JavaDurationConverters._
-    scheduleOnce(delay.asScala, runnable)(executor)
+    scheduleOnce(delay.toScala, runnable)(executor)
   }
 
   /**

@@ -1,28 +1,29 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
+
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeoutException
+
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+import scala.concurrent.Promise
+import scala.concurrent.duration._
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
 
 import akka.ConfigurationException
 import akka.Done
 import akka.actor.CoordinatedShutdown.Phase
 import akka.actor.CoordinatedShutdown.UnknownReason
-import akka.dispatch.ExecutionContexts
 import akka.testkit.AkkaSpec
 import akka.testkit.EventFilter
 import akka.testkit.TestKit
 import akka.testkit.TestProbe
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeoutException
-import scala.concurrent.duration._
-import scala.concurrent.Await
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
-import scala.concurrent.Promise
 
 class CoordinatedShutdownSpec
     extends AkkaSpec(ConfigFactory.parseString("""
@@ -312,10 +313,10 @@ class CoordinatedShutdownSpec
             Future {
               testProbe.ref ! BMessage("concurrentB")
               Done
-            }(ExecutionContexts.parasitic)
+            }(ExecutionContext.parasitic)
           }
           Done
-        }(ExecutionContexts.parasitic)
+        }(ExecutionContext.parasitic)
 
       val cancellationFut: Future[Done] = {
         val cancellables = (0 until 20).map { _ =>

@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.testkit;
 
 import akka.actor.ActorSystem;
-
 import akka.testkit.javadsl.TestKit;
 import com.typesafe.config.Config;
 import org.junit.rules.ExternalResource;

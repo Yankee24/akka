@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -58,7 +58,7 @@ class ActorRefSourceSpec extends StreamSpec {
     "drop new when full and with dropNew strategy" in {
       val (ref, sub) = Source
         .actorRef(PartialFunction.empty, PartialFunction.empty, 100, OverflowStrategy.dropNew)
-        .toMat(TestSink.probe[Int])(Keep.both)
+        .toMat(TestSink[Int]())(Keep.both)
         .run()
 
       for (n <- 1 to 20) ref ! n
@@ -132,7 +132,7 @@ class ActorRefSourceSpec extends StreamSpec {
     "signal buffered elements and complete the stream after receiving a Status.Success with CompletionStrategy.Draining" in {
       val (ref, s) = Source
         .actorRef({ case "ok" => CompletionStrategy.draining }, PartialFunction.empty, 100, OverflowStrategy.fail)
-        .toMat(TestSink.probe[Int])(Keep.both)
+        .toMat(TestSink[Int]())(Keep.both)
         .run()
 
       for (n <- 1 to 20) ref ! n
@@ -149,7 +149,7 @@ class ActorRefSourceSpec extends StreamSpec {
     "not signal buffered elements but complete immediately the stream after receiving a Status.Success with CompletionStrategy.Immediately" in {
       val (ref, s) = Source
         .actorRef({ case "ok" => CompletionStrategy.immediately }, PartialFunction.empty, 100, OverflowStrategy.fail)
-        .toMat(TestSink.probe[Int])(Keep.both)
+        .toMat(TestSink[Int]())(Keep.both)
         .run()
 
       for (n <- 1 to 20) ref ! n
@@ -203,7 +203,7 @@ class ActorRefSourceSpec extends StreamSpec {
     "fail the stream when receiving failure message" in {
       val s = TestSubscriber.manualProbe[Int]()
       val ref = Source
-        .actorRef(PartialFunction.empty, { case Status.Failure(exc) => exc }, 10, OverflowStrategy.fail)
+        .actorRef(PartialFunction.empty, { case Status.Failure(e) => e }, 10, OverflowStrategy.fail)
         .to(Sink.fromSubscriber(s))
         .run()
       s.expectSubscription()

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed.delivery
@@ -11,6 +11,7 @@ import scala.concurrent.duration._
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import org.scalatest.wordspec.AnyWordSpecLike
+
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -36,7 +37,6 @@ object DurableShardingSpec {
   def conf: Config =
     ConfigFactory.parseString(s"""
     akka.actor.provider = cluster
-    akka.remote.classic.netty.tcp.port = 0
     akka.remote.artery.canonical.port = 0
     akka.persistence.journal.plugin = "akka.persistence.journal.inmem"
     akka.persistence.snapshot-store.plugin = "akka.persistence.snapshot-store.local"

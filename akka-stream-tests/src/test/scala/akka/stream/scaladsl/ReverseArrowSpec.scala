@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -217,7 +217,7 @@ class ReverseArrowSpec extends StreamSpec {
             src ~> f
             sink2 <~ f
             (the[IllegalArgumentException] thrownBy (s <~ f <~ src)).getMessage should include(
-              "[StatefulMapConcat.out] is already connected")
+              "[IterableSource.out] is already connected")
             ClosedShape
           })
           .run(),

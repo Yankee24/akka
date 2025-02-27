@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.akka.typed
 
 import java.net.URI
-
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
@@ -18,12 +17,20 @@ import akka.actor.typed.ActorRef
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.LoggerOps
 import akka.actor.typed.scaladsl.TimerScheduler
 import akka.pattern.StatusReply
 import org.scalatest.wordspec.AnyWordSpecLike
 
 class InteractionPatternsSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with LogCapturing {
+  private class DummyContext[T](val self: ActorRef[T])
+
+  // #per-session-child
+  // dummy data types just for this sample
+  case class Keys()
+
+  case class Wallet()
+
+  // #per-session-child
 
   "The interaction patterns docs" must {
 
@@ -79,10 +86,7 @@ class InteractionPatternsSpec extends ScalaTestWithActorTestKit with AnyWordSpec
       val cookieFabric: ActorRef[CookieFabric.Request] = spawn(CookieFabric())
       val probe = createTestProbe[CookieFabric.Response]()
       // shhh, don't tell anyone
-      import scala.language.reflectiveCalls
-      val context: { def self: ActorRef[CookieFabric.Response] } = new {
-        def self = probe.ref
-      }
+      val context = new DummyContext[CookieFabric.Response](probe.ref)
 
       // #request-response-send
       cookieFabric ! CookieFabric.Request("give me cookies", context.self)
@@ -135,10 +139,10 @@ class InteractionPatternsSpec extends ScalaTestWithActorTestKit with AnyWordSpec
                       context.log.info("Started {}", taskId)
                       Behaviors.same
                     case Backend.JobProgress(taskId, progress) =>
-                      context.log.info2("Progress {}: {}", taskId, progress)
+                      context.log.info("Progress {}: {}", taskId, progress)
                       Behaviors.same
                     case Backend.JobCompleted(taskId, result) =>
-                      context.log.info2("Completed {}: {}", taskId, result)
+                      context.log.info("Completed {}: {}", taskId, result)
                       inProgress(taskId) ! result
                       active(inProgress - taskId, count)
                   }
@@ -349,12 +353,6 @@ class InteractionPatternsSpec extends ScalaTestWithActorTestKit with AnyWordSpec
   }
 
   "contain a sample for per session child" in {
-    // #per-session-child
-    // dummy data types just for this sample
-    case class Keys()
-    case class Wallet()
-
-    // #per-session-child
 
     object KeyCabinet {
       case class GetKeys(whoseKeys: String, replyTo: ActorRef[Keys])

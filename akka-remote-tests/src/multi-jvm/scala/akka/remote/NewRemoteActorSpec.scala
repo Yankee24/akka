@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote
 
+import scala.annotation.nowarn
 import scala.concurrent.duration._
 
 import com.typesafe.config.ConfigFactory
@@ -14,13 +15,12 @@ import akka.actor.Actor
 import akka.actor.ActorRef
 import akka.actor.Props
 import akka.actor.Terminated
-import akka.util.unused
 
-class NewRemoteActorMultiJvmSpec(artery: Boolean) extends MultiNodeConfig {
+object NewRemoteActorMultiJvmSpec extends MultiNodeConfig {
 
-  commonConfig(debugConfig(on = false).withFallback(ConfigFactory.parseString(s"""
-      akka.remote.log-remote-lifecycle-events = off
-      akka.remote.artery.enabled = $artery
+  commonConfig(
+    debugConfig(on = false)
+      .withFallback(ConfigFactory.parseString("""
       akka.remote.use-unsafe-remote-features-outside-cluster = on
       """).withFallback(RemotingMultiNodeSpec.commonConfig)))
 
@@ -36,11 +36,8 @@ class NewRemoteActorMultiJvmSpec(artery: Boolean) extends MultiNodeConfig {
   deployOnAll("""/service-hello2.remote = "@follower@" """)
 }
 
-class NewRemoteActorMultiJvmNode1 extends NewRemoteActorSpec(new NewRemoteActorMultiJvmSpec(artery = false))
-class NewRemoteActorMultiJvmNode2 extends NewRemoteActorSpec(new NewRemoteActorMultiJvmSpec(artery = false))
-
-class ArteryNewRemoteActorMultiJvmNode1 extends NewRemoteActorSpec(new NewRemoteActorMultiJvmSpec(artery = true))
-class ArteryNewRemoteActorMultiJvmNode2 extends NewRemoteActorSpec(new NewRemoteActorMultiJvmSpec(artery = true))
+class NewRemoteActorMultiJvmNode1 extends NewRemoteActorSpec
+class NewRemoteActorMultiJvmNode2 extends NewRemoteActorSpec
 
 object NewRemoteActorSpec {
   class SomeActor extends Actor {
@@ -49,17 +46,16 @@ object NewRemoteActorSpec {
     }
   }
 
-  class SomeActorWithParam(@unused ignored: String) extends Actor {
+  class SomeActorWithParam(@nowarn("msg=never used") ignored: String) extends Actor {
     def receive = {
       case "identify" => sender() ! self
     }
   }
 }
 
-abstract class NewRemoteActorSpec(multiNodeConfig: NewRemoteActorMultiJvmSpec)
-    extends RemotingMultiNodeSpec(multiNodeConfig) {
+abstract class NewRemoteActorSpec extends RemotingMultiNodeSpec(NewRemoteActorMultiJvmSpec) {
+  import NewRemoteActorMultiJvmSpec._
   import NewRemoteActorSpec._
-  import multiNodeConfig._
 
   def initialParticipants = roles.size
 

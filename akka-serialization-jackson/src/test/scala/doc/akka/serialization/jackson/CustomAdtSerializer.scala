@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package doc.akka.serialization.jackson
+
+import akka.serialization.jackson.JsonSerializable
 
 object CustomAdtSerializer {
 
@@ -54,6 +56,6 @@ object CustomAdtSerializer {
     }
   }
 
-  final case class Compass(currentDirection: Direction) extends MySerializable
+  final case class Compass(currentDirection: Direction) extends JsonSerializable
   //#adt-trait-object
 }

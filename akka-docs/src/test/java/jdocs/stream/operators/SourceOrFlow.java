@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream.operators;
@@ -14,7 +14,6 @@ import akka.japi.function.Function2;
 import akka.japi.pf.PFBuilder;
 import akka.stream.Attributes;
 import akka.stream.javadsl.Flow;
-
 
 // #zip
 // #zip-with
@@ -162,16 +161,17 @@ class SourceOrFlow {
 
     // #concatLazy
   }
-  
+
   void concatAllLazyExample() {
     // #concatAllLazy
     Source<Integer, NotUsed> sourceA = Source.from(Arrays.asList(1, 2, 3));
     Source<Integer, NotUsed> sourceB = Source.from(Arrays.asList(4, 5, 6));
-    Source<Integer, NotUsed> sourceC = Source.from(Arrays.asList(7, 8 , 9));
-    sourceA.concatAllLazy(sourceB, sourceC)
+    Source<Integer, NotUsed> sourceC = Source.from(Arrays.asList(7, 8, 9));
+    sourceA
+        .concatAllLazy(sourceB, sourceC)
         .fold(new StringJoiner(","), (joiner, input) -> joiner.add(String.valueOf(input)))
         .runForeach(System.out::println, system);
-    //prints 1,2,3,4,5,6,7,8,9
+    // prints 1,2,3,4,5,6,7,8,9
     // #concatAllLazy
   }
 
@@ -184,19 +184,20 @@ class SourceOrFlow {
 
     // #interleave
   }
-  
+
   void interleaveAllExample() {
     // #interleaveAll
     Source<Integer, NotUsed> sourceA = Source.from(Arrays.asList(1, 2, 7, 8));
     Source<Integer, NotUsed> sourceB = Source.from(Arrays.asList(3, 4, 9));
     Source<Integer, NotUsed> sourceC = Source.from(Arrays.asList(5, 6));
-    sourceA.interleaveAll(Arrays.asList(sourceB, sourceC), 2, false)
-        .fold(new StringJoiner(","),(joiner, input) -> joiner.add(String.valueOf(input)))
+    sourceA
+        .interleaveAll(Arrays.asList(sourceB, sourceC), 2, false)
+        .fold(new StringJoiner(","), (joiner, input) -> joiner.add(String.valueOf(input)))
         .runForeach(System.out::println, system);
-    //prints 1,2,3,4,5,6,7,8,9
+    // prints 1,2,3,4,5,6,7,8,9
     // #interleaveAll
   }
-  
+
   void mergeExample() {
     // #merge
     Source<Integer, NotUsed> sourceA = Source.from(Arrays.asList(1, 2, 3, 4));
@@ -206,13 +207,14 @@ class SourceOrFlow {
 
     // #merge
   }
-  
+
   void mergeAllExample() {
     // #merge-all
     Source<Integer, NotUsed> sourceA = Source.from(Arrays.asList(1, 2, 3));
     Source<Integer, NotUsed> sourceB = Source.from(Arrays.asList(4, 5, 6));
     Source<Integer, NotUsed> sourceC = Source.from(Arrays.asList(7, 8, 9, 10));
-    sourceA.mergeAll(Arrays.asList(sourceB, sourceC), false)
+    sourceA
+        .mergeAll(Arrays.asList(sourceB, sourceC), false)
         .runForeach(System.out::println, system);
     // merging is not deterministic, can for example print 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
     // #merge-all
@@ -608,6 +610,18 @@ class SourceOrFlow {
     // 25
     // 30
     // #groupBy
+  }
+
+  void groupByWithAsyncExample() {
+    // #groupByWithAsync
+    Source.range(1, 10)
+            .groupBy(2, i -> i % 2 == 0) // create two sub-streams with odd and even numbers
+            .via(Flow.of(Integer.class).map(elem-> 1).reduce(Integer::sum).async()) // for each sub-stream, sum its elements
+            .mergeSubstreams() // merge back into a stream
+            .runForeach(System.out::println, system);
+    // 25
+    // 30
+    // #groupByWithAsync
   }
 
   void watchTerminationExample() {

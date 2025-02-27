@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.testkit.typed.javadsl
@@ -45,10 +45,11 @@ final class LogCapturing extends TestRule {
     new Statement {
       override def evaluate(): Unit = {
         try {
-          myLogger.info(s"Logging started for test [${description.getClassName}: ${description.getMethodName}]")
+          myLogger.info(
+            s"${Console.BLUE}Logging started for test [${description.getClassName}: ${description.getMethodName}${Console.RESET}]")
           base.evaluate()
           myLogger.info(
-            s"Logging finished for test [${description.getClassName}: ${description.getMethodName}] that was successful")
+            s"${Console.BLUE}Logging finished for test [${description.getClassName}: ${description.getMethodName}] that was successful${Console.RESET}")
         } catch {
           case NonFatal(e) =>
             println(

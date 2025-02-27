@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream
@@ -7,6 +7,7 @@ package akka.stream
 import java.util.concurrent.atomic.AtomicReference
 
 import scala.collection.concurrent.TrieMap
+import scala.concurrent.ExecutionContext
 import scala.concurrent.{ Future, Promise }
 import scala.util.{ Failure, Success, Try }
 
@@ -60,8 +61,7 @@ object KillSwitches {
         case Some(status) => onSwitch(status)
         case _            =>
           // callback.invoke is a simple actor send, so it is fine to run on the invoking thread
-          terminationSignal.onComplete(getAsyncCallback[Try[Done]](onSwitch).invoke)(
-            akka.dispatch.ExecutionContexts.parasitic)
+          terminationSignal.onComplete(getAsyncCallback[Try[Done]](onSwitch).invoke)(ExecutionContext.parasitic)
       }
     }
 
@@ -84,8 +84,7 @@ object KillSwitches {
       val logic = new KillableGraphStageLogic(promise.future, shape) with InHandler with OutHandler {
         override def onPush(): Unit = push(shape.out, grab(shape.in))
         override def onPull(): Unit = pull(shape.in)
-        setHandler(shape.in, this)
-        setHandler(shape.out, this)
+        setHandlers(shape.in, shape.out, this)
       }
 
       (logic, switch)
@@ -109,21 +108,18 @@ object KillSwitches {
 
       val logic = new KillableGraphStageLogic(promise.future, shape) {
 
-        setHandler(shape.in1, new InHandler {
+        setHandlers(shape.in1, shape.out1, new InHandler with OutHandler {
           override def onPush(): Unit = push(shape.out1, grab(shape.in1))
           override def onUpstreamFinish(): Unit = complete(shape.out1)
           override def onUpstreamFailure(ex: Throwable): Unit = fail(shape.out1, ex)
-        })
-        setHandler(shape.in2, new InHandler {
-          override def onPush(): Unit = push(shape.out2, grab(shape.in2))
-          override def onUpstreamFinish(): Unit = complete(shape.out2)
-          override def onUpstreamFailure(ex: Throwable): Unit = fail(shape.out2, ex)
-        })
-        setHandler(shape.out1, new OutHandler {
           override def onPull(): Unit = pull(shape.in1)
           override def onDownstreamFinish(cause: Throwable): Unit = cancel(shape.in1, cause)
         })
-        setHandler(shape.out2, new OutHandler {
+
+        setHandlers(shape.in2, shape.out2, new InHandler with OutHandler {
+          override def onPush(): Unit = push(shape.out2, grab(shape.in2))
+          override def onUpstreamFinish(): Unit = complete(shape.out2)
+          override def onUpstreamFailure(ex: Throwable): Unit = fail(shape.out2, ex)
           override def onPull(): Unit = pull(shape.in2)
           override def onDownstreamFinish(cause: Throwable): Unit = cancel(shape.in2, cause)
         })

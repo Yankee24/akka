@@ -1,20 +1,22 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed
 import java.util.concurrent.atomic.AtomicInteger
 
-import akka.Done
-import akka.actor.testkit.typed.scaladsl.{ LogCapturing, ScalaTestWithActorTestKit }
-import akka.actor.typed.{ ActorRef, Behavior }
-import akka.persistence.testkit.{ PersistenceTestKitPlugin, PersistenceTestKitSnapshotPlugin }
-import akka.persistence.testkit.scaladsl.{ PersistenceTestKit, SnapshotTestKit }
-import akka.persistence.testkit.query.scaladsl.PersistenceTestKitReadJournal
-import akka.persistence.typed.internal.{ ReplicatedPublishedEventMetaData, VersionVector }
-import akka.persistence.typed.scaladsl.ReplicatedEventSourcing
 import org.scalatest.concurrent.Eventually
 import org.scalatest.wordspec.AnyWordSpecLike
+
+import akka.Done
+import akka.actor.testkit.typed.scaladsl.{ LogCapturing, ScalaTestWithActorTestKit }
+import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ ActorRef, Behavior }
+import akka.persistence.testkit.{ PersistenceTestKitPlugin, PersistenceTestKitSnapshotPlugin }
+import akka.persistence.testkit.query.scaladsl.PersistenceTestKitReadJournal
+import akka.persistence.testkit.scaladsl.{ PersistenceTestKit, SnapshotTestKit }
+import akka.persistence.typed.internal.{ ReplicatedPublishedEventMetaData, VersionVector }
+import akka.persistence.typed.scaladsl.ReplicatedEventSourcing
 
 object ReplicationSnapshotSpec {
 
@@ -35,11 +37,15 @@ object ReplicationSnapshotSpec {
       entityId: String,
       replicaId: ReplicaId,
       probe: Option[ActorRef[EventAndContext]]): Behavior[Command] = {
-    ReplicatedEventSourcing.commonJournalConfig(
-      ReplicationId(EntityType, entityId, replicaId),
-      AllReplicas,
-      PersistenceTestKitReadJournal.Identifier)(replicationContext =>
-      eventSourcedBehavior(replicationContext, probe).snapshotWhen((_, _, sequenceNr) => sequenceNr % 2 == 0))
+    Behaviors.setup[Command] { context =>
+      ReplicatedEventSourcing.commonJournalConfig(
+        ReplicationId(EntityType, entityId, replicaId),
+        AllReplicas,
+        PersistenceTestKitReadJournal.Identifier)(
+        replicationContext =>
+          eventSourcedBehavior(context, replicationContext, probe).snapshotWhen((_, _, sequenceNr) =>
+            sequenceNr % 2 == 0))
+    }
 
   }
 }
@@ -78,15 +84,16 @@ class ReplicationSnapshotSpec
         r2EventProbe.expectMessageType[EventAndContext]
         r2EventProbe.expectMessageType[EventAndContext]
 
-        snapshotTestKit.expectNextPersisted(persistenceIdR1, State(List("r1 2", "r1 1")))
-        snapshotTestKit.expectNextPersisted(persistenceIdR2, State(List("r1 2", "r1 1")))
+        snapshotTestKit.expectNextPersisted(persistenceIdR1, State(Vector("r1 1", "r1 2")))
+        snapshotTestKit.expectNextPersisted(persistenceIdR2, State(Vector("r1 1", "r1 2")))
 
         r2.asInstanceOf[ActorRef[Any]] ! internal.PublishedEventImpl(
           ReplicationId(EntityType, entityId, R1).persistenceId,
           1L,
           "two-again",
           System.currentTimeMillis(),
-          Some(new ReplicatedPublishedEventMetaData(R1, VersionVector.empty)))
+          Some(new ReplicatedPublishedEventMetaData(R1, VersionVector.empty, None)),
+          None)
 
         // r2 should now filter out that event if it receives it again
         r2EventProbe.expectNoMessage()
@@ -100,12 +107,13 @@ class ReplicationSnapshotSpec
           1L,
           "two-again",
           System.currentTimeMillis(),
-          Some(new ReplicatedPublishedEventMetaData(R1, VersionVector.empty)))
+          Some(new ReplicatedPublishedEventMetaData(R1, VersionVector.empty, None)),
+          None)
         r2EventProbe.expectNoMessage()
 
         val stateProbe = createTestProbe[State]()
         r2 ! GetState(stateProbe.ref)
-        stateProbe.expectMessage(State(List("r1 2", "r1 1")))
+        stateProbe.expectMessage(State(Vector("r1 1", "r1 2")))
       }
     }
   }

@@ -7,6 +7,14 @@ You are viewing the documentation for the new actor APIs, to view the Akka Class
 
 ## Module info
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Persistence, add the module to your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -44,17 +52,6 @@ Hence this is more similar to CRUD based applications.
 The [Event Sourcing with Akka 2.6 video](https://akka.io/blog/news/2020/01/07/akka-event-sourcing-video)
 is a good starting point for learning Event Sourcing, together with the @extref[Microservices with Akka tutorial](platform-guide:microservices-tutorial/) 
 that illustrates how to implement an Event Sourced CQRS application with Akka Persistence and Akka Projections.
-
-@@@ note
-
-The General Data Protection Regulation (GDPR) requires that personal information must be deleted at the request of users.
-Deleting or modifying events that carry personal information would be difficult. Data shredding can be used to forget
-information instead of deleting or modifying it. This is achieved by encrypting the data with a key for a given data
-subject id (person) and deleting the key when that data subject is to be forgotten. Lightbend's
-[GDPR for Akka Persistence](https://doc.akka.io/docs/akka-enhancements/current/gdpr/index.html)
-provides tools to facilitate in building GDPR capable systems.
-
-@@@
 
 ### Event Sourcing concepts
 
@@ -161,7 +158,7 @@ In the case of multiple persisted events, the `eventHandler` is called with each
 
 The state is typically defined as an immutable class and then the event handler returns a new instance of the state.
 You may choose to use a mutable class for the state, and then the event handler may update the state instance and
-return the same instance. Both immutable and mutable state is supported.
+return the same instance. Both immutable and mutable state is supported, but it must only be modified in the event handler.
 
 The same event handler is also used when the entity is started up to recover its state from the stored events.
 
@@ -230,6 +227,8 @@ and can be one of:
 * @scala[@scaladoc[stash](akka.persistence.typed.scaladsl.Effect$#stash[Event,State]():akka.persistence.typed.scaladsl.ReplyEffect[Event,State])]@java[@javadoc[stash](akka.persistence.typed.javadsl.EffectFactories#stash())] the current command is stashed
 * @scala[@scaladoc[unstashAll](akka.persistence.typed.scaladsl.Effect$#unstashAll[Event,State]():akka.persistence.typed.scaladsl.Effect[Event,State])]@java[@javadoc[unstashAll](akka.persistence.typed.javadsl.EffectFactories#unstashAll())] process the commands that were stashed with @scala[`Effect.stash`]@java[`Effect().stash`]
 * @scala[@scaladoc[reply](akka.persistence.typed.scaladsl.Effect$#reply[ReplyMessage,Event,State](replyTo:akka.actor.typed.ActorRef[ReplyMessage])(replyWithMessage:ReplyMessage):akka.persistence.typed.scaladsl.ReplyEffect[Event,State])]@java[@javadoc[reply](akka.persistence.typed.javadsl.EffectFactories#reply(akka.actor.typed.ActorRef,ReplyMessage))] send a reply message to the given @apidoc[typed.ActorRef]
+* @scala[@scaladoc[async](akka.persistence.typed.scaladsl.Effect$#async)]@java[@javadoc[async](akka.persistence.typed.javadsl.EffectFactories#async(java.util.concurrent.CompletionStage))] Asynchronous command handling
+* @scala[@scaladoc[asyncReply](akka.persistence.typed.scaladsl.Effect$#asyncReply)]@java[@javadoc[asyncReply](akka.persistence.typed.javadsl.EffectFactories#asyncReply(java.util.concurrent.CompletionStage))] Asynchronous command handling and then reply
 
 Note that only one of those can be chosen per incoming command. It is not possible to both persist and say none/unhandled.
 
@@ -290,7 +289,8 @@ The recovery of a persistent actor will therefore never be done partially with o
 a single @scala[@scaladoc[persist](akka.persistence.typed.scaladsl.Effect$#persist[Event,State](event:Event):akka.persistence.typed.scaladsl.EffectBuilder[Event,State])]@java[@javadoc[persist](akka.persistence.typed.javadsl.EffectFactories#persist(Event))] effect.
 
 Some journals may not support atomic writes of several events and they will then reject the `persist` with
-multiple events. This is signalled to an @apidoc[typed.*.EventSourcedBehavior] via an @apidoc[typed.EventRejectedException] (typically with a 
+multiple events. This is signalled to an @apidoc[typed.*.EventSourcedBehavior] via an @apidoc[typed.PersistRejected] signal.
+An @apidoc[typed.EventRejectedException] is also thrown (typically with a 
 @javadoc[UnsupportedOperationException](java.lang.UnsupportedOperationException)) and can be handled with a @ref[supervisor](fault-tolerance.md).
 
 ## Cluster Sharding and EventSourcedBehavior
@@ -546,6 +546,35 @@ Please refer to @ref[snapshots](persistence-snapshot.md#snapshots) if you need t
 
 In any case, the highest sequence number will always be recovered so you can keep persisting new events without corrupting your event log.
 
+@@@ warning
+
+Disable of recovery is not normal behavior of an event sourced actor, since events and snapshots are not used for
+the recovery of the actor.
+
+@@@
+
+### Recovery from only last event
+
+For some use cases it is enough to recover the actor from the last event, as an optimization to not replay all events.
+You can enable this recovery mode with:
+
+Scala
+:  @@snip [BasicPersistentBehaviorCompileOnly.scala](/akka-persistence-typed/src/test/scala/docs/akka/persistence/typed/BasicPersistentBehaviorCompileOnly.scala) { #replay-last }
+
+Java
+:  @@snip [BasicPersistentBehaviorTest.java](/akka-persistence-typed/src/test/java/jdocs/akka/persistence/typed/BasicPersistentBehaviorTest.java) { #replay-last }
+
+Snapshots are not loaded when recovery from last event is selected.
+
+@@@ warning
+
+Recovery from only last event is not normal behavior of an event sourced actor, since it typically would need
+all events, or a snapshot and events after the snapshot, to recover its state.
+
+This feature is currently only supported by the R2DBC plugin.
+
+@@@
+
 ## Tagging
 
 Persistence allows you to use event tags without using an @ref[`EventAdapter`](../persistence.md#event-adapters):
@@ -606,11 +635,16 @@ If there is a problem with recovering the state of the actor from the journal, a
 emitted to the @scala[@scaladoc[receiveSignal](akka.persistence.typed.scaladsl.EventSourcedBehavior#receiveSignal(signalHandler:PartialFunction[(State,akka.actor.typed.Signal),Unit]):akka.persistence.typed.scaladsl.EventSourcedBehavior[Command,Event,State]) handler] @java[@javadoc[receiveSignal](akka.persistence.typed.javadsl.SignalHandlerBuilder#onSignal(java.lang.Class,java.util.function.BiConsumer)) method] and the actor will be stopped
 (or restarted with backoff).
 
+If there is a problem with persisting an event to the journal, a @apidoc[typed.PersistFailed] signal is
+emitted to the @scala[@scaladoc[receiveSignal](akka.persistence.typed.scaladsl.EventSourcedBehavior#receiveSignal(signalHandler:PartialFunction[(State,akka.actor.typed.Signal),Unit]):akka.persistence.typed.scaladsl.EventSourcedBehavior[Command,Event,State]) handler] @java[@javadoc[receiveSignal](akka.persistence.typed.javadsl.SignalHandlerBuilder#onSignal(java.lang.Class,java.util.function.BiConsumer)) method] and the actor will be stopped
+(or restarted with backoff).
+
 ### Journal rejections
 
 Journals can reject events. The difference from a failure is that the journal must decide to reject an event before
-trying to persist it e.g. because of a serialization exception. If an event is rejected it definitely won't be in the journal. 
-This is signalled to an @apidoc[typed.*.EventSourcedBehavior] via an @apidoc[typed.EventRejectedException] and can be handled with a @ref[supervisor](fault-tolerance.md).
+trying to persist it e.g. because of a serialization exception. If an event is rejected it definitely won't be in the journal.
+This is signalled to an @apidoc[typed.*.EventSourcedBehavior] via an @apidoc[typed.PersistRejected] signal.
+An @apidoc[typed.EventRejectedException] is also thrown and can be handled with a @ref[supervisor](fault-tolerance.md).
 Not all journal implementations use rejections and treat these kind of problems also as journal failures. 
 
 ## Stash
@@ -646,6 +680,14 @@ buffer will fill up and when reaching its maximum capacity the commands will be 
 akka.persistence.typed.stash-capacity = 10000
 ```
 
+To override the global config from above, use the following api to define a custom stash buffer capacity per entity:
+
+Scala
+:  @@snip [BasicPersistentBehaviorCompileOnly.scala](/akka-persistence-typed/src/test/scala/docs/akka/persistence/typed/BasicPersistentBehaviorCompileOnly.scala) { #custom-stash-buffer }
+
+Java
+:  @@snip [BasicPersistentBehaviorTest.java](/akka-persistence-typed/src/test/java/jdocs/akka/persistence/typed/BasicPersistentBehaviorTest.java) { #custom-stash-buffer }
+
 Note that the stashed commands are kept in an in-memory buffer, so in case of a crash they will not be
 processed.
 
@@ -666,9 +708,8 @@ cluster and address them by id.
 Akka Persistence is based on the single-writer principle. For a particular @apidoc[typed.PersistenceId] only one @apidoc[typed.*.EventSourcedBehavior]
 instance should be active at one time. If multiple instances were to persist events at the same time, the events would
 be interleaved and might not be interpreted correctly on replay. Cluster Sharding ensures that there is only one
-active entity (`EventSourcedBehavior`) for each id within a data center.
-@ref:[Replicated Event Sourcing](replicated-eventsourcing.md) supports active-active persistent entities across
-data centers.
+active entity (`EventSourcedBehavior`) for each id within the cluster.
+@ref:[Replicated Event Sourcing](replicated-eventsourcing.md) supports active-active persistent entities.
 
 ## Configuration
 
@@ -680,16 +721,11 @@ reference documentation of the chosen plugin.
 
 ## Example project
 
-@java[@extref[Persistence example project](samples:akka-samples-persistence-java)]
-@scala[@extref[Persistence example project](samples:akka-samples-persistence-scala)]
-is an example project that can be downloaded, and with instructions of how to run.
-This project contains a Shopping Cart sample illustrating how to use Akka Persistence.
+The @extref[Microservices with Akka tutorial](platform-guide:microservices-tutorial/) contains a
+Shopping Cart sample illustrating how to use Event Sourcing and Projections together. The events are
+consumed by even processors to build other representations from the events, or publish the events
+to other services.
 
-The Shopping Cart sample is expanded further in the @extref[Microservices with Akka tutorial](platform-guide:microservices-tutorial/).
-In that sample the events are tagged to be consumed by even processors to build other representations
-from the events, or publish the events to other services.
+The @extref[Akka Distributed Cluster Guide](akka-distributed-cluster:guide/3-active-active.html) illustrates how to use @ref:[Replicated Event Sourcing](replicated-eventsourcing.md) that supports
+active-active persistent entities.
 
-@java[@extref[Multi-DC Persistence example project](samples:akka-samples-persistence-dc-java)]
-@scala[@extref[Multi-DC Persistence example project](samples:akka-samples-persistence-dc-scala)]
-illustrates how to use @ref:[Replicated Event Sourcing](replicated-eventsourcing.md) that supports
-active-active persistent entities across data centers.

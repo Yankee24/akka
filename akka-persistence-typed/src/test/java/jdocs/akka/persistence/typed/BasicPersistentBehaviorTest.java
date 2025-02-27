@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.akka.persistence.typed;
@@ -27,10 +27,7 @@ import akka.persistence.typed.javadsl.RetentionCriteria;
 import akka.persistence.typed.javadsl.SignalHandler;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class BasicPersistentBehaviorTest {
 
@@ -416,6 +413,20 @@ public class BasicPersistentBehaviorTest {
         };
       }
 
+      // #custom-stash-buffer
+      @Override
+      public Optional<Integer> stashCapacity() {
+        return Optional.of(100);
+      }
+      // #custom-stash-buffer
+
+      // #replay-last
+      @Override
+      public Recovery recovery() {
+        return Recovery.replayOnlyLast();
+      }
+      // #replay-last
+
       // #wrapPersistentBehavior
       @Override
       public boolean shouldSnapshot(State state, Event event, long sequenceNr) {
@@ -511,6 +522,13 @@ public class BasicPersistentBehaviorTest {
         return event instanceof BookingCompleted;
       }
       // #snapshottingPredicate
+
+      // #snapshottingPredicateDeleteEvents
+      @Override // override deleteEventsOnSnapshot in EventSourcedBehavior
+      public boolean deleteEventsOnSnapshot() {
+        return true;
+      }
+      // #snapshottingPredicateDeleteEvents
 
       // #retentionCriteria
       @Override // override retentionCriteria in EventSourcedBehavior

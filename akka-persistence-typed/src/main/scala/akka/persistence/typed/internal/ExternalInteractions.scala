@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.internal
 
 import scala.collection.immutable
+
 import akka.actor.ActorRef
 import akka.actor.typed.Behavior
 import akka.actor.typed.PostStop
@@ -12,13 +13,12 @@ import akka.actor.typed.PreRestart
 import akka.actor.typed.Signal
 import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.LoggerOps
 import akka.annotation.InternalApi
 import akka.annotation.InternalStableApi
 import akka.persistence._
 import akka.persistence.JournalProtocol.ReplayMessages
 import akka.persistence.SnapshotProtocol.LoadSnapshot
-import akka.util.{ unused, OptionVal }
+import akka.util.OptionVal
 
 /** INTERNAL API */
 @InternalApi
@@ -26,10 +26,7 @@ private[akka] object JournalInteractions {
 
   type EventOrTaggedOrReplicated = Any // `Any` since can be `E` or `Tagged` or a `ReplicatedEvent`
 
-  final case class EventToPersist(
-      adaptedEvent: EventOrTaggedOrReplicated,
-      manifest: String,
-      metadata: Option[ReplicatedEventMetadata])
+  final case class EventToPersist(adaptedEvent: EventOrTaggedOrReplicated, manifest: String, metadata: Option[Any])
 
 }
 
@@ -42,12 +39,11 @@ private[akka] trait JournalInteractions[C, E, S] {
   def setup: BehaviorSetup[C, E, S]
 
   protected def internalPersist(
-      ctx: ActorContext[_],
-      cmd: Any,
+      cmd: OptionVal[Any],
       state: Running.RunningState[S],
       event: EventOrTaggedOrReplicated,
       eventAdapterManifest: String,
-      metadata: OptionVal[Any]): Running.RunningState[S] = {
+      metadata: Option[Any]): Running.RunningState[S] = {
 
     val newRunningState = state.nextSequenceNr()
 
@@ -59,30 +55,30 @@ private[akka] trait JournalInteractions[C, E, S] {
       writerUuid = setup.writerIdentity.writerUuid,
       sender = ActorRef.noSender)
 
-    // FIXME check cinnamon is okay with this being null
-    // https://github.com/akka/akka/issues/29262
-    onWriteInitiated(ctx, cmd, repr)
+    val instrumentationContext =
+      setup.instrumentation.persistEventCalled(setup.context.self, repr.payload, cmd.orNull)
 
-    val write = AtomicWrite(metadata match {
-        case OptionVal.Some(meta) => repr.withMetadata(meta)
-        case _                    => repr
-      }) :: Nil
+    onWriteInitiated(setup.context, cmd.orNull, repr)
+
+    val reprWithMetadata = metadata match {
+      case None    => repr
+      case Some(m) => repr.withMetadata(m)
+    }
+
+    val write = AtomicWrite(reprWithMetadata) :: Nil
 
     setup.journal
       .tell(JournalProtocol.WriteMessages(write, setup.selfClassic, setup.writerIdentity.instanceId), setup.selfClassic)
 
-    newRunningState
+    newRunningState.updateInstrumentationContext(repr.sequenceNr, instrumentationContext)
   }
 
+  // FIXME remove instrumentation hook method in 2.10.0
   @InternalStableApi
-  private[akka] def onWriteInitiated(
-      @unused ctx: ActorContext[_],
-      @unused cmd: Any,
-      @unused repr: PersistentRepr): Unit = ()
+  private[akka] def onWriteInitiated(ctx: ActorContext[_], cmd: Any, repr: PersistentRepr): Unit = ()
 
   protected def internalPersistAll(
-      ctx: ActorContext[_],
-      cmd: Any,
+      cmd: OptionVal[Any],
       state: Running.RunningState[S],
       events: immutable.Seq[EventToPersist]): Running.RunningState[S] = {
     if (events.nonEmpty) {
@@ -98,13 +94,16 @@ private[akka] trait JournalInteractions[C, E, S] {
             manifest = eventAdapterManifest,
             writerUuid = setup.writerIdentity.writerUuid,
             sender = ActorRef.noSender)
+          val instCtx = setup.instrumentation.persistEventCalled(setup.context.self, repr.payload, cmd.orNull)
+          newState = newState.updateInstrumentationContext(repr.sequenceNr, instCtx)
+
           metadata match {
-            case Some(metadata) => repr.withMetadata(metadata)
-            case None           => repr
+            case None    => repr
+            case Some(m) => repr.withMetadata(m)
           }
       }
 
-      onWritesInitiated(ctx, cmd, writes)
+      onWritesInitiated(setup.context, cmd.orNull, writes)
       val write = AtomicWrite(writes)
 
       setup.journal.tell(
@@ -115,16 +114,22 @@ private[akka] trait JournalInteractions[C, E, S] {
     } else state
   }
 
+  // FIXME remove instrumentation hook method in 2.10.0
   @InternalStableApi
-  private[akka] def onWritesInitiated(
-      @unused ctx: ActorContext[_],
-      @unused cmd: Any,
-      @unused repr: immutable.Seq[PersistentRepr]): Unit = ()
+  private[akka] def onWritesInitiated(ctx: ActorContext[_], cmd: Any, repr: immutable.Seq[PersistentRepr]): Unit = ()
 
   protected def replayEvents(fromSeqNr: Long, toSeqNr: Long): Unit = {
-    setup.internalLogger.debug2("Replaying events: from: {}, to: {}", fromSeqNr, toSeqNr)
+    val from =
+      if (setup.recovery == ReplayOnlyLastRecovery) {
+        setup.internalLogger.debug("Recovery from last event only.")
+        -1L
+      } else {
+        setup.internalLogger.debug("Replaying events: from: {}, to: {}", fromSeqNr, toSeqNr)
+        fromSeqNr
+      }
+
     setup.journal.tell(
-      ReplayMessages(fromSeqNr, toSeqNr, setup.recovery.replayMax, setup.persistenceId.id, setup.selfClassic),
+      ReplayMessages(from, toSeqNr, setup.recovery.toClassic.replayMax, setup.persistenceId.id, setup.selfClassic),
       setup.selfClassic)
   }
 
@@ -160,7 +165,7 @@ private[akka] trait JournalInteractions[C, E, S] {
   protected def internalDeleteEvents(lastSequenceNr: Long, toSequenceNr: Long): Unit = {
     if (setup.isSnapshotOptional) {
       setup.internalLogger.warn(
-        "Delete events shouldn't be used together with snapshot-is-optional=false. " +
+        "Delete events shouldn't be used together with snapshot-is-optional=true. " +
         "That can result in wrong recovered state if snapshot load fails.")
     }
     if (toSequenceNr > 0) {
@@ -192,30 +197,39 @@ private[akka] trait SnapshotInteractions[C, E, S] {
     setup.snapshotStore.tell(LoadSnapshot(setup.persistenceId.id, criteria, toSequenceNr), setup.selfClassic)
   }
 
-  protected def internalSaveSnapshot(state: Running.RunningState[S]): Unit = {
+  protected def internalSaveSnapshot(state: Running.RunningState[S], metadata: Option[Any]): Unit = {
     setup.internalLogger.debug("Saving snapshot sequenceNr [{}]", state.seqNr)
     if (state.state == null)
       throw new IllegalStateException("A snapshot must not be a null state.")
     else {
-      val meta = setup.replication match {
-        case Some(_) =>
-          val m = ReplicatedSnapshotMetadata(state.version, state.seenPerReplica)
-          Some(m)
-        case None => None
+      val replicatedSnapshotMetadata = setup.replication match {
+        case Some(_) => Some(ReplicatedSnapshotMetadata(state.version, state.seenPerReplica))
+        case None    => None
       }
+      val newMetadata = metadata match {
+        case None =>
+          replicatedSnapshotMetadata
+        case Some(CompositeMetadata(entries)) =>
+          Some(CompositeMetadata(replicatedSnapshotMetadata.toSeq ++ entries))
+        case Some(other) if replicatedSnapshotMetadata.isEmpty =>
+          Some(other)
+        case Some(other) =>
+          Some(CompositeMetadata(replicatedSnapshotMetadata.toSeq :+ other))
+      }
+
       setup.snapshotStore.tell(
         SnapshotProtocol.SaveSnapshot(
-          new SnapshotMetadata(setup.persistenceId.id, state.seqNr, meta),
+          new SnapshotMetadata(setup.persistenceId.id, state.seqNr, newMetadata),
           setup.snapshotAdapter.toJournal(state.state)),
         setup.selfClassic)
     }
   }
 
   /** Deletes the snapshots up to and including the `sequenceNr`. */
-  protected def internalDeleteSnapshots(fromSequenceNr: Long, toSequenceNr: Long): Unit = {
+  protected def internalDeleteSnapshots(toSequenceNr: Long): Unit = {
     if (toSequenceNr > 0) {
-      val snapshotCriteria = SnapshotSelectionCriteria(minSequenceNr = fromSequenceNr, maxSequenceNr = toSequenceNr)
-      setup.internalLogger.debug2("Deleting snapshots from sequenceNr [{}] to [{}]", fromSequenceNr, toSequenceNr)
+      val snapshotCriteria = SnapshotSelectionCriteria(minSequenceNr = 0L, maxSequenceNr = toSequenceNr)
+      setup.internalLogger.debug("Deleting snapshots to sequenceNr [{}]", toSequenceNr)
       setup.snapshotStore
         .tell(SnapshotProtocol.DeleteSnapshots(setup.persistenceId.id, snapshotCriteria), setup.selfClassic)
     }

@@ -1,11 +1,13 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
+import scala.annotation.nowarn
+
 import akka.actor.{ InvalidMessageException, WrappedMessage }
-import akka.util.unused
+import akka.cluster.sharding.typed.internal.ClusterShardingTypedSerializable
 
 object ShardingMessageExtractor {
 
@@ -23,7 +25,7 @@ object ShardingMessageExtractor {
   /**
    * Scala API: Create a message extractor for a protocol where the entity id is available in each message.
    */
-  def noEnvelope[M](numberOfShards: Int, @unused stopMessage: M)(
+  def noEnvelope[M](numberOfShards: Int, @nowarn("msg=never used") stopMessage: M)(
       extractEntityId: M => String): ShardingMessageExtractor[M, M] =
     new HashCodeNoEnvelopeMessageExtractor[M](numberOfShards) {
       def entityId(message: M) = extractEntityId(message)
@@ -110,6 +112,8 @@ abstract class HashCodeNoEnvelopeMessageExtractor[M](val numberOfShards: Int) ex
  * @param message The message to be send to the entity.
  * @throws `InvalidMessageException` if message is null.
  */
-final case class ShardingEnvelope[M](entityId: String, message: M) extends WrappedMessage {
+final case class ShardingEnvelope[M](entityId: String, message: M)
+    extends WrappedMessage
+    with ClusterShardingTypedSerializable {
   if (message == null) throw InvalidMessageException("[null] is not an allowed message")
 }

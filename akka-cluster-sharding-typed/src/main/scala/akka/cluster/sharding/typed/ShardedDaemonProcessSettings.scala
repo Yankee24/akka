@@ -1,18 +1,20 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
-import java.time.Duration
+import java.time.{ Duration => JDuration }
 
 import scala.concurrent.duration.FiniteDuration
+import scala.jdk.DurationConverters._
 
 import com.typesafe.config.Config
 
 import akka.actor.typed.ActorSystem
+import akka.annotation.ApiMayChange
+import akka.annotation.DoNotInherit
 import akka.annotation.InternalApi
-import akka.util.JavaDurationConverters._
 
 object ShardedDaemonProcessSettings {
 
@@ -29,20 +31,28 @@ object ShardedDaemonProcessSettings {
    * Load settings from a specific config location.
    */
   def fromConfig(config: Config): ShardedDaemonProcessSettings = {
-    val keepAliveInterval = config.getDuration("keep-alive-interval").asScala
-
-    new ShardedDaemonProcessSettings(keepAliveInterval, None, None)
+    val keepAliveInterval = config.getDuration("keep-alive-interval").toScala
+    val keepAliveFromNumberOfNodes = config.getInt("keep-alive-from-number-of-nodes")
+    val keepAliveThrottleInterval = config.getDuration("keep-alive-throttle-interval").toScala
+    new ShardedDaemonProcessSettings(
+      keepAliveInterval,
+      None,
+      None,
+      keepAliveFromNumberOfNodes,
+      keepAliveThrottleInterval)
   }
 
 }
 
 /**
- * Not for user constructions, use factory methods to instanciate.
+ * Not for user constructions, use factory methods to instantiate.
  */
 final class ShardedDaemonProcessSettings @InternalApi private[akka] (
     val keepAliveInterval: FiniteDuration,
     val shardingSettings: Option[ClusterShardingSettings],
-    val role: Option[String]) {
+    val role: Option[String],
+    val keepAliveFromNumberOfNodes: Int,
+    val keepAliveThrottleInterval: FiniteDuration) {
 
   /**
    * Scala API: The interval each parent of the sharded set is pinged from each node in the cluster.
@@ -57,8 +67,8 @@ final class ShardedDaemonProcessSettings @InternalApi private[akka] (
    *
    * Note: How the sharded set is kept alive may change in the future meaning this setting may go away.
    */
-  def withKeepAliveInterval(keepAliveInterval: Duration): ShardedDaemonProcessSettings =
-    copy(keepAliveInterval = keepAliveInterval.asScala)
+  def withKeepAliveInterval(keepAliveInterval: JDuration): ShardedDaemonProcessSettings =
+    copy(keepAliveInterval = keepAliveInterval.toScala)
 
   /**
    * Specify sharding settings that should be used for the sharded daemon process instead of loading from config.
@@ -76,10 +86,55 @@ final class ShardedDaemonProcessSettings @InternalApi private[akka] (
   def withRole(role: String): ShardedDaemonProcessSettings =
     copy(role = Option(role))
 
+  /**
+   * Keep alive messages from this number of nodes.
+   */
+  def withKeepAliveFromNumberOfNodes(keepAliveFromNumberOfNodes: Int): ShardedDaemonProcessSettings =
+    copy(keepAliveFromNumberOfNodes = keepAliveFromNumberOfNodes)
+
+  /**
+   * Scala API: Keep alive messages are sent with this delay between each message.
+   */
+  def withKeepAliveThrottleInterval(keepAliveThrottleInterval: FiniteDuration): ShardedDaemonProcessSettings =
+    copy(keepAliveThrottleInterval = keepAliveThrottleInterval)
+
+  /**
+   * Java API: Keep alive messages are sent with this delay between each message.
+   */
+  def withKeepAliveThrottleInterval(keepAliveThrottleInterval: JDuration): ShardedDaemonProcessSettings =
+    copy(keepAliveThrottleInterval = keepAliveThrottleInterval.toScala)
+
   private def copy(
       keepAliveInterval: FiniteDuration = keepAliveInterval,
       shardingSettings: Option[ClusterShardingSettings] = shardingSettings,
-      role: Option[String] = role): ShardedDaemonProcessSettings =
-    new ShardedDaemonProcessSettings(keepAliveInterval, shardingSettings, role)
+      role: Option[String] = role,
+      keepAliveFromNumberOfNodes: Int = keepAliveFromNumberOfNodes,
+      keepAliveThrottleInterval: FiniteDuration = keepAliveThrottleInterval): ShardedDaemonProcessSettings =
+    new ShardedDaemonProcessSettings(
+      keepAliveInterval,
+      shardingSettings,
+      role,
+      keepAliveFromNumberOfNodes,
+      keepAliveThrottleInterval)
+
+}
+
+/**
+ * Context with details about the Sharded Daemon Process instance to use when starting it
+ *
+ * Not for user extension
+ */
+@DoNotInherit
+@ApiMayChange
+trait ShardedDaemonProcessContext {
+  def processNumber: Int
+  def totalProcesses: Int
+
+  /**
+   * The revision starts at 0 and each time the number of processes is changed, the revision increases with 1
+   */
+  def revision: Long
+
+  def name: String
 
 }

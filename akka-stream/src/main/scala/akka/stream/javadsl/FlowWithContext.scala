@@ -1,21 +1,22 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.javadsl
 
 import java.util.concurrent.CompletionStage
+import java.util.function.BiFunction
 
 import scala.annotation.unchecked.uncheckedVariance
-import scala.compat.java8.FutureConverters._
+import scala.jdk.DurationConverters._
+import scala.jdk.FutureConverters._
 
 import akka.annotation.ApiMayChange
 import akka.event.{ LogMarker, LoggingAdapter, MarkerLoggingAdapter }
-import akka.japi.{ function, Pair, Util }
+import akka.japi.{ function, Pair }
 import akka.stream._
 import akka.util.ConstantFun
-import akka.util.ccompat.JavaConverters._
-import akka.util.JavaDurationConverters._
+import scala.jdk.CollectionConverters._
 
 object FlowWithContext {
 
@@ -50,7 +51,7 @@ final class FlowWithContext[In, CtxIn, Out, CtxOut, +Mat](
    *
    *  It is up to the implementer to ensure the inner flow does not exhibit any behaviour that is not expected
    *  by the downstream elements, such as reordering. For more background on these requirements
-   *  see https://doc.akka.io/docs/akka/current/stream/stream-context.html.
+   *  see https://doc.akka.io/libraries/akka-core/current/stream/stream-context.html.
    *
    * This can be used as an escape hatch for operations that are not (yet) provided with automatic
    * context propagation here.
@@ -75,7 +76,7 @@ final class FlowWithContext[In, CtxIn, Out, CtxOut, +Mat](
    * of elements and contexts or deadlock.
    *
    * For more background on these requirements
-   *  see https://doc.akka.io/docs/akka/current/stream/stream-context.html.
+   *  see https://doc.akka.io/libraries/akka-core/current/stream/stream-context.html.
    */
   @ApiMayChange def unsafeDataVia[Out2, Mat2](
       viaFlow: Graph[FlowShape[Out @uncheckedVariance, Out2], Mat2]): FlowWithContext[In, CtxIn, Out2, CtxOut, Mat] =
@@ -166,10 +167,29 @@ final class FlowWithContext[In, CtxIn, Out, CtxOut, +Mat](
   def map[Out2](f: function.Function[Out, Out2]): FlowWithContext[In, CtxIn, Out2, CtxOut, Mat] =
     viaScala(_.map(f.apply))
 
+  /**
+   * Context-preserving variant of [[akka.stream.javadsl.Flow.mapAsync]]
+   *
+   * @see [[akka.stream.javadsl.Flow.mapAsync]]
+   */
   def mapAsync[Out2](
       parallelism: Int,
       f: function.Function[Out, CompletionStage[Out2]]): FlowWithContext[In, CtxIn, Out2, CtxOut, Mat] =
-    viaScala(_.mapAsync[Out2](parallelism)(o => f.apply(o).toScala))
+    viaScala(_.mapAsync[Out2](parallelism)(o => f.apply(o).asScala))
+
+  /**
+   * Context-preserving variant of [[akka.stream.javadsl.Flow.mapAsyncPartitioned]]
+   *
+   * @see [[akka.stream.javadsl.Flow.mapAsyncPartitioned]]
+   */
+  def mapAsyncPartitioned[Out2, P](
+      parallelism: Int,
+      perPartition: Int,
+      partitioner: function.Function[Out, P],
+      f: BiFunction[Out, P, CompletionStage[Out2]]): FlowWithContext[In, CtxIn, Out2, CtxOut, Mat] =
+    viaScala(_.mapAsyncPartitioned[Out2, P](parallelism, perPartition)(x => partitioner(x)) { (x, p) =>
+      f(x, p).asScala
+    })
 
   /**
    * Context-preserving variant of [[akka.stream.javadsl.Flow.mapConcat]].
@@ -201,7 +221,7 @@ final class FlowWithContext[In, CtxIn, Out, CtxOut, +Mat](
    */
   def mapConcat[Out2](
       f: function.Function[Out, _ <: java.lang.Iterable[Out2]]): FlowWithContext[In, CtxIn, Out2, CtxOut, Mat] =
-    viaScala(_.mapConcat(elem => Util.immutableSeq(f.apply(elem))))
+    viaScala(_.mapConcat(elem => f.apply(elem).asScala))
 
   /**
    * Apply the given function to each context element (leaving the data elements unchanged).
@@ -311,7 +331,7 @@ final class FlowWithContext[In, CtxIn, Out, CtxOut, +Mat](
    * @see [[akka.stream.javadsl.Flow.throttle]]
    */
   def throttle(elements: Int, per: java.time.Duration): FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
-    viaScala(_.throttle(elements, per.asScala))
+    viaScala(_.throttle(elements, per.toScala))
 
   /**
    * Context-preserving variant of [[akka.stream.javadsl.Flow.throttle]].
@@ -323,7 +343,7 @@ final class FlowWithContext[In, CtxIn, Out, CtxOut, +Mat](
       per: java.time.Duration,
       maximumBurst: Int,
       mode: ThrottleMode): FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
-    viaScala(_.throttle(elements, per.asScala, maximumBurst, mode))
+    viaScala(_.throttle(elements, per.toScala, maximumBurst, mode))
 
   /**
    * Context-preserving variant of [[akka.stream.javadsl.Flow.throttle]].
@@ -334,7 +354,7 @@ final class FlowWithContext[In, CtxIn, Out, CtxOut, +Mat](
       cost: Int,
       per: java.time.Duration,
       costCalculation: function.Function[Out, Integer]): FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
-    viaScala(_.throttle(cost, per.asScala, costCalculation.apply))
+    viaScala(_.throttle(cost, per.toScala, costCalculation.apply))
 
   /**
    * Context-preserving variant of [[akka.stream.javadsl.Flow.throttle]].
@@ -347,7 +367,7 @@ final class FlowWithContext[In, CtxIn, Out, CtxOut, +Mat](
       maximumBurst: Int,
       costCalculation: function.Function[Out, Integer],
       mode: ThrottleMode): FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
-    viaScala(_.throttle(cost, per.asScala, maximumBurst, costCalculation.apply, mode))
+    viaScala(_.throttle(cost, per.toScala, maximumBurst, costCalculation.apply, mode))
 
   def asScala: scaladsl.FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
     scaladsl.FlowWithContext.fromTuples(

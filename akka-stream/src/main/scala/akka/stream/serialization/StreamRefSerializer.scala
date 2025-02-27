@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.serialization
+
+import java.nio.charset.StandardCharsets
 
 import akka.actor.ExtendedActorSystem
 import akka.annotation.InternalApi
@@ -11,8 +13,6 @@ import akka.protobufv3.internal.UnsafeByteOperations
 import akka.serialization._
 import akka.stream.StreamRefMessages
 import akka.stream.impl.streamref._
-
-import java.nio.charset.StandardCharsets
 
 /** INTERNAL API */
 @InternalApi

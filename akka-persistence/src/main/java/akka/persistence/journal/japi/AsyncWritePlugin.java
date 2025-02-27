@@ -1,14 +1,12 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.journal.japi;
 
-import java.util.Optional;
-
-import scala.concurrent.Future;
-
 import akka.persistence.*;
+import java.util.Optional;
+import scala.concurrent.Future;
 
 interface AsyncWritePlugin {
   // #async-write-plugin-api

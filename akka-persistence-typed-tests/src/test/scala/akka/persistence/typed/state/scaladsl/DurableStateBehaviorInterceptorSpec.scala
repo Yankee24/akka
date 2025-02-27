@@ -1,8 +1,14 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.scaladsl
+
+import java.util.concurrent.atomic.AtomicInteger
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.testkit.typed.scaladsl._
 import akka.actor.typed.ActorRef
@@ -10,17 +16,13 @@ import akka.actor.typed.Behavior
 import akka.actor.typed.BehaviorInterceptor
 import akka.actor.typed.TypedActorContext
 import akka.actor.typed.scaladsl.Behaviors
-import akka.persistence.typed.PersistenceId
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import java.util.concurrent.atomic.AtomicInteger
 import akka.persistence.testkit.PersistenceTestKitDurableStateStorePlugin
+import akka.persistence.typed.PersistenceId
 
 object DurableStateBehaviorInterceptorSpec {
 
-  def conf: Config = PersistenceTestKitDurableStateStorePlugin.config.withFallback(ConfigFactory.parseString(s"""
+  def conf: Config =
+    PersistenceTestKitDurableStateStorePlugin.config.withFallback(ConfigFactory.parseString("""
     akka.loglevel = INFO
     """))
 

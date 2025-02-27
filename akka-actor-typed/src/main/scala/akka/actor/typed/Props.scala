@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed
@@ -11,7 +11,7 @@ import scala.reflect.ClassTag
 import akka.actor.typed.internal.PropsImpl._
 import akka.annotation.DoNotInherit
 import akka.annotation.InternalApi
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object Props {
 
@@ -75,6 +75,13 @@ abstract class Props private[akka] () extends Product with Serializable {
    * Prepend a selection of the same executor as the parent actor to this Props.
    */
   def withDispatcherSameAsParent: Props = DispatcherSameAsParent(this)
+
+  /**
+   * Prepend a selection of the mailbox found at the given Config path to this Props.
+   * The path is relative to the configuration root of the [[ActorSystem]] that looks up the
+   * mailbox.
+   */
+  def withMailboxFromConfig(path: String): Props = MailboxFromConfigSelector(path, this)
 
   /**
    * Find the first occurrence of a configuration node of the given type, falling

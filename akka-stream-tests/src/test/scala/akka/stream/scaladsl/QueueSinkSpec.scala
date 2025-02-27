@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -77,7 +77,7 @@ class QueueSinkSpec extends StreamSpec {
     "fail all futures on abrupt termination" in {
       val n = 2
       val mat = Materializer(system)
-      val queue = TestSource.probe.runWith(Sink.queue(n))(mat)
+      val queue = TestSource().runWith(Sink.queue(n))(mat)
 
       val future1 = queue.pull()
       val future2 = queue.pull()
