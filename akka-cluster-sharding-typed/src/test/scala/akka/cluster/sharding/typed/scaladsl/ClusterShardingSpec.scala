@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed.scaladsl
@@ -29,14 +29,11 @@ import akka.cluster.typed.Leave
 import akka.pattern.AskTimeoutException
 import akka.serialization.jackson.CborSerializable
 import akka.util.Timeout
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 object ClusterShardingSpec {
-  val config = ConfigFactory.parseString(s"""
+  val config = ConfigFactory.parseString("""
       akka.actor.provider = cluster
 
-      akka.remote.classic.netty.tcp.port = 0
       akka.remote.artery.canonical.port = 0
       akka.remote.artery.canonical.hostname = 127.0.0.1
 
@@ -241,6 +238,27 @@ class ClusterShardingSpec
       p.expectMessage("Hello!")
     }
 
+    "be able to passivate via extension shard" in {
+      val stopProbe = TestProbe[String]()
+      val p = TestProbe[String]()
+      val typeKey5 = EntityTypeKey[TestProtocol]("ext-passivate-test")
+
+      val shardingRef5: ActorRef[ShardingEnvelope[TestProtocol]] =
+        sharding.init(
+          Entity(typeKey5)(_ => behavior(ClusterSharding(system).shard(typeKey5), Some(stopProbe.ref)))
+            .withStopMessage(StopPlz()))
+
+      shardingRef5 ! ShardingEnvelope(s"test1", ReplyPlz(p.ref))
+      p.expectMessage("Hello!")
+
+      shardingRef5 ! ShardingEnvelope(s"test1", PassivatePlz())
+      stopProbe.expectMessage("StopPlz")
+      stopProbe.expectMessage("PostStop")
+
+      shardingRef5 ! ShardingEnvelope(s"test1", ReplyPlz(p.ref))
+      p.expectMessage("Hello!")
+    }
+
     "fail if init sharding for already used typeName, but with a different type" in {
       // sharding has been already initialized with EntityTypeKey[TestProtocol]("envelope-shard")
       val ex = intercept[Exception] {
@@ -305,18 +323,14 @@ class ClusterShardingSpec
 
       peterRef ! StopPlz()
 
-      // FIXME #26514: doesn't compile with Scala 2.13.0-M5
-      /*
       // make sure request with multiple parameters compile
       Behaviors.setup[TheReply] { ctx =>
-        ctx.ask(aliceRef)(WhoAreYou2(17, _)) {
+        ctx.ask[WhoAreYou2, String](peterRef, WhoAreYou2(17, _)) {
           case Success(name) => TheReply(name)
           case Failure(ex)   => TheReply(ex.getMessage)
         }
-
         Behaviors.empty
       }
-     */
     }
 
     "EntityRef - AskTimeoutException" in {

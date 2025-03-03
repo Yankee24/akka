@@ -1,18 +1,18 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream;
 
 import akka.NotUsed;
-import jdocs.AbstractJavaTest;
-import akka.testkit.javadsl.TestKit;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
 import akka.actor.ActorSystem;
 import akka.stream.*;
 import akka.stream.javadsl.*;
+import akka.testkit.javadsl.TestKit;
+import jdocs.AbstractJavaTest;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class FlowParallelismDocTest extends AbstractJavaTest {
 

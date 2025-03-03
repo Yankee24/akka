@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.akka.cluster.sharding.typed;
@@ -11,7 +11,6 @@ import akka.cluster.sharding.typed.javadsl.Entity;
 import akka.cluster.sharding.typed.javadsl.EntityRef;
 import akka.persistence.typed.ReplicaId;
 import akka.persistence.typed.ReplicationId;
-
 import java.util.*;
 
 public class ReplicatedShardingCompileOnlySpec {

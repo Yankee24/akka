@@ -1,31 +1,33 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
 import java.util.concurrent.atomic.AtomicBoolean
+
+import scala.annotation.nowarn
 import scala.concurrent.duration._
+import scala.util.control.NonFatal
+
 import com.typesafe.config.ConfigFactory
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+
 import akka.ConfigurationException
 import akka.actor.ActorSystem
 import akka.actor.Props
 import akka.testkit.TestKit.awaitCond
 import akka.testkit.TestKit.shutdownActorSystem
-import akka.util.unused
 
-import scala.util.control.NonFatal
-
-class FailingDowningProvider(@unused system: ActorSystem) extends DowningProvider {
+class FailingDowningProvider(@nowarn("msg=never used") system: ActorSystem) extends DowningProvider {
   override val downRemovalMargin: FiniteDuration = 20.seconds
   override def downingActorProps: Option[Props] = {
     throw new ConfigurationException("this provider never works")
   }
 }
 
-class DummyDowningProvider(@unused system: ActorSystem) extends DowningProvider {
+class DummyDowningProvider(@nowarn("msg=never used") system: ActorSystem) extends DowningProvider {
   override val downRemovalMargin: FiniteDuration = 20.seconds
 
   val actorPropsAccessed = new AtomicBoolean(false)
@@ -44,10 +46,6 @@ class DowningProviderSpec extends AnyWordSpec with Matchers {
         remote {
           artery.canonical {
             hostname = 127.0.0.1
-            port = 0
-          }
-          classic.netty.tcp {
-            hostname = "127.0.0.1"
             port = 0
           }
         }

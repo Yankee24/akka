@@ -1,16 +1,15 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.testkit
 
+import scala.annotation.nowarn
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.annotation.nowarn
 
 import com.typesafe.config.ConfigFactory
 import language.postfixOps
-
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -38,7 +37,7 @@ class AkkaSpecSpec extends AnyWordSpec with Matchers {
 
     "terminate all actors" in {
       // verbose config just for demonstration purposes, please leave in in case of debugging
-      import akka.util.ccompat.JavaConverters._
+      import scala.jdk.CollectionConverters._
       val conf = Map(
         "akka.actor.debug.lifecycle" -> true,
         "akka.actor.debug.event-stream" -> true,

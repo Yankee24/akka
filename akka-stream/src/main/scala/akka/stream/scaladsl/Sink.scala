@@ -1,14 +1,16 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.annotation.unchecked.uncheckedVariance
+import scala.collection.Factory
+import scala.concurrent.Future
 import scala.collection.immutable
 import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
@@ -21,14 +23,12 @@ import akka.NotUsed
 import akka.actor.ActorRef
 import akka.actor.Status
 import akka.annotation.InternalApi
-import akka.dispatch.ExecutionContexts
 import akka.stream._
 import akka.stream.impl._
 import akka.stream.impl.Stages.DefaultAttributes
 import akka.stream.impl.fusing.GraphStages
 import akka.stream.javadsl
 import akka.stream.stage._
-import akka.util.ccompat._
 
 /**
  * A `Sink` is a set of stream processing steps that has one open input.
@@ -37,7 +37,6 @@ import akka.util.ccompat._
 final class Sink[-In, +Mat](override val traversalBuilder: LinearTraversalBuilder, override val shape: SinkShape[In])
     extends Graph[SinkShape[In], Mat] {
 
-  // TODO: Debug string
   override def toString: String = s"Sink($shape)"
 
   /**
@@ -71,6 +70,9 @@ final class Sink[-In, +Mat](override val traversalBuilder: LinearTraversalBuilde
    * that can be consume elements 'into' the pre-materialized one.
    *
    * Useful for when you need a materialized value of a Sink when handing it out to someone to materialize it for you.
+   *
+   * Note that `preMaterialize` is implemented through a reactive streams `Subscriber` which means that a buffer is introduced
+   * and that errors are not propagated upstream but are turned into cancellations without error details.
    */
   def preMaterialize()(implicit materializer: Materializer): (Mat, Sink[In, NotUsed]) = {
     val (sub, mat) = Source.asSubscriber.toMat(this)(Keep.both).run()
@@ -205,7 +207,7 @@ object Sink {
       .fromGraph(new HeadOptionStage[T])
       .withAttributes(DefaultAttributes.headSink)
       .mapMaterializedValue(e =>
-        e.map(_.getOrElse(throw new NoSuchElementException("head of empty stream")))(ExecutionContexts.parasitic))
+        e.map(_.getOrElse(throw new NoSuchElementException("head of empty stream")))(ExecutionContext.parasitic))
 
   /**
    * A `Sink` that materializes into a `Future` of the optional first value received.
@@ -227,7 +229,7 @@ object Sink {
   def last[T]: Sink[T, Future[T]] = {
     Sink.fromGraph(new TakeLastStage[T](1)).withAttributes(DefaultAttributes.lastSink).mapMaterializedValue { e =>
       e.map(_.headOption.getOrElse(throw new NoSuchElementException("last of empty stream")))(
-        ExecutionContexts.parasitic)
+        ExecutionContext.parasitic)
     }
   }
 
@@ -240,7 +242,7 @@ object Sink {
    */
   def lastOption[T]: Sink[T, Future[Option[T]]] = {
     Sink.fromGraph(new TakeLastStage[T](1)).withAttributes(DefaultAttributes.lastOptionSink).mapMaterializedValue { e =>
-      e.map(_.headOption)(ExecutionContexts.parasitic)
+      e.map(_.headOption)(ExecutionContext.parasitic)
     }
   }
 
@@ -329,10 +331,12 @@ object Sink {
    * Combine several sinks with fan-out strategy like `Broadcast` or `Balance` and returns `Sink`.
    */
   def combine[T, U](first: Sink[U, _], second: Sink[U, _], rest: Sink[U, _]*)(
-      strategy: Int => Graph[UniformFanOutShape[T, U], NotUsed]): Sink[T, NotUsed] =
+      @nowarn
+      @deprecatedName(Symbol("strategy"))
+      fanOutStrategy: Int => Graph[UniformFanOutShape[T, U], NotUsed]): Sink[T, NotUsed] =
     Sink.fromGraph(GraphDSL.create() { implicit b =>
       import GraphDSL.Implicits._
-      val d = b.add(strategy(rest.size + 2))
+      val d = b.add(fanOutStrategy(rest.size + 2))
       d.out(0) ~> first
       d.out(1) ~> second
 
@@ -346,23 +350,37 @@ object Sink {
     })
 
   /**
-   * A `Sink` that will invoke the given function to each of the elements
-   * as they pass in. The sink is materialized into a [[scala.concurrent.Future]]
-   *
-   * If `f` throws an exception and the supervision decision is
-   * [[akka.stream.Supervision.Stop]] the `Future` will be completed with failure.
-   *
-   * If `f` throws an exception and the supervision decision is
-   * [[akka.stream.Supervision.Resume]] or [[akka.stream.Supervision.Restart]] the
-   * element is dropped and the stream continues.
-   *
-   * See also [[Flow.mapAsyncUnordered]]
+   * Combine two sinks with fan-out strategy like `Broadcast` or `Balance` and returns `Sink` with 2 outlets.
    */
-  @deprecated(
-    "Use `foreachAsync` instead, it allows you to choose how to run the procedure, by calling some other API returning a Future or spawning a new Future.",
-    since = "2.5.17")
-  def foreachParallel[T](parallelism: Int)(f: T => Unit)(implicit ec: ExecutionContext): Sink[T, Future[Done]] =
-    Flow[T].mapAsyncUnordered(parallelism)(t => Future(f(t))).toMat(Sink.ignore)(Keep.right)
+  def combineMat[T, U, M1, M2, M](first: Sink[U, M1], second: Sink[U, M2])(
+      fanOutStrategy: Int => Graph[UniformFanOutShape[T, U], NotUsed])(matF: (M1, M2) => M): Sink[T, M] = {
+    Sink.fromGraph(GraphDSL.createGraph(first, second)(matF) { implicit b => (shape1, shape2) =>
+      import GraphDSL.Implicits._
+      val d = b.add(fanOutStrategy(2))
+      d.out(0) ~> shape1
+      d.out(1) ~> shape2
+      new SinkShape[T](d.in)
+    })
+  }
+
+  /**
+   * Combine several sinks with fan-out strategy like `Broadcast` or `Balance` and returns `Sink`.
+   * The fanoutGraph's outlets size must match the provides sinks'.
+   */
+  def combine[T, U, M](sinks: immutable.Seq[Graph[SinkShape[U], M]])(
+      fanOutStrategy: Int => Graph[UniformFanOutShape[T, U], NotUsed]): Sink[T, immutable.Seq[M]] =
+    sinks match {
+      case immutable.Seq()     => Sink.cancelled.mapMaterializedValue(_ => Nil)
+      case immutable.Seq(sink) => sink.asInstanceOf[Sink[T, M]].mapMaterializedValue(_ :: Nil)
+      case _ =>
+        Sink.fromGraph(GraphDSL.create(sinks) { implicit b => shapes =>
+          import GraphDSL.Implicits._
+          val c = b.add(fanOutStrategy(sinks.size))
+          for ((shape, idx) <- shapes.zipWithIndex)
+            c.out(idx) ~> shape
+          SinkShape(c.in)
+        })
+    }
 
   /**
    * A `Sink` that will invoke the given function for every received element, giving it its previous
@@ -644,7 +662,7 @@ object Sink {
   def lazyInit[T, M](sinkFactory: T => Future[Sink[T, M]], fallback: () => M): Sink[T, Future[M]] =
     Sink
       .fromGraph(new LazySink[T, M](sinkFactory))
-      .mapMaterializedValue(_.recover { case _: NeverMaterializedException => fallback() }(ExecutionContexts.parasitic))
+      .mapMaterializedValue(_.recover { case _: NeverMaterializedException => fallback() }(ExecutionContext.parasitic))
 
   /**
    * Creates a real `Sink` upon receiving the first element. Internal `Sink` will not be created if there are no elements,
@@ -658,7 +676,7 @@ object Sink {
   @deprecated("Use 'Sink.lazyFutureSink' instead", "2.6.0")
   def lazyInitAsync[T, M](sinkFactory: () => Future[Sink[T, M]]): Sink[T, Future[Option[M]]] =
     Sink.fromGraph(new LazySink[T, M](_ => sinkFactory())).mapMaterializedValue { m =>
-      implicit val ec = ExecutionContexts.parasitic
+      implicit val ec = ExecutionContext.parasitic
       m.map(Option.apply _).recover { case _: NeverMaterializedException => None }
     }
 

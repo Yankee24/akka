@@ -1,14 +1,13 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.io
 
 import java.nio.channels.SocketChannel
 
-import scala.collection.immutable
-
 import scala.annotation.nowarn
+import scala.collection.immutable
 
 import akka.actor.ActorRef
 import akka.io.Inet.SocketOption

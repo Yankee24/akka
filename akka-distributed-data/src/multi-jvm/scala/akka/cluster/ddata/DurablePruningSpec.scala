@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata
@@ -17,9 +17,7 @@ import akka.remote.testconductor.RoleName
 import akka.remote.testkit.MultiNodeConfig
 import akka.remote.testkit.MultiNodeSpec
 import akka.testkit._
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 object DurablePruningSpec extends MultiNodeConfig {
   val first = role("first")
   val second = role("second")
@@ -162,7 +160,6 @@ class DurablePruningSpec extends MultiNodeSpec(DurablePruningSpec) with STMultiN
           system.name,
           ConfigFactory.parseString(s"""
                   akka.remote.artery.canonical.port = ${address.port.get}
-                  akka.remote.classic.netty.tcp.port = ${address.port.get}
                   """).withFallback(system.settings.config))
         val cluster3 = Cluster(sys3)
         val replicator3 = startReplicator(sys3)

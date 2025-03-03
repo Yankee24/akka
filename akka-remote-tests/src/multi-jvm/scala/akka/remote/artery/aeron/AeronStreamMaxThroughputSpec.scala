@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
@@ -26,6 +26,9 @@ import akka.testkit._
 import akka.util.ByteString
 
 object AeronStreamMaxThroughputSpec extends MultiNodeConfig {
+  // important to not use aeron-udp via system property override because that will cause port conflict
+  System.setProperty("akka.remote.artery.transport", "tcp")
+
   val first = role("first")
   val second = role("second")
 
@@ -40,7 +43,6 @@ object AeronStreamMaxThroughputSpec extends MultiNodeConfig {
          actor {
            provider = remote
          }
-         remote.artery.enabled = off
        }
        """)))
 
@@ -158,7 +160,7 @@ abstract class AeronStreamMaxThroughputSpec
       val done = TestLatch(1)
       val killSwitch = KillSwitches.shared(testName)
       Source
-        .fromGraph(new AeronSource(channel(second), streamId, aeron, taskRunner, pool, NoOpRemotingFlightRecorder, 0))
+        .fromGraph(new AeronSource(channel(second), streamId, aeron, taskRunner, pool, 0))
         .via(killSwitch.flow)
         .runForeach { envelope =>
           val bytes = ByteString.fromByteBuffer(envelope.byteBuffer)
@@ -195,15 +197,7 @@ abstract class AeronStreamMaxThroughputSpec
           envelope.byteBuffer.flip()
           envelope
         }
-        .runWith(
-          new AeronSink(
-            channel(second),
-            streamId,
-            aeron,
-            taskRunner,
-            pool,
-            giveUpMessageAfter,
-            NoOpRemotingFlightRecorder))
+        .runWith(new AeronSink(channel(second), streamId, aeron, taskRunner, pool, giveUpMessageAfter))
 
       printStats("sender")
       enterBarrier(testName + "-done")

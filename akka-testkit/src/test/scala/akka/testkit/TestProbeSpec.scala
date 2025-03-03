@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.testkit
@@ -198,7 +198,7 @@ class TestProbeSpec extends AkkaSpec with DefaultTimeout with Eventually {
       probe.ref ! "hello"
       probe.watch(target)
       probe.expectMsg(1.seconds, "hello")
-      probe.expectMsg(1.seconds, Terminated(target)(false, false))
+      probe.expectMsg(1.seconds, Terminated(target)(existenceConfirmed = false, addressTerminated = false))
     }
 
     "allow user-defined name" in {

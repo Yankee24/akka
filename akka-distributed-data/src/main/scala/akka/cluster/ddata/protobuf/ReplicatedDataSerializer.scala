@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata.protobuf
@@ -10,9 +10,10 @@ import java.util
 import java.util.ArrayList
 import java.util.Collections
 import java.util.Comparator
+
 import scala.annotation.tailrec
 import scala.collection.immutable
-import scala.annotation.nowarn
+
 import akka.actor.ActorRef
 import akka.actor.ExtendedActorSystem
 import akka.cluster.ddata._
@@ -26,10 +27,8 @@ import akka.serialization.BaseSerializer
 import akka.serialization.Serialization
 import akka.serialization.SerializerWithStringManifest
 import akka.util.ByteString.UTF_8
-import akka.util.ccompat._
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
-@ccompatUsedUntil213
 private object ReplicatedDataSerializer {
   /*
    * Generic superclass to allow to compare Entry types used in protobuf.
@@ -44,7 +43,6 @@ private object ReplicatedDataSerializer {
     def getKey(entry: A): Any
     final def compare(x: A, y: A): Int = compareKeys(getKey(x), getKey(y))
 
-    @nowarn("msg=deprecated")
     private final def compareKeys(t1: Any, t2: Any): Int = (t1, t2) match {
       case (k1: String, k2: String)             => k1.compareTo(k2)
       case (_: String, _)                       => -1
@@ -295,6 +293,7 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
   private val ORMultiMapManifest = "K"
   private val ORMultiMapKeyManifest = "k"
   private val VersionVectorManifest = "L"
+  private val UnspecificKeyManifest = "m"
 
   private val fromBinaryMap = collection.immutable.HashMap[String, Array[Byte] => AnyRef](
     GSetManifest -> gsetFromBinary,
@@ -327,7 +326,8 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
     ORMapKeyManifest -> (bytes => ORMapKey(keyIdFromBinary(bytes))),
     LWWMapKeyManifest -> (bytes => LWWMapKey(keyIdFromBinary(bytes))),
     PNCounterMapKeyManifest -> (bytes => PNCounterMapKey(keyIdFromBinary(bytes))),
-    ORMultiMapKeyManifest -> (bytes => ORMultiMapKey(keyIdFromBinary(bytes))))
+    ORMultiMapKeyManifest -> (bytes => ORMultiMapKey(keyIdFromBinary(bytes))),
+    UnspecificKeyManifest -> (bytes => Key.UnspecificKey(keyIdFromBinary(bytes))))
 
   override def manifest(obj: AnyRef): String = obj match {
     case _: ORSet[_]                     => ORSetManifest
@@ -363,6 +363,8 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
     case _: ORSet.DeltaGroup[_]       => ORSetDeltaGroupManifest
     case _: ORMap.DeltaGroup[_, _]    => ORMapDeltaGroupManifest
     case _: ORSet.FullStateDeltaOp[_] => ORSetFullManifest
+
+    case _: Key.UnspecificKey => UnspecificKeyManifest
 
     case _ =>
       throw new IllegalArgumentException(s"Can't serialize object of type ${obj.getClass} in [${getClass.getName}]")

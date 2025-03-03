@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.actor;
 
 // #my-stopping-actor
-import akka.actor.ActorRef;
 import akka.actor.AbstractActor;
+import akka.actor.ActorRef;
 
 public class MyStoppingActor extends AbstractActor {
 

@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
+import scala.annotation.nowarn
 import scala.concurrent.duration._
 
 import com.typesafe.config.ConfigFactory
@@ -41,8 +42,6 @@ object MultiDcJoin2MultiJvmSpec extends MultiNodeConfig {
       loggers = ["akka.testkit.TestEventListener"]
       loglevel = INFO
 
-      remote.log-remote-lifecycle-events = off
-
       cluster {
         debug.verbose-heartbeat-logging = off
         debug.verbose-gossip-logging = off
@@ -62,6 +61,7 @@ class MultiDcJoin2MultiJvmNode3 extends MultiDcJoin2Spec
 class MultiDcJoin2MultiJvmNode4 extends MultiDcJoin2Spec
 class MultiDcJoin2MultiJvmNode5 extends MultiDcJoin2Spec
 
+@nowarn("msg=Use Akka Distributed Cluster")
 abstract class MultiDcJoin2Spec extends MultiNodeClusterSpec(MultiDcJoin2MultiJvmSpec) {
   import MultiDcJoin2MultiJvmSpec._
 

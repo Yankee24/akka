@@ -1,19 +1,18 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.internal
 
 import java.util.UUID
-
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 import akka.actor.Props
+import akka.cluster.{ Cluster, MemberStatus }
 import akka.cluster.ddata.{ Replicator, ReplicatorSettings }
 import akka.cluster.sharding.ClusterShardingSettings
 import akka.cluster.sharding.ShardRegion.ShardId
-import akka.cluster.{ Cluster, MemberStatus }
 import akka.testkit.{ AkkaSpec, ImplicitSender, WithLogCapturing }
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
 
 /**
  * Covers the interaction between the shard and the remember entities store
@@ -25,7 +24,6 @@ object RememberEntitiesShardStoreSpec {
       akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
       akka.actor.provider = cluster
       akka.remote.artery.canonical.port = 0
-      akka.remote.classic.netty.tcp.port = 0
       akka.cluster.sharding.state-store-mode = ddata
       akka.cluster.sharding.snapshot-after = 2
       akka.cluster.sharding.remember-entities = on
@@ -133,5 +131,27 @@ class EventSourcedRememberEntitiesShardStoreSpec extends RememberEntitiesShardSt
   override def storeName: String = "EventSourcedRememberEntitiesShardStore"
   override def storeProps(shardId: ShardId, typeName: String, settings: ClusterShardingSettings): Props =
     EventSourcedRememberEntitiesShardStore.props(typeName, shardId, settings)
+
+  import akka.cluster.sharding.internal.EventSourcedRememberEntitiesShardStore.{ createEntityEvents, EntitiesStarted }
+
+  it must {
+    "create entity events in correct batches when entity counts exceed limits" in {
+      val entityIds = (1 to 20).map(_.toString).toSet
+      val entityEvents = createEntityEvents(entityIds, EntitiesStarted.apply _, batchSize = 7)
+      entityEvents.size shouldBe 3
+      val entities = entityEvents.map(_.asInstanceOf[EntitiesStarted].entities.toSeq)
+      entities.map(_.size) should contain theSameElementsAs Seq(7, 7, 6)
+      entities.flatten should contain theSameElementsAs entityIds
+    }
+
+    "create single entity event when entity counts under limits" in {
+      val entityIds = (1 to 7).map(_.toString).toSet
+      val entityEvents = createEntityEvents(entityIds, EntitiesStarted.apply _, batchSize = 7)
+      entityEvents.size shouldBe 1
+      val entities = entityEvents.map(_.asInstanceOf[EntitiesStarted].entities.toSeq)
+      entities.map(_.size) should contain theSameElementsAs Seq(7)
+      entities.flatten should contain theSameElementsAs entityIds
+    }
+  }
 
 }

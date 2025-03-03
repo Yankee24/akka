@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.javadsl;
+
+import static akka.persistence.typed.scaladsl.EventSourcedBehaviorFailureSpec.conf;
 
 import akka.actor.testkit.typed.TestException;
 import akka.actor.testkit.typed.javadsl.LogCapturing;
@@ -16,14 +18,11 @@ import akka.persistence.typed.RecoveryCompleted;
 import akka.persistence.typed.RecoveryFailed;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import java.time.Duration;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.scalatestplus.junit.JUnitSuite;
-
-import java.time.Duration;
-
-import static akka.persistence.typed.scaladsl.EventSourcedBehaviorFailureSpec.conf;
 
 class FailingEventSourcedActor extends EventSourcedBehavior<String, String, String> {
 

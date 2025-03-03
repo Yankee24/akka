@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
@@ -35,6 +35,9 @@ import akka.testkit._
 import akka.util.ByteString
 
 object AeronStreamLatencySpec extends MultiNodeConfig {
+  // important to not use aeron-udp via system property override because that will cause port conflict
+  System.setProperty("akka.remote.artery.transport", "tcp")
+
   val first = role("first")
   val second = role("second")
 
@@ -51,7 +54,6 @@ object AeronStreamLatencySpec extends MultiNodeConfig {
            provider = remote
          }
          remote.artery {
-           enabled = off
            advanced.aeron.idle-cpu-level=8
          }
        }
@@ -184,7 +186,7 @@ abstract class AeronStreamLatencySpec
       val started = TestProbe()
       val startMsg = "0".getBytes("utf-8")
       Source
-        .fromGraph(new AeronSource(channel(first), streamId, aeron, taskRunner, pool, NoOpRemotingFlightRecorder, 0))
+        .fromGraph(new AeronSource(channel(first), streamId, aeron, taskRunner, pool, 0))
         .via(killSwitch.flow)
         .runForeach { envelope =>
           val bytes = ByteString.fromByteBuffer(envelope.byteBuffer)
@@ -214,15 +216,7 @@ abstract class AeronStreamLatencySpec
             envelope
           }
           .throttle(1, 200.milliseconds, 1, ThrottleMode.Shaping)
-          .runWith(
-            new AeronSink(
-              channel(second),
-              streamId,
-              aeron,
-              taskRunner,
-              pool,
-              giveUpMessageAfter,
-              NoOpRemotingFlightRecorder))
+          .runWith(new AeronSink(channel(second), streamId, aeron, taskRunner, pool, giveUpMessageAfter))
         started.expectMsg(Done)
       }
 
@@ -241,15 +235,7 @@ abstract class AeronStreamLatencySpec
         val queueValue = Source
           .fromGraph(new SendQueue[Unit](sendToDeadLetters))
           .via(sendFlow)
-          .to(
-            new AeronSink(
-              channel(second),
-              streamId,
-              aeron,
-              taskRunner,
-              pool,
-              giveUpMessageAfter,
-              NoOpRemotingFlightRecorder))
+          .to(new AeronSink(channel(second), streamId, aeron, taskRunner, pool, giveUpMessageAfter))
           .run()
 
         val queue = new ManyToOneConcurrentArrayQueue[Unit](1024)
@@ -304,16 +290,8 @@ abstract class AeronStreamLatencySpec
       runOn(second) {
         // just echo back
         Source
-          .fromGraph(new AeronSource(channel(second), streamId, aeron, taskRunner, pool, NoOpRemotingFlightRecorder, 0))
-          .runWith(
-            new AeronSink(
-              channel(first),
-              streamId,
-              aeron,
-              taskRunner,
-              pool,
-              giveUpMessageAfter,
-              NoOpRemotingFlightRecorder))
+          .fromGraph(new AeronSource(channel(second), streamId, aeron, taskRunner, pool, 0))
+          .runWith(new AeronSink(channel(first), streamId, aeron, taskRunner, pool, giveUpMessageAfter))
       }
       enterBarrier("echo-started")
     }

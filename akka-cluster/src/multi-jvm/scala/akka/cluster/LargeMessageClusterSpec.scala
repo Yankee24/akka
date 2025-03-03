@@ -1,25 +1,26 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
+import java.io.NotSerializableException
+
+import scala.annotation.nowarn
 import scala.concurrent.duration._
+
 import com.typesafe.config.ConfigFactory
+
 import akka.actor.ActorIdentity
 import akka.actor.ActorRef
 import akka.actor.ExtendedActorSystem
 import akka.actor.Identify
 import akka.cluster.ClusterEvent.UnreachableMember
-import akka.remote.RARP
 import akka.remote.artery.ArterySettings
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.MultiNodeConfig
 import akka.serialization.SerializerWithStringManifest
 import akka.testkit._
-import akka.util.unused
-
-import java.io.NotSerializableException
 
 object LargeMessageClusterMultiJvmSpec extends MultiNodeConfig {
   val first = role("first")
@@ -63,7 +64,7 @@ object LargeMessageClusterMultiJvmSpec extends MultiNodeConfig {
 
   final case class Slow(payload: Array[Byte])
 
-  class SlowSerializer(@unused system: ExtendedActorSystem) extends SerializerWithStringManifest {
+  class SlowSerializer(@nowarn("msg=never used") system: ExtendedActorSystem) extends SerializerWithStringManifest {
     override def identifier = 999
     override def manifest(o: AnyRef) = "a"
     override def toBinary(o: AnyRef) = o match {
@@ -99,11 +100,6 @@ abstract class LargeMessageClusterSpec
   val unreachableProbe = TestProbe()
 
   "Artery Cluster with large messages" must {
-
-    if (!RARP(system).provider.remoteSettings.Artery.Enabled) {
-      info(s"${getClass.getName} is only enabled for Artery")
-      pending
-    }
 
     "init cluster" taggedAs LongRunningTest in {
       Cluster(system).subscribe(unreachableProbe.ref, ClusterEvent.InitialStateAsEvents, classOf[UnreachableMember])

@@ -1,18 +1,22 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
 
+import java.util.UUID
+
+import scala.annotation.nowarn
 import scala.collection.immutable
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Success
-import scala.annotation.nowarn
+
 import akka.actor._
 import akka.actor.DeadLetterSuppression
-import akka.annotation.DoNotInherit
 import akka.annotation.{ InternalApi, InternalStableApi }
+import akka.annotation.DoNotInherit
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent
 import akka.cluster.ClusterEvent._
@@ -21,15 +25,15 @@ import akka.cluster.ddata.LWWRegisterKey
 import akka.cluster.ddata.Replicator._
 import akka.cluster.ddata.SelfUniqueAddress
 import akka.cluster.sharding.ShardRegion.ShardId
-import akka.cluster.sharding.internal.AbstractLeastShardAllocationStrategy
-import akka.cluster.sharding.internal.AbstractLeastShardAllocationStrategy.RegionEntry
-import akka.cluster.sharding.internal.EventSourcedRememberEntitiesCoordinatorStore.MigrationMarker
 import akka.cluster.sharding.internal.{
   EventSourcedRememberEntitiesCoordinatorStore,
   RememberEntitiesCoordinatorStore,
   RememberEntitiesProvider
 }
-import akka.dispatch.ExecutionContexts
+import akka.cluster.sharding.internal.AbstractLeastShardAllocationStrategy
+import akka.cluster.sharding.internal.ClusterShardAllocationMixin.RegionEntry
+import akka.cluster.sharding.internal.ClusterShardAllocationMixin.ShardSuitabilityOrdering
+import akka.cluster.sharding.internal.EventSourcedRememberEntitiesCoordinatorStore.MigrationMarker
 import akka.event.{ BusLogging, Logging }
 import akka.pattern.{ pipe, AskTimeoutException }
 import akka.persistence._
@@ -201,15 +205,15 @@ object ShardCoordinator {
         shardId: ShardId,
         currentShardAllocations: Map[ActorRef, immutable.IndexedSeq[ShardId]]): Future[ActorRef] = {
 
-      import akka.util.ccompat.JavaConverters._
+      import scala.jdk.CollectionConverters._
       allocateShard(requester, shardId, currentShardAllocations.asJava)
     }
 
     override final def rebalance(
         currentShardAllocations: Map[ActorRef, immutable.IndexedSeq[ShardId]],
         rebalanceInProgress: Set[ShardId]): Future[Set[ShardId]] = {
-      import akka.util.ccompat.JavaConverters._
-      implicit val ec = ExecutionContexts.parasitic
+      import scala.jdk.CollectionConverters._
+      implicit val ec = ExecutionContext.parasitic
       rebalance(currentShardAllocations.asJava, rebalanceInProgress.asJava).map(_.asScala.toSet)
     }
 
@@ -284,8 +288,6 @@ object ShardCoordinator {
   class LeastShardAllocationStrategy(rebalanceThreshold: Int, maxSimultaneousRebalance: Int)
       extends AbstractLeastShardAllocationStrategy
       with Serializable {
-
-    import AbstractLeastShardAllocationStrategy.ShardSuitabilityOrdering
 
     override def rebalance(
         currentShardAllocations: Map[ActorRef, immutable.IndexedSeq[ShardId]],
@@ -416,6 +418,11 @@ object ShardCoordinator {
     @SerialVersionUID(1L) final case class RegionStopped(shardRegion: ActorRef) extends CoordinatorCommand
 
     /**
+     * Stop all the listed shards, sender will get a ShardStopped ack for each shard once stopped
+     */
+    final case class StopShards(shards: Set[ShardId]) extends CoordinatorCommand
+
+    /**
      * `ShardRegion` requests full handoff to be able to shutdown gracefully.
      */
     @SerialVersionUID(1L) final case class GracefulShutdownReq(shardRegion: ActorRef)
@@ -524,6 +531,8 @@ object ShardCoordinator {
   private final case class ResendShardHost(shard: ShardId, region: ActorRef)
 
   private final case class DelayedShardRegionTerminated(region: ActorRef)
+
+  private final case class StopShardTimeout(requestId: UUID)
 
   /**
    * Result of `allocateShard` is piped to self with this message.
@@ -684,6 +693,8 @@ abstract class ShardCoordinator(
   var waitingForLocalRegionToTerminate = false
   var aliveRegions = Set.empty[ActorRef]
   var regionTerminationInProgress = Set.empty[ActorRef]
+  // each waiting actor together with a request identifier to clear out all waiting for one request on timeout
+  var waitingForShardsToStop: Map[ShardId, Set[(ActorRef, UUID)]] = Map.empty
 
   import context.dispatcher
 
@@ -805,6 +816,48 @@ abstract class ShardCoordinator(
           case _              => //Reallocated to another region
         }
 
+      case StopShards(shardIds) =>
+        if (settings.rememberEntities) {
+          log.error(
+            "{}: Stop shards cannot be combined with remember entities, ignoring command to stop [{}]",
+            typeName,
+            shardIds.mkString(", "))
+        } else if (state.regions.nonEmpty && !preparingForShutdown) {
+          val requestId = UUID.randomUUID()
+          val (runningShards, alreadyStoppedShards) = shardIds.partition(state.shards.contains)
+          alreadyStoppedShards.foreach(shardId => sender() ! ShardStopped(shardId))
+          if (runningShards.nonEmpty) {
+            waitingForShardsToStop = runningShards.foldLeft(waitingForShardsToStop) {
+              case (acc, shard) =>
+                val newWaiting = acc.get(shard) match {
+                  case Some(waiting) => waiting + ((sender(), requestId))
+                  case None          => Set((sender(), requestId))
+                }
+                acc.updated(shard, newWaiting)
+            }
+            // no need to stop already rebalancing
+            val shardsToStop = runningShards.filter(shard => !rebalanceInProgress.contains(shard))
+            log.info(
+              "{}: Explicitly stopping shards [{}] (request id [{}])",
+              typeName,
+              shardsToStop.mkString(", "),
+              requestId)
+            val shardsPerRegion =
+              shardsToStop.flatMap(shardId => state.shards.get(shardId).map(region => region -> shardId)).groupBy(_._1)
+            shardsPerRegion.foreach {
+              case (region, shards) => shutdownShards(region, shards.map(_._2))
+            }
+            val timeout = StopShardTimeout(requestId)
+            timers.startSingleTimer(timeout, timeout, settings.tuningParameters.handOffTimeout)
+          }
+
+        } else {
+          log.warning(
+            "{}: Explicit stop shards of shards [{}] ignored (no known regions or sharding shutting down)",
+            typeName,
+            shardIds.mkString(", "))
+        }
+
       case RebalanceTick =>
         if (state.regions.nonEmpty && !preparingForShutdown) {
           val shardsFuture = allocationStrategy.rebalance(state.regions, rebalanceInProgress.keySet)
@@ -832,6 +885,14 @@ abstract class ShardCoordinator(
 
         if (ok) {
           log.debug("{}: Shard [{}] deallocation completed successfully.", typeName, shard)
+
+          // ack to external trigger of rebalance/stop
+          waitingForShardsToStop.get(shard) match {
+            case Some(waiting) =>
+              waiting.foreach { case (replyTo, _) => replyTo ! ShardStopped(shard) }
+              waitingForShardsToStop -= shard
+            case None =>
+          }
 
           // The shard could have been removed by ShardRegionTerminated
           if (state.shards.contains(shard)) {
@@ -870,7 +931,7 @@ abstract class ShardCoordinator(
                 if (verboseDebug)
                   log.debug(
                     "{}: Graceful shutdown of {} region [{}] with [{}] shards [{}] started",
-                    Array(
+                    Array[Any](
                       typeName,
                       if (region.path.address.hasLocalScope) "local" else "",
                       region,
@@ -934,6 +995,24 @@ abstract class ShardCoordinator(
           else ref.path.address
         })
         sender() ! reply
+
+      case StopShardTimeout(requestId) =>
+        val timedOutShards = waitingForShardsToStop.collect {
+          case (shard, waiting) if waiting.exists(_._2 == requestId) => shard
+        }
+        if (timedOutShards.nonEmpty) {
+          log.info(
+            "{}: Stop shard request [{}] timed out for shards [{}]",
+            typeName,
+            requestId,
+            timedOutShards.mkString(", "))
+          waitingForShardsToStop = timedOutShards.foldLeft(waitingForShardsToStop) {
+            case (acc, shard) =>
+              val waiting = acc(shard)
+              if (waiting.size == 1) acc - shard
+              else acc.updated(shard, waiting.filterNot { case (_, id) => id == requestId })
+          }
+        }
 
       case ShardCoordinator.Internal.Terminate =>
         terminate()
@@ -1279,7 +1358,10 @@ abstract class ShardCoordinator(
 
   def shutdownShards(shuttingDownRegion: ActorRef, shards: Set[ShardId]): Unit = {
     if ((log: BusLogging).isInfoEnabled && (shards.nonEmpty)) {
-      log.info("{}: Starting shutting down shards [{}] due to region shutting down.", typeName, shards.mkString(","))
+      log.info(
+        "{}: Starting shutting down shards [{}] due to region shutting down or explicit stopping of shards.",
+        typeName,
+        shards.mkString(","))
     }
     shards.foreach { shard =>
       startShardRebalanceIfNeeded(shard, shuttingDownRegion, handOffTimeout, isRebalance = false)
@@ -1453,7 +1535,6 @@ private[akka] class DDataShardCoordinator(
     extends ShardCoordinator(settings, allocationStrategy)
     with Stash
     with Timers {
-
   import DDataShardCoordinator._
   import ShardCoordinator.Internal._
 

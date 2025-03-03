@@ -1,27 +1,27 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed.internal
 
-import java.util.concurrent.atomic.AtomicLong
 import java.util.{ Map => JMap }
-
+import java.util.concurrent.atomic.AtomicLong
+import org.slf4j.LoggerFactory
 import akka.actor.typed.ActorSystem
 import akka.annotation.InternalApi
-import akka.cluster.sharding.typed.ReplicatedShardingExtension
-import akka.cluster.sharding.typed.ReplicatedSharding
+import akka.cluster.ClusterSettings.DataCenter
 import akka.cluster.sharding.typed.ReplicatedEntityProvider
+import akka.cluster.sharding.typed.ReplicatedSharding
+import akka.cluster.sharding.typed.ReplicatedShardingExtension
+import akka.cluster.sharding.typed.ShardingDirectReplication
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.sharding.typed.scaladsl.EntityRef
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
 import akka.persistence.typed.ReplicaId
-import org.slf4j.LoggerFactory
-import akka.actor.typed.scaladsl.LoggerOps
-import akka.cluster.ClusterSettings.DataCenter
-import akka.cluster.sharding.typed.ShardingDirectReplication
 import akka.persistence.typed.ReplicationId
-import akka.util.ccompat.JavaConverters._
+
+import scala.annotation.nowarn
+import scala.jdk.CollectionConverters._
 
 /**
  * INTERNAL API
@@ -47,7 +47,7 @@ private[akka] final class ReplicatedShardingExtensionImpl(system: ActorSystem[_]
     val initializedReplicas = settings.replicas.map {
       case (replicaSettings, typeName) =>
         // start up a sharding instance per replica id
-        logger.infoN(
+        logger.info(
           "Starting Replicated Event Sourcing sharding for replica [{}] (ShardType: [{}], typeName [{}])",
           replicaSettings.replicaId.id,
           replicaSettings.entity.typeKey.name)
@@ -64,7 +64,7 @@ private[akka] final class ReplicatedShardingExtensionImpl(system: ActorSystem[_]
         case (_, replicaId, _, regionOrProxy, _) => replicaId -> regionOrProxy
       }.toMap
       val typeNameWithoutReplicaId = settings.replicas.head._2
-      logger.infoN("Starting Replicated Event Sourcing Direct Replication")
+      logger.info("Starting Replicated Event Sourcing Direct Replication")
       system.systemActorOf(
         ShardingDirectReplication(typeNameWithoutReplicaId, thisReplica, replicaToRegionOrProxy),
         s"directReplication-${counter.incrementAndGet()}")
@@ -81,6 +81,7 @@ private[akka] final class ReplicatedShardingExtensionImpl(system: ActorSystem[_]
  * INTERNAL API
  */
 @InternalApi
+@nowarn("msg=Use Akka Distributed Cluster")
 private[akka] final class ReplicatedShardingImpl[M](
     sharding: ClusterSharding,
     replicaTypeKeys: Map[ReplicaId, (EntityTypeKey[M], Option[DataCenter], String)])

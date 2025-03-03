@@ -1,19 +1,22 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.testkit.typed.scaladsl
 
-import akka.actor.testkit.typed.internal.{ ActorSystemStub, BehaviorTestKitImpl }
-import akka.actor.testkit.typed.{ CapturedLogEvent, Effect }
-import akka.actor.typed.receptionist.Receptionist
-import akka.actor.typed.{ ActorRef, Behavior, Signal, TypedActorContext }
-import akka.annotation.{ ApiMayChange, DoNotInherit }
-import com.typesafe.config.Config
-
 import java.util.concurrent.ThreadLocalRandom
+
 import scala.collection.immutable
 import scala.reflect.ClassTag
+
+import com.typesafe.config.Config
+
+import akka.actor.testkit.typed.{ CapturedLogEvent, Effect }
+import akka.actor.testkit.typed.internal.{ ActorSystemStub, BehaviorTestKitImpl }
+import akka.actor.typed.{ ActorRef, Behavior, Signal, TypedActorContext }
+import akka.actor.typed.receptionist.Receptionist
+import akka.annotation.{ ApiMayChange, DoNotInherit }
+import akka.pattern.StatusReply
 
 @ApiMayChange
 object BehaviorTestKit {
@@ -44,6 +47,19 @@ object BehaviorTestKit {
 @DoNotInherit
 @ApiMayChange
 trait BehaviorTestKit[T] {
+
+  /**
+   * Constructs a message using the provided function to inject a single-use "reply to" [[akka.actor.typed.ActorRef]],
+   * and sends the constructed message to the behavior, recording any [[Effect]]s.
+   *
+   * The returned [[ReplyInbox]] allows the message sent to the "reply to" `ActorRef` to be asserted on.
+   */
+  def runAsk[Res](f: ActorRef[Res] => T): ReplyInbox[Res]
+
+  /**
+   * The same as [[runAsk]] but only for requests that result in a response of type [[akka.pattern.StatusReply]].
+   */
+  def runAskWithStatus[Res](f: ActorRef[StatusReply[Res]] => T): StatusReplyInbox[Res]
 
   // FIXME it is weird that this is public but it is used in BehaviorSpec, could we avoid that?
   private[akka] def context: TypedActorContext[T]

@@ -7,6 +7,14 @@ You are viewing the documentation for the new actor APIs, to view the Akka Class
 
 ## Module info
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Actors, add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -37,12 +45,21 @@ concurrent and parallel systems. Actors were defined in the 1973 paper by Carl
 Hewitt but have been popularized by the Erlang language, and used for example at
 Ericsson with great success to build highly concurrent and reliable telecom
 systems. The API of Akka’s Actors has borrowed some of its syntax from Erlang.
- 
+
+@@@note
+
+🎓 For a deeper understanding of the Actor Model, consider the free online course [**Actor Fundamentals**](https://akkademy.akka.io/learn/courses/21/actor-fundamentals) in Akkademy.
+
+@@@
+
 ## First example
 
-If you are new to Akka you might want to start with reading the @ref:[Getting Started Guide](guide/introduction.md)
-and then come back here to learn more. We also recommend watching the short 
-[introduction video to Akka actors](https://akka.io/blog/news/2019/12/03/akka-typed-actor-intro-video).  
+If you are new to Akka we recommend watching the short [introduction video to Akka actors](https://akka.io/blog/news/2019/12/03/akka-typed-actor-intro-video).
+
+This sample can be downloaded and includes @java[Maven]@scala[sbt] project with the needed dependencies:
+
+* Scala [akka-quickstart-scala.zip](../attachments/akka-quickstart-scala.zip)
+* Java [akka-quickstart-java.zip](../attachments/akka-quickstart-java.zip)
 
 It is helpful to become familiar with the foundational, external and internal
 ecosystem of your Actors, to see what you can leverage and customize as needed, see
@@ -55,10 +72,10 @@ look like?
 In all of the following these imports are assumed:
 
 Scala
-:  @@snip [IntroSpec.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/IntroSpec.scala) { #imports }
+:  @@snip [HelloWorld.scala](/samples/akka-quickstart-scala/src/main/scala/com/example/HelloWorld.scala) { #imports }
 
 Java
-:  @@snip [IntroSpec.java](/akka-actor-typed-tests/src/test/java/jdocs/akka/typed/IntroTest.java) { #imports }
+:  @@snip [HelloWorld.java](/samples/akka-quickstart-java/src/main/java/com/example/HelloWorld.java) { #imports }
 
 With these in place we can define our first Actor, and it will say
 hello!
@@ -66,10 +83,10 @@ hello!
 ![hello-world1.png](./images/hello-world1.png)
 
 Scala
-:  @@snip [IntroSpec.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/IntroSpec.scala) { #hello-world-actor }
+:  @@snip [HelloWorld.scala](/samples/akka-quickstart-scala/src/main/scala/com/example/HelloWorld.scala) { #hello-world-actor }
 
 Java
-:  @@snip [IntroSpec.java](/akka-actor-typed-tests/src/test/java/jdocs/akka/typed/IntroTest.java) { #hello-world-actor }
+:  @@snip [HelloWorldBot.java](/samples/akka-quickstart-java/src/main/java/com/example/HelloWorld.java) { #hello-world-actor }
 
 This small piece of code defines two message types, one for commanding the
 Actor to greet someone and one that the Actor will use to confirm that it has
@@ -114,10 +131,10 @@ of messages have been reached.
 ![hello-world2.png](./images/hello-world2.png)
 
 Scala
-:  @@snip [IntroSpec.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/IntroSpec.scala) { #hello-world-bot }
+:  @@snip [HelloWorld.scala](/samples/akka-quickstart-scala/src/main/scala/com/example/HelloWorld.scala) { #hello-world-bot }
 
 Java
-:  @@snip [IntroSpec.scala](/akka-actor-typed-tests/src/test/java/jdocs/akka/typed/IntroTest.java) { #hello-world-bot }
+:  @@snip [HelloWorldBot.java](/samples/akka-quickstart-java/src/main/java/com/example/HelloWorldBot.java) { #hello-world-bot }
 
 @scala[Note how this Actor manages the counter by changing the behavior for each `Greeted` reply
 rather than using any variables.]@java[Note how this Actor manages the counter with an instance variable.]
@@ -127,18 +144,18 @@ message at a time.
 A third actor spawns the `Greeter` and the `HelloWorldBot` and starts the interaction between those.
 
 Scala
-:  @@snip [IntroSpec.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/IntroSpec.scala) { #hello-world-main }
+:  @@snip [HelloWorld.scala](/samples/akka-quickstart-scala/src/main/scala/com/example/HelloWorld.scala) { #hello-world-main }
 
 Java
-:  @@snip [IntroSpec.scala](/akka-actor-typed-tests/src/test/java/jdocs/akka/typed/IntroTest.java) { #hello-world-main }
+:  @@snip [HelloWorldMain.java](/samples/akka-quickstart-java/src/main/java/com/example/HelloWorldMain.java) { #hello-world-main }
 
 Now we want to try out this Actor, so we must start an ActorSystem to host it:
 
 Scala
-:  @@snip [IntroSpec.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/IntroSpec.scala) { #hello-world }
+:  @@snip [HelloWorld.scala](/samples/akka-quickstart-scala/src/main/scala/com/example/HelloWorld.scala) { #hello-world }
 
 Java
-:  @@snip [IntroSpec.scala](/akka-actor-typed-tests/src/test/java/jdocs/akka/typed/IntroTest.java) { #hello-world }
+:  @@snip [HelloWorldMain.java](/samples/akka-quickstart-java/src/main/java/com/example/HelloWorldMain.java) { #hello-world }
 
 We start an Actor system from the defined `HelloWorldMain` behavior and send two `SayHello` messages that
 will kick-off the interaction between two separate `HelloWorldBot` actors and the single `Greeter` actor.
@@ -164,14 +181,11 @@ The console output may look like this:
 
 You will also need to add a @ref:[logging dependency](logging.md) to see that output when running.
 
-@@@ div { .group-scala }
+@@@note
 
-#### Here is another example that you can edit and run in the browser:
-
-@@fiddle [IntroSpec.scala](/akka-actor-typed-tests/src/test/scala/docs/akka/typed/IntroSpec.scala) { #fiddle_code template=Akka layout=v75 minheight=400px }
+🎓 For a deeper introduction to actors, consider the free online courses @java[[**Akka Basics for Java**](https://akkademy.akka.io/learn/courses/23/akka-basics-for-java)]@scala[[**Akka Basics for Scala**](https://akkademy.akka.io/learn/courses/22/akka-basics-for-scala)]) in Akkademy.
 
 @@@
-
 
 ## A More Complex Example
 
@@ -412,6 +426,26 @@ former simply speaks more languages than the latter. The opposite would be
 problematic, so passing an @scala[`ActorRef[PublishSessionMessage]`]@java[`ActorRef<PublishSessionMessage>`] where
 @scala[`ActorRef[RoomCommand]`]@java[`ActorRef<RoomCommand>`] is required will lead to a type error.
 
+@@@ div {.group-java}
+#### AbstractOnMessageBehavior API
+
+The `AbstractBehavior` API makes use of a builder on receipt of the first message by the actor.  The `Receive` built
+by this builder performs `instanceof` checks and casts "behind the scenes".  Pattern-matching features introduced in Java
+17 and refined in subsequent versions improve the ergonomics of expressing this logic directly in code.  Users of other
+JVM languages (such as Kotlin) may also prefer to not use a builder while using the Java DSL (note that the Scala DSL's
+`AbstractBehavior` does not make use of builders).
+
+To support this "direct" style, an alternative API for defining behavior in an object-oriented style is available by
+extending @javadoc[AbstractOnMessageBehavior](akka.actor.typed.javadsl.AbstractOnMessageBehavior) and
+implementing the @javadoc[onMessage](akka.actor.typed.javadsl.AbstractOnMessageBehavior#onMessage(T)) method.
+
+Here's the `AbstractOnMessageBehavior`-based implementation of the chat room protocol using records for messages and Java 21 switch pattern matching:
+
+Java
+: @@snip [OnMessageIntroTest.java](/akka-actor-typed-tests/src/test/java-21+/jdocs21/akka/actor/typed/OnMessageIntroTest.java) {  #imports #chatroom-behavior }
+
+@@@
+
 #### Try it out
 
 In order to see this chat room in action we need to write a client Actor that can use it
@@ -459,3 +493,9 @@ the `Main` Actor terminates there is nothing more to do.
 Therefore after creating the Actor system with the `Main` Actor’s
 @apidoc[typed.Behavior] we can let the `main` method return, the @apidoc[typed.ActorSystem] will continue running and 
 the JVM alive until the root actor stops.
+
+@@@note
+
+🎓 For a deeper introduction to actors, consider the free online courses @java[[**Akka Basics for Java**](https://akkademy.akka.io/learn/courses/23/akka-basics-for-java)]@scala[[**Akka Basics for Scala**](https://akkademy.akka.io/learn/courses/22/akka-basics-for-scala)] in Akkademy.
+
+@@@

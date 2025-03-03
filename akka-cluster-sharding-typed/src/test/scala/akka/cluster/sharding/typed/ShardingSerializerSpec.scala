@@ -1,24 +1,30 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
 import org.scalatest.wordspec.AnyWordSpecLike
+
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.actor.typed.internal.adapter.ActorSystemAdapter
+import akka.cluster.sharding.typed.internal.ShardedDaemonProcessCoordinator
+import akka.cluster.sharding.typed.internal.ShardedDaemonProcessState
 import akka.cluster.sharding.typed.internal.ShardingSerializer
 import akka.serialization.SerializationExtension
-
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 class ShardingSerializerSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with LogCapturing {
 
   "The typed ShardingSerializer" must {
 
     val serialization = SerializationExtension(ActorSystemAdapter.toClassic(system))
+    val probe = createTestProbe[AnyRef]()
 
     def checkSerialization(obj: AnyRef): Unit = {
       serialization.findSerializerFor(obj) match {
@@ -48,5 +54,24 @@ class ShardingSerializerSpec extends ScalaTestWithActorTestKit with AnyWordSpecL
       checkSerialization(scaladsl.StartEntity[Int]("abc"))
       checkSerialization(javadsl.StartEntity.create(classOf[java.lang.Integer], "def"))
     }
+
+    "must serialize and deserialize ShardedDaemonProcessCoordinator.ScaleState" in {
+      checkSerialization(ShardedDaemonProcessState(2, 3, true, Instant.now().truncatedTo(ChronoUnit.MILLIS)))
+    }
+
+    "must serialize and deserialize ChangeNumberOfProcesses" in {
+      checkSerialization(ChangeNumberOfProcesses(7, probe.ref))
+    }
+
+    "must serialize and deserialize GetNumberOfProcesses" in {
+      checkSerialization(GetNumberOfProcesses(probe.ref))
+    }
+
+    "must serialize and deserialize GetNumberOfProcessesReply" in {
+      checkSerialization(
+        ShardedDaemonProcessCoordinator
+          .GetNumberOfProcessesReply(8, Instant.now().truncatedTo(ChronoUnit.MILLIS), false, 4L))
+    }
+
   }
 }

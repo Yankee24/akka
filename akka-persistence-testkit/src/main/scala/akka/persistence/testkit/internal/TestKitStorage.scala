@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit.internal
 
 import java.util.concurrent.atomic.AtomicReference
 
+import scala.collection.immutable
+
 import akka.annotation.InternalApi
 import akka.persistence.testkit.ProcessingPolicy
-
-import scala.collection.immutable
 
 /**
  * INTERNAL API

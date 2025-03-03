@@ -1,23 +1,21 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
 
 import java.util.{ LinkedList => JLinkedList }
 import java.util.concurrent.locks.ReentrantLock
-
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.util.control.NonFatal
-
-import scala.annotation.nowarn
-
 import akka.actor.dungeon.ChildrenContainer
+import akka.annotation.InternalApi
 import akka.dispatch._
 import akka.dispatch.sysmsg._
 import akka.event.Logging.Warning
-import akka.util.{ unused, Unsafe }
+import akka.util.Unsafe
 
 /**
  * This actor ref starts out with some dummy cell (by default just enqueuing
@@ -26,7 +24,10 @@ import akka.util.{ unused, Unsafe }
  * response to the Supervise() message, which will replace the contained Cell
  * with a fully functional one, transfer all messages from dummy to real queue
  * and swap out the cell ref.
+ *
+ * INTERNAL API
  */
+@InternalApi
 private[akka] class RepointableActorRef(
     val system: ActorSystemImpl,
     val props: Props,
@@ -124,7 +125,7 @@ private[akka] class RepointableActorRef(
    * This is called by activate() to obtain the cell which is to replace the
    * unstarted cell. The cell must be fully functional.
    */
-  def newCell(@unused old: UnstartedCell): Cell =
+  def newCell(@nowarn("msg=never used") old: UnstartedCell): Cell =
     new ActorCell(system, this, props, dispatcher, supervisor).init(sendSupervise = false, mailboxType)
 
   def start(): Unit = ()
@@ -187,6 +188,10 @@ private[akka] class RepointableActorRef(
   protected def writeReplace(): AnyRef = SerializedActorRef(this)
 }
 
+/**
+ * INTERNAL API
+ */
+@InternalApi
 private[akka] class UnstartedCell(
     val systemImpl: ActorSystemImpl,
     val self: RepointableActorRef,

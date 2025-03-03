@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata.typed.internal
 
 import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
 
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
@@ -15,7 +16,6 @@ import akka.annotation.InternalApi
 import akka.cluster.{ ddata => dd }
 import akka.cluster.ddata.ReplicatedData
 import akka.pattern.ask
-import akka.util.JavaDurationConverters._
 import akka.util.Timeout
 
 /**
@@ -73,7 +73,7 @@ import akka.util.Timeout
               case cmd: JReplicator.Get[d] =>
                 implicit val timeout: Timeout = Timeout(cmd.consistency.timeout match {
                   case java.time.Duration.ZERO => localAskTimeout
-                  case t                       => t.asScala + additionalAskTimeout
+                  case t                       => t.toScala + additionalAskTimeout
                 })
                 import ctx.executionContext
                 val reply =
@@ -101,7 +101,7 @@ import akka.util.Timeout
               case cmd: JReplicator.Update[d] =>
                 implicit val timeout: Timeout = Timeout(cmd.writeConsistency.timeout match {
                   case java.time.Duration.ZERO => localAskTimeout
-                  case t                       => t.asScala + additionalAskTimeout
+                  case t                       => t.toScala + additionalAskTimeout
                 })
                 import ctx.executionContext
                 val reply =
@@ -149,6 +149,7 @@ import akka.util.Timeout
                 rsp match {
                   case chg: dd.Replicator.Changed[_] => subscriber ! JReplicator.Changed(chg.key)(chg.dataValue)
                   case del: dd.Replicator.Deleted[_] => subscriber ! JReplicator.Deleted(del.key)
+                  case exp: dd.Replicator.Expired[_] => subscriber ! JReplicator.Expired(exp.key)
                 }
                 Behaviors.same
 
@@ -168,7 +169,7 @@ import akka.util.Timeout
               case cmd: JReplicator.Delete[d] =>
                 implicit val timeout: Timeout = Timeout(cmd.consistency.timeout match {
                   case java.time.Duration.ZERO => localAskTimeout
-                  case t                       => t.asScala + additionalAskTimeout
+                  case t                       => t.toScala + additionalAskTimeout
                 })
                 import ctx.executionContext
                 val reply =

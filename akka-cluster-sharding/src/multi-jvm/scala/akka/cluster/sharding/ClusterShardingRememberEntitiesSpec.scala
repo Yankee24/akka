@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
@@ -10,11 +10,9 @@ import com.typesafe.config.ConfigFactory
 
 import akka.actor._
 import akka.cluster.{ Cluster, MemberStatus }
-import akka.testkit._
 import akka.remote.testkit.MultiNodeSpec
-import akka.util.ccompat._
+import akka.testkit._
 
-@ccompatUsedUntil213
 object ClusterShardingRememberEntitiesSpec {
 
   val extractEntityId: ShardRegion.ExtractEntityId = {
@@ -37,7 +35,7 @@ abstract class ClusterShardingRememberEntitiesSpecConfig(
       mode,
       rememberEntities,
       rememberEntitiesStore = rememberEntitiesStore,
-      additionalConfig = s"""
+      additionalConfig = """
       akka.testconductor.barrier-timeout = 60 s
       akka.test.single-expect-default = 60 s
       akka.persistence.journal.leveldb-shared.store.native = off

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.util
@@ -31,7 +31,7 @@ object Version {
  *
  * It has support for https://github.com/dwijnand/sbt-dynver format with `+` or
  * `-` separator. The number of commits from the tag is handled as a numeric part.
- * For example `1.0.0+3-73475dce26` is less than `1.0.10+10-ed316bd024` (3 < 10).
+ * For example `1.0.0+3-73475dce26` is less than `1.0.0+10-ed316bd024` (3 < 10).
  */
 final class Version(val version: String) extends Comparable[Version] {
   import Version.Undefined
@@ -160,7 +160,7 @@ final class Version(val version: String) extends Comparable[Version] {
             if (diff == 0) {
               if (rest == "" && other.rest != "")
                 diff = 1
-              if (other.rest == "" && rest != "")
+              else if (other.rest == "" && rest != "")
                 diff = -1
               else
                 diff = rest.compareTo(other.rest)

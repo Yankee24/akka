@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -60,7 +60,7 @@ class RestartSpec
           created.incrementAndGet()
           Source.repeat("a")
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("a")
@@ -80,7 +80,7 @@ class RestartSpec
           created.incrementAndGet()
           Source(List("a", "b"))
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       EventFilter.info(start = "Restarting stream due to completion", occurrences = 2).intercept {
         probe.requestNext("a")
@@ -105,7 +105,7 @@ class RestartSpec
             case other => other
           }
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       EventFilter.info(start = "Restarting stream due to failure", occurrences = 2).intercept {
         probe.requestNext("a")
@@ -133,7 +133,7 @@ class RestartSpec
           created.incrementAndGet()
           Source(List("a", "b"))
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("b")
@@ -157,7 +157,7 @@ class RestartSpec
           created.incrementAndGet()
           Source(List("a", "b"))
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("b")
@@ -193,7 +193,7 @@ class RestartSpec
             promise.completeWith(term)
           }
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.cancel()
@@ -212,7 +212,7 @@ class RestartSpec
           created.incrementAndGet()
           Source.single("a")
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.request(1)
@@ -234,7 +234,7 @@ class RestartSpec
             case other => other
           }
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("b")
@@ -259,7 +259,7 @@ class RestartSpec
             case other => other
           }
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("b")
@@ -280,7 +280,7 @@ class RestartSpec
           created.incrementAndGet()
           Source.single("a")
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("a")
@@ -298,7 +298,7 @@ class RestartSpec
           created.incrementAndGet()
           Source(List("a"))
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       // There should be minBackoff delay
@@ -325,7 +325,7 @@ class RestartSpec
           created.incrementAndGet()
           Source(List("a", "b")).takeWhile(_ != "b")
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("a")
@@ -373,7 +373,7 @@ class RestartSpec
             case other => other
           }
         }
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("b")
@@ -387,8 +387,7 @@ class RestartSpec
     "run normally" taggedAs TimingTest in {
       val created = new AtomicInteger()
       val result = Promise[Seq[String]]()
-      val probe = TestSource
-        .probe[String]
+      val probe = TestSource[String]()
         .toMat(RestartSink.withBackoff(shortRestartSettings) { () =>
           created.incrementAndGet()
           Sink.seq.mapMaterializedValue(result.completeWith)
@@ -406,9 +405,8 @@ class RestartSpec
 
     "restart on cancellation" taggedAs TimingTest in {
       val created = new AtomicInteger()
-      val (queue, sinkProbe) = TestSource.probe[String].toMat(TestSink.probe)(Keep.both).run()
-      val probe = TestSource
-        .probe[String]
+      val (queue, sinkProbe) = TestSource[String]().toMat(TestSink())(Keep.both).run()
+      val probe = TestSource[String]()
         .toMat(RestartSink.withBackoff(shortRestartSettings) { () =>
           created.incrementAndGet()
           Flow[String].takeWhile(_ != "cancel", inclusive = true).to(Sink.foreach(queue.sendNext))
@@ -432,9 +430,8 @@ class RestartSpec
 
     "backoff before restart" taggedAs TimingTest in {
       val created = new AtomicInteger()
-      val (queue, sinkProbe) = TestSource.probe[String].toMat(TestSink.probe)(Keep.both).run()
-      val probe = TestSource
-        .probe[String]
+      val (queue, sinkProbe) = TestSource[String]().toMat(TestSink())(Keep.both).run()
+      val probe = TestSource[String]()
         .toMat(RestartSink.withBackoff(restartSettings) { () =>
           created.incrementAndGet()
           Flow[String].takeWhile(_ != "cancel", inclusive = true).to(Sink.foreach(queue.sendNext))
@@ -459,9 +456,8 @@ class RestartSpec
 
     "reset exponential backoff back to minimum when sink runs for at least minimum backoff without completing" taggedAs TimingTest in {
       val created = new AtomicInteger()
-      val (queue, sinkProbe) = TestSource.probe[String].toMat(TestSink.probe)(Keep.both).run()
-      val probe = TestSource
-        .probe[String]
+      val (queue, sinkProbe) = TestSource[String]().toMat(TestSink())(Keep.both).run()
+      val probe = TestSource[String]()
         .toMat(RestartSink.withBackoff(restartSettings) { () =>
           created.incrementAndGet()
           Flow[String].takeWhile(_ != "cancel", inclusive = true).to(Sink.foreach(queue.sendNext))
@@ -501,9 +497,8 @@ class RestartSpec
 
     "not restart the sink when completed while backing off" taggedAs TimingTest in {
       val created = new AtomicInteger()
-      val (queue, sinkProbe) = TestSource.probe[String].toMat(TestSink.probe)(Keep.both).run()
-      val probe = TestSource
-        .probe[String]
+      val (queue, sinkProbe) = TestSource[String]().toMat(TestSink())(Keep.both).run()
+      val probe = TestSource[String]()
         .toMat(RestartSink.withBackoff(restartSettings) { () =>
           created.incrementAndGet()
           Flow[String].takeWhile(_ != "cancel", inclusive = true).to(Sink.foreach(queue.sendNext))
@@ -526,9 +521,8 @@ class RestartSpec
 
     "not restart the sink when maxRestarts is reached" taggedAs TimingTest in {
       val created = new AtomicInteger()
-      val (queue, sinkProbe) = TestSource.probe[String].toMat(TestSink.probe)(Keep.both).run()
-      val probe = TestSource
-        .probe[String]
+      val (queue, sinkProbe) = TestSource[String]().toMat(TestSink())(Keep.both).run()
+      val probe = TestSource[String]()
         .toMat(RestartSink.withBackoff(shortRestartSettings.withMaxRestarts(1, shortMinBackoff)) { () =>
           created.incrementAndGet()
           Flow[String].takeWhile(_ != "cancel", inclusive = true).to(Sink.foreach(queue.sendNext))
@@ -550,9 +544,8 @@ class RestartSpec
 
     "reset maxRestarts when sink runs for at least minimum backoff without completing" taggedAs TimingTest in {
       val created = new AtomicInteger()
-      val (queue, sinkProbe) = TestSource.probe[String].toMat(TestSink.probe)(Keep.both).run()
-      val probe = TestSource
-        .probe[String]
+      val (queue, sinkProbe) = TestSource[String]().toMat(TestSink())(Keep.both).run()
+      val probe = TestSource[String]()
         .toMat(RestartSink.withBackoff(restartSettings.withMaxRestarts(2, minBackoff)) { () =>
           created.incrementAndGet()
           Flow[String].takeWhile(_ != "cancel", inclusive = true).to(Sink.foreach(queue.sendNext))
@@ -585,9 +578,8 @@ class RestartSpec
 
     "allow using withMaxRestarts instead of minBackoff to determine the maxRestarts reset time" taggedAs TimingTest in {
       val created = new AtomicInteger()
-      val (queue, sinkProbe) = TestSource.probe[String].toMat(TestSink.probe)(Keep.both).run()
-      val probe = TestSource
-        .probe[String]
+      val (queue, sinkProbe) = TestSource[String]().toMat(TestSink())(Keep.both).run()
+      val probe = TestSource[String]()
         .toMat(RestartSink.withBackoff(shortRestartSettings.withMaxRestarts(2, 1.second)) { () =>
           created.incrementAndGet()
           Flow[String].takeWhile(_ != "cancel", inclusive = true).to(Sink.foreach(queue.sendNext))
@@ -648,7 +640,7 @@ class RestartSpec
             case _   =>
           }
         }
-        .runWith(TestSource.probe[String])
+        .runWith(TestSource[String]())
 
       probe.sendNext("a")
       probe.sendNext("b")
@@ -678,12 +670,11 @@ class RestartSpec
       val flowInProbe = TestProbe("in-probe")
 
       val (flowOutProbe: TestPublisher.Probe[String], flowOutSource: Source[String, NotUsed]) =
-        TestSource.probe[String].toMat(BroadcastHub.sink)(Keep.both).run()
+        TestSource[String]().toMat(BroadcastHub.sink)(Keep.both).run()
 
       // We can't just use ordinary probes here because we're expecting them to get started/restarted. Instead, we
       // simply use the probes as a message bus for feeding and capturing events.
-      val (source, sink) = TestSource
-        .probe[String]
+      val (source, sink) = TestSource[String]()
         .viaMat(
           RestartFlowFactory(
             onlyOnFailures,
@@ -717,7 +708,7 @@ class RestartSpec
                     flowInProbe.ref ! "out complete"
                   })))
           })(Keep.left)
-        .toMat(TestSink.probe[String])(Keep.both)
+        .toMat(TestSink[String]())(Keep.both)
         .run()
 
       (created, source, flowInProbe, flowOutProbe, sink)
@@ -725,13 +716,12 @@ class RestartSpec
 
     "run normally" taggedAs TimingTest in {
       val created = new AtomicInteger()
-      val (source, sink) = TestSource
-        .probe[String]
+      val (source, sink) = TestSource[String]()
         .viaMat(RestartFlow.withBackoff(shortRestartSettings) { () =>
           created.incrementAndGet()
           Flow[String]
         })(Keep.left)
-        .toMat(TestSink.probe[String])(Keep.both)
+        .toMat(TestSink[String]())(Keep.both)
         .run()
 
       source.sendNext("a")
@@ -1015,13 +1005,267 @@ class RestartSpec
             case other => other
           }
         })
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       probe.requestNext("a")
       probe.requestNext("b")
       probe.request(1).expectError(TE("failed"))
 
       created.get() shouldEqual 1
+    }
+  }
+
+  "A restart with backoff source with context" should {
+    "run normally" taggedAs TimingTest in {
+      val created = new AtomicInteger
+      val probe = RestartSourceWithContext
+        .withBackoff(shortRestartSettings) { () =>
+          created.incrementAndGet()
+          SourceWithContext.fromTuples(Source.unfold(0) { state =>
+            Some((state + 1) -> ("a" -> state))
+          })
+        }
+        .runWith(TestSink())
+
+      probe.requestNext("a" -> 0)
+      probe.requestNext("a" -> 1)
+      probe.requestNext("a" -> 2)
+      probe.requestNext("a" -> 3)
+
+      created.get shouldBe 1
+
+      probe.cancel()
+    }
+
+    "restart on completion" taggedAs TimingTest in {
+      val created = new AtomicInteger
+
+      val probe = RestartSourceWithContext
+        .withBackoff(shortRestartSettings) { () =>
+          val count = created.getAndIncrement() * 2
+          SourceWithContext.fromTuples(Source(Seq("a" -> count, "b" -> (count + 1))))
+        }
+        .runWith(TestSink())
+
+      EventFilter.info(start = "Restarting stream due to completion", occurrences = 2).intercept {
+        probe.requestNext("a" -> 0)
+        probe.requestNext("b" -> 1)
+        probe.requestNext("a" -> 2)
+        probe.requestNext("b" -> 3)
+        probe.requestNext("a" -> 4)
+      }
+
+      created.get() shouldBe 3
+
+      probe.cancel()
+    }
+
+    "restart on failure" taggedAs TimingTest in {
+      val created = new AtomicInteger
+
+      val sourceFactory = { () =>
+        SourceWithContext
+          .fromTuples(Source(Seq("a", "b", "c")).statefulMap(() => created.getAndIncrement() * 3)({ (offset, elem) =>
+            (offset + 1) -> (elem -> offset)
+          }, _ => None))
+          .map { (elem: String) =>
+            if (elem == "c") throw TE("failed")
+            else elem
+          }
+      }
+
+      val probe =
+        RestartSourceWithContext.withBackoff(shortRestartSettings)(sourceFactory).runWith(TestSink())
+
+      EventFilter.info(start = "Restarting stream due to failure", occurrences = 2).intercept {
+        probe.requestNext("a" -> 0)
+        probe.requestNext("b" -> 1)
+        // offset 2 is "c" which blew up, triggering a restart
+        probe.requestNext("a" -> 3)
+        probe.requestNext("b" -> 4)
+        // offset 5 is "c", dropped in the restarting
+        probe.requestNext("a" -> 6)
+      }
+
+      created.get() shouldBe 3
+
+      probe.cancel()
+    }
+
+    "backoff before restart" taggedAs TimingTest in {
+      val created = new AtomicInteger
+
+      val probe = RestartSourceWithContext
+        .withBackoff(restartSettings) { () =>
+          val count = created.getAndIncrement() * 2
+          SourceWithContext.fromTuples(Source(Seq("a" -> count, "b" -> (count + 1))))
+        }
+        .runWith(TestSink())
+
+      probe.requestNext("a" -> 0)
+      probe.requestNext("b" -> 1)
+
+      val deadline = (minBackoff - 1.millis).fromNow
+      probe.request(1)
+
+      probe.expectNext("a" -> 2)
+      deadline.isOverdue() shouldBe true
+
+      created.get() shouldBe 2
+
+      probe.cancel()
+    }
+
+    "reset exponential backoff back to minimum when source runs for at least minimum backoff without completing" taggedAs TimingTest in {
+      val created = new AtomicInteger
+      val probe = RestartSourceWithContext
+        .withBackoff(restartSettings) { () =>
+          val count = created.getAndIncrement() * 2
+          SourceWithContext.fromTuples(Source(Seq("a" -> count, "b" -> (count + 1))))
+        }
+        .runWith(TestSink())
+
+      probe.requestNext("a" -> 0)
+      probe.requestNext("b" -> 1)
+
+      val deadline = (minBackoff - 1.millis).fromNow
+      probe.request(1)
+      probe.expectNext("a" -> 2)
+      deadline.isOverdue() shouldBe true
+      probe.requestNext("b" -> 3)
+
+      probe.request(1)
+      // The probe should now back off again with increased backoff
+
+      // Wait for the delay, then subsequent backoff, to pass, so the restart count is reset
+      Thread.sleep(((minBackoff * 3) + 500.millis).toMillis)
+
+      probe.expectNext("a" -> 4)
+      probe.requestNext("b" -> 5)
+
+      probe.requestNext(2 * minBackoff - 1.milli) should be("a" -> 6)
+
+      created.get() shouldBe 4
+
+      probe.cancel()
+    }
+
+    "cancel the currently running SourceWithContext when canceled" taggedAs TimingTest in {
+      val created = new AtomicInteger()
+      val promise = Promise[Done]()
+      val probe = RestartSourceWithContext
+        .withBackoff(shortRestartSettings) { () =>
+          SourceWithContext.fromTuples(Source.repeat("a").map { _ -> created.getAndIncrement() }.watchTermination() {
+            (_, term) =>
+              promise.completeWith(term)
+          })
+        }
+        .runWith(TestSink())
+
+      probe.requestNext("a" -> 0)
+      probe.cancel()
+
+      promise.future.futureValue shouldBe Done
+
+      // wait to ensure that it isn't restarted
+      Thread.sleep(200)
+      created.get() shouldBe 1
+    }
+
+    "not restart the SourceWithContext when cancelled while backing off" taggedAs TimingTest in {
+      val created = new AtomicInteger()
+      val probe = RestartSourceWithContext
+        .withBackoff(restartSettings) { () =>
+          created.getAndIncrement()
+          SourceWithContext.fromTuples(Source.single("a" -> 1))
+        }
+        .runWith(TestSink())
+
+      probe.requestNext("a" -> 1)
+      probe.request(1)
+      // back-off delays the restart (racy...)
+      probe.cancel()
+
+      // wait to ensure it isn't restarted
+      Thread.sleep((minBackoff + 100.millis).toMillis)
+      created.get() shouldBe 1
+    }
+
+    "stop on completion if it should only be restarted on failures" taggedAs TimingTest in {
+      val created = new AtomicInteger()
+
+      val cgai = { () =>
+        created.getAndIncrement()
+      }
+
+      val probe = RestartSourceWithContext
+        .onFailuresWithBackoff(shortRestartSettings) { () =>
+          cgai()
+          SourceWithContext.fromTuples(Source(Seq("a" -> cgai(), "b" -> cgai(), "c" -> cgai()))).map {
+            case "c"   => if (created.get() <= 4) throw new TE("failed") else "c"
+            case other => other
+          }
+        }
+        .runWith(TestSink())
+
+      probe.requestNext("a" -> 1)
+      probe.requestNext("b" -> 2)
+      // fails and restarts
+      probe.requestNext("a" -> 5)
+      probe.requestNext("b" -> 6)
+      probe.requestNext("c" -> 7)
+      probe.expectComplete()
+
+      created.get() shouldBe 8
+
+      probe.cancel()
+    }
+
+    "restart on failure when only due to failures should be restarted" taggedAs TimingTest in {
+      val created = new AtomicInteger()
+
+      val sourceFactory = { () =>
+        SourceWithContext
+          .fromTuples(Source(Seq("a", "b", "c")).statefulMap(() => created.getAndIncrement() * 3)({ (offset, elem) =>
+            (offset + 1) -> (elem -> offset)
+          }, _ => None))
+          .map { elem =>
+            if (elem == "c") throw TE("failed")
+            else elem
+          }
+      }
+
+      val probe =
+        RestartSourceWithContext.onFailuresWithBackoff(shortRestartSettings)(sourceFactory).runWith(TestSink())
+
+      probe.requestNext("a" -> 0)
+      probe.requestNext("b" -> 1)
+      // offset 2 is "c" which blew up, triggering a restart
+      probe.requestNext("a" -> 3)
+      probe.requestNext("b" -> 4)
+      // offset 5 is "c", dropped in the restarting
+      probe.requestNext("a" -> 6)
+
+      created.get() shouldBe 3
+
+      probe.cancel()
+    }
+
+    "not restart when maxRestarts is reached" taggedAs TimingTest in {
+      val created = new AtomicInteger()
+      val probe = RestartSourceWithContext
+        .withBackoff(shortRestartSettings.withMaxRestarts(1, shortMinBackoff)) { () =>
+          SourceWithContext.fromTuples(Source.single("a").map(_ -> created.getAndIncrement()))
+        }
+        .runWith(TestSink())
+
+      probe.requestNext("a" -> 0)
+      probe.requestNext("a" -> 1)
+      probe.expectComplete()
+
+      created.get() shouldBe 2
+
+      probe.cancel()
     }
   }
 }

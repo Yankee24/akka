@@ -1,8 +1,18 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+
+import scala.concurrent.duration._
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.NotUsed
 import akka.actor.Dropped
@@ -20,14 +30,6 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.RecoveryCompleted
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
-import scala.concurrent.duration._
 
 object EventSourcedBehaviorStashSpec {
   def conf: Config = ConfigFactory.parseString(s"""
@@ -170,7 +172,7 @@ class EventSourcedBehaviorStashSpec
   import EventSourcedBehaviorStashSpec._
 
   val pidCounter = new AtomicInteger(0)
-  private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()})")
+  private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()}")
 
   "A typed persistent actor that is stashing commands" must {
 
@@ -325,9 +327,10 @@ class EventSourcedBehaviorStashSpec
 
       unhandledProbe.receiveMessages(10)
 
-      val value1 = stateProbe.expectMessageType[State](5.seconds).value
-      val value2 = stateProbe.expectMessageType[State](5.seconds).value
-      val value3 = stateProbe.expectMessageType[State](5.seconds).value
+      // a lot of events, so give it some extra time to complete
+      val value1 = stateProbe.expectMessageType[State](10.seconds).value
+      val value2 = stateProbe.expectMessageType[State](10.seconds).value
+      val value3 = stateProbe.expectMessageType[State](10.seconds).value
 
       // verify the order
 
@@ -527,11 +530,12 @@ class EventSourcedBehaviorStashSpec
       stateProbe.expectMessage(State(5, active = true))
     }
 
-    "discard when stash has reached limit with default dropped setting" in {
+    trait StashLimit {
+      def customStashLimit: Option[Int]
       val probe = TestProbe[AnyRef]()
       system.toClassic.eventStream.subscribe(probe.ref.toClassic, classOf[Dropped])
       val behavior = Behaviors.setup[String] { context =>
-        EventSourcedBehavior[String, String, Boolean](
+        val esb = EventSourcedBehavior[String, String, Boolean](
           persistenceId = PersistenceId.ofUniqueId("stash-is-full-drop"),
           emptyState = false,
           commandHandler = { (state, command) =>
@@ -542,7 +546,7 @@ class EventSourcedBehaviorStashSpec
                     probe.ref ! "pong"
                     Effect.none
                   case "start-stashing" =>
-                    Effect.persist("start-stashing")
+                    Effect.persist("start-stashing").thenRun(_ => probe ! "started-stashing")
                   case msg =>
                     probe.ref ! msg
                     Effect.none
@@ -561,8 +565,16 @@ class EventSourcedBehaviorStashSpec
             case (_, "unstash")        => false
             case (_, _)                => throw new IllegalArgumentException()
           })
-      }
+        customStashLimit match {
+          case Some(value) => esb.withStashCapacity(value)
+          case None        => esb
+        }
 
+      }
+    }
+
+    "discard when stash has reached limit with default dropped setting" in new StashLimit {
+      override val customStashLimit: Option[Int] = None
       val c = spawn(behavior)
 
       // make sure it completed recovery, before we try to overfill the stash
@@ -570,6 +582,8 @@ class EventSourcedBehaviorStashSpec
       probe.expectMessage("pong")
 
       c ! "start-stashing"
+      // make sure write completes before sending more commands so that they are not auto-stashed by ESB
+      probe.expectMessage("started-stashing")
 
       val limit = system.settings.config.getInt("akka.persistence.typed.stash-capacity")
       LoggingTestKit.warn("Stash buffer is full, dropping message").expect {
@@ -584,6 +598,39 @@ class EventSourcedBehaviorStashSpec
       (0 until limit).foreach { n =>
         probe.expectMessage(s"cmd-$n")
       }
+      probe.expectMessage("done-unstashing") // before actually unstashing, see above
+
+      c ! "ping"
+      probe.expectMessage("pong")
+    }
+
+    "discard when custom stash buffer has reached limit with default dropped setting" in new StashLimit {
+      val customLimit = 100
+      override val customStashLimit: Option[Int] = Some(customLimit)
+
+      val c = spawn(behavior)
+
+      // make sure it completed recovery, before we try to overfill the stash
+      c ! "ping"
+      probe.expectMessage("pong")
+
+      c ! "start-stashing"
+      // make sure write completes before sending more commands so that they are not auto-stashed by ESB
+      probe.expectMessage("started-stashing")
+
+      LoggingTestKit.warn("Stash buffer is full, dropping message").expect {
+        (0 to customLimit).foreach { n =>
+          c ! s"cmd-$n" // limit triggers overflow
+        }
+        probe.expectMessageType[Dropped]
+      }
+
+      // we can still unstash and continue interacting
+      c ! "unstash"
+      (0 until customLimit).foreach { n =>
+        probe.expectMessage(s"cmd-$n")
+      }
+
       probe.expectMessage("done-unstashing") // before actually unstashing, see above
 
       c ! "ping"

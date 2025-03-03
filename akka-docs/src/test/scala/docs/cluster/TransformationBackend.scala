@@ -1,13 +1,10 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package scala.docs.cluster
 
-import language.postfixOps
-import scala.concurrent.duration._
 import akka.actor.Actor
-import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Props
 import akka.actor.RootActorPath
@@ -47,7 +44,7 @@ object TransformationBackend {
     // Override the configuration of the port when specified as program argument
     val port = if (args.isEmpty) "0" else args(0)
     val config = ConfigFactory
-      .parseString(s"akka.remote.classic.netty.tcp.port=$port")
+      .parseString(s"akka.remote.artery.canonical.port=$port")
       .withFallback(ConfigFactory.parseString("akka.cluster.roles = [backend]"))
       .withFallback(ConfigFactory.load())
 

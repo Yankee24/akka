@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
@@ -7,7 +7,6 @@ package akka.actor
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-import scala.annotation.nowarn
 import language.postfixOps
 import org.scalatest.BeforeAndAfterEach
 
@@ -97,7 +96,6 @@ object ActorWithStashSpec {
 
 }
 
-@nowarn
 class ActorWithStashSpec extends AkkaSpec with DefaultTimeout with BeforeAndAfterEach {
   import ActorWithStashSpec._
 

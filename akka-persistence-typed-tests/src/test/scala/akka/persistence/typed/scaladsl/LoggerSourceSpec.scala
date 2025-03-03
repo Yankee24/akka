@@ -1,8 +1,13 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+import java.util.concurrent.atomic.AtomicInteger
+
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.slf4j.event.Level
+
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.LoggingTestKit
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -12,10 +17,6 @@ import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.RecoveryCompleted
 import akka.persistence.typed.SnapshotCompleted
 import akka.persistence.typed.SnapshotFailed
-import org.scalatest.wordspec.AnyWordSpecLike
-import org.slf4j.event.Level
-
-import java.util.concurrent.atomic.AtomicInteger
 
 // Note that the spec name here is important since there are heuristics in place to avoid names
 // starting with EventSourcedBehavior
@@ -25,7 +26,7 @@ class LoggerSourceSpec
     with LogCapturing {
 
   private val pidCounter = new AtomicInteger(0)
-  private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()})")
+  private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()}")
 
   def behavior: Behavior[String] = Behaviors.setup { ctx =>
     ctx.log.info("setting-up-behavior")

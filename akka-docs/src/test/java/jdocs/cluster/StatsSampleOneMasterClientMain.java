@@ -1,13 +1,12 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.cluster;
 
-import com.typesafe.config.ConfigFactory;
-
 import akka.actor.ActorSystem;
 import akka.actor.Props;
+import com.typesafe.config.ConfigFactory;
 
 public class StatsSampleOneMasterClientMain {
 

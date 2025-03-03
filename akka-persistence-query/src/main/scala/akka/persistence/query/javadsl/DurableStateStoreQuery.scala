@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.query.javadsl
 
 import akka.NotUsed
-import akka.persistence.state.javadsl.DurableStateStore
 import akka.persistence.query.DurableStateChange
 import akka.persistence.query.Offset
+import akka.persistence.state.javadsl.DurableStateStore
 import akka.stream.javadsl.Source
 
 /**

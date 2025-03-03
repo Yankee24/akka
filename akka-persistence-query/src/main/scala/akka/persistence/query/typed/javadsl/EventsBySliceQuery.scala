@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.query.typed.javadsl
 
 import akka.NotUsed
-import akka.annotation.ApiMayChange
 import akka.japi.Pair
 import akka.persistence.query.Offset
 import akka.persistence.query.javadsl.ReadJournal
@@ -18,9 +17,8 @@ import akka.stream.javadsl.Source
  * `EventsBySliceQuery` that is using a timestamp based offset should also implement [[EventTimestampQuery]] and
  * [[LoadEventQuery]].
  *
- * API May Change
+ * See also [[EventsBySliceFirehoseQuery]].
  */
-@ApiMayChange
 trait EventsBySliceQuery extends ReadJournal {
 
   /**

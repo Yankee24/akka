@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.testkit
 
 import scala.annotation.nowarn
+
 import org.reactivestreams.Publisher
 
 import akka.NotUsed
@@ -28,7 +29,6 @@ class ChainSetup[In, Out, M](
       toPublisher: (Source[Out, _], Materializer) => Publisher[Out])(implicit system: ActorSystem) =
     this(stream, settings, ActorMaterializer(settings)(system), toPublisher)(system)
 
-  @nowarn("msg=deprecated")
   def this(
       stream: Flow[In, In, NotUsed] => Flow[In, Out, M],
       settings: ActorMaterializerSettings,

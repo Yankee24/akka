@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.testkit.typed.scaladsl
@@ -66,9 +66,10 @@ trait LogCapturing extends BeforeAndAfterAll { self: TestSuite =>
   def clearCapturedLogs(): Unit = capturingAppender.clear()
 
   abstract override def withFixture(test: NoArgTest): Outcome = {
-    myLogger.info(s"Logging started for test [${self.getClass.getName}: ${test.name}]")
+    myLogger.info(s"${Console.BLUE}Logging started for test [${self.getClass.getName}: ${test.name}]${Console.RESET}")
     val res = test()
-    myLogger.info(s"Logging finished for test [${self.getClass.getName}: ${test.name}] that [$res]")
+    myLogger.info(
+      s"${Console.BLUE}Logging finished for test [${self.getClass.getName}: ${test.name}] that [$res]${Console.RESET}")
 
     if (!(res.isSucceeded || res.isPending)) {
       println(

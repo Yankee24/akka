@@ -1,15 +1,13 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.ddata;
 
-import java.util.HashSet;
-
-import java.util.Set;
-
 import akka.cluster.ddata.AbstractReplicatedData;
 import akka.cluster.ddata.GSet;
+import java.util.HashSet;
+import java.util.Set;
 
 // #twophaseset
 public class TwoPhaseSet extends AbstractReplicatedData<TwoPhaseSet> {

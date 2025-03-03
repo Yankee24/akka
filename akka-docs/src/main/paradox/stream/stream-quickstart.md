@@ -2,6 +2,14 @@
 
 ## Dependency
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Streams, add the module to your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -113,14 +121,6 @@ file as the receiver of the data. In the terminology of Akka Streams this is
 called a @apidoc[akka.stream.*.Sink]. @apidoc[akka.stream.IOResult] is a type that IO operations return in
 Akka Streams in order to tell you how many bytes or elements were consumed and
 whether the stream terminated normally or exceptionally.
-
-### Browser-embedded example
- 
-<a name="here-is-another-example-that-you-can-edit-and-run-in-the-browser-"></a>
-Here is another example that you can edit and run in the browser:
-
-@@fiddle [TwitterStreamQuickstartDocSpec.scala](/akka-docs/src/test/scala/docs/stream/TwitterStreamQuickstartDocSpec.scala) { #fiddle_code template=Akka layout=v75 minheight=400px }
-
 
 ## Reusable Pieces
 

@@ -1,8 +1,14 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+
+import java.util.concurrent.atomic.AtomicInteger
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.testkit.typed.scaladsl._
 import akka.actor.typed.ActorRef
@@ -12,17 +18,12 @@ import akka.actor.typed.TypedActorContext
 import akka.actor.typed.scaladsl.Behaviors
 import akka.persistence.testkit.PersistenceTestKitPlugin
 import akka.persistence.typed.PersistenceId
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import java.util.concurrent.atomic.AtomicInteger
 
 object EventSourcedBehaviorInterceptorSpec {
 
   val journalId = "event-sourced-behavior-interceptor-spec"
 
-  def config: Config = ConfigFactory.parseString(s"""
+  def config: Config = ConfigFactory.parseString("""
         akka.loglevel = INFO
         akka.persistence.journal.plugin = "akka.persistence.journal.inmem"
         akka.persistence.journal.inmem.test-serialization = on
@@ -51,7 +52,7 @@ class EventSourcedBehaviorInterceptorSpec
   import EventSourcedBehaviorInterceptorSpec._
 
   val pidCounter = new AtomicInteger(0)
-  private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()})")
+  private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()}")
 
   "EventSourcedBehavior interceptor" must {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl
@@ -36,7 +36,8 @@ private object ActorRefSource {
   private[akka] override def createLogicAndMaterializedValue(
       inheritedAttributes: Attributes,
       eagerMaterializer: Materializer): (GraphStageLogic, ActorRef) = {
-    val stage: GraphStageLogic with StageLogging with ActorRefStage = new GraphStageLogic(shape)
+    val stage: GraphStageLogic with OutHandler with StageLogging with ActorRefStage = new GraphStageLogic(shape)
+      with OutHandler
       with StageLogging
       with ActorRefStage {
       override protected def logSource: Class[_] = classOf[ActorRefSource[_]]
@@ -145,11 +146,9 @@ private object ActorRefSource {
         }
       }
 
-      setHandler(out, new OutHandler {
-        override def onPull(): Unit = {
-          tryPush()
-        }
-      })
+      override def onPull(): Unit = tryPush()
+
+      setHandler(out, this)
     }
 
     (stage, stage.ref)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.state
@@ -15,7 +15,7 @@ package akka.persistence.state
 trait DurableStateStoreProvider {
 
   /**
-   * The `ReadJournal` implementation for the Scala API.
+   * The `DurableStateStore` implementation for the Scala API.
    * This corresponds to the instance that is returned by [[DurableStateStoreRegistry#durableStateStoreFor]].
    */
   def scaladslDurableStateStore(): scaladsl.DurableStateStore[Any]

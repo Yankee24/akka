@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.actor;
 
 // #timers
-import java.time.Duration;
 import akka.actor.AbstractActorWithTimers;
+import java.time.Duration;
 
 // #timers
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -48,8 +48,7 @@ class SinkAsJavaStreamSpec extends StreamSpec(UnboundedMailboxConfig) {
     }
 
     "allow overriding the dispatcher using Attributes" in {
-      val probe = TestSource
-        .probe[ByteString]
+      val probe = TestSource[ByteString]()
         .to(StreamConverters.asJavaStream().addAttributes(ActorAttributes.dispatcher("akka.actor.default-dispatcher")))
         .run()
       SystemMaterializer(system).materializer
@@ -63,7 +62,7 @@ class SinkAsJavaStreamSpec extends StreamSpec(UnboundedMailboxConfig) {
 
     "work in separate IO dispatcher" in {
       val materializer = Materializer.createMaterializer(system)
-      TestSource.probe[ByteString].runWith(StreamConverters.asJavaStream())(materializer)
+      TestSource[ByteString]().runWith(StreamConverters.asJavaStream())(materializer)
       materializer.asInstanceOf[PhasedFusingActorMaterializer].supervisor.tell(StreamSupervisor.GetChildren, testActor)
       val ref = expectMsgType[Children].children.find(_.path.toString contains "asJavaStream").get
       assertDispatcher(ref, ActorAttributes.IODispatcher.dispatcher)

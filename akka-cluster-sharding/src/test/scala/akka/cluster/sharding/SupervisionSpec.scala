@@ -1,25 +1,26 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
 
 import scala.concurrent.duration._
+
 import com.typesafe.config.ConfigFactory
+
 import akka.actor.{ Actor, ActorLogging, ActorRef, PoisonPill, Props }
 import akka.cluster.Cluster
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.pattern.{ BackoffOpts, BackoffSupervisor }
+import akka.testkit.{ AkkaSpec, ImplicitSender }
 import akka.testkit.EventFilter
 import akka.testkit.WithLogCapturing
-import akka.testkit.{ AkkaSpec, ImplicitSender }
 
 object SupervisionSpec {
   val config =
     ConfigFactory.parseString("""
     akka.actor.provider = "cluster"
     akka.remote.artery.canonical.port = 0
-    akka.remote.classic.netty.tcp.port = 0
     akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
     akka.loglevel = DEBUG
     akka.cluster.sharding.verbose-debug-logging = on

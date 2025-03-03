@@ -1,14 +1,13 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.dungeon
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.util.control.{ NoStackTrace, NonFatal }
 import scala.util.control.Exception.Catcher
-
-import scala.annotation.nowarn
 
 import akka.AkkaException
 import akka.actor._

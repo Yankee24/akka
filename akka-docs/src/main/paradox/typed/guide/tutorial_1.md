@@ -2,7 +2,15 @@
 
 ## Dependency
 
-Add the following dependency in your project:
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
+Additionally, add the dependency as below.
 
 @@dependency[sbt,Maven,Gradle] {
   bomGroup=com.typesafe.akka bomArtifact=akka-bom_$scala.binary.version$ bomVersionSymbols=AkkaVersion
@@ -22,18 +30,21 @@ Use of Akka relieves you from creating the infrastructure for an actor system an
 An actor in Akka always belongs to a parent. You create an actor by calling  @apidoc[ActorContext.spawn()](akka.actor.typed.*.ActorContext) {scala="#spawn[U](behavior:akka.actor.typed.Behavior[U],name:String,props:akka.actor.typed.Props):akka.actor.typed.ActorRef[U]" java="#spawn(akka.actor.typed.Behavior,java.lang.String,akka.actor.typed.Props)"}. The creator actor becomes the
 _parent_ of the newly created _child_ actor. You might ask then, who is the parent of the _first_ actor you create?
 
-As illustrated below, all actors have a common parent, the user guardian, which is defined and created when you start the @apidoc[akka.actor.typed.ActorSystem].
-As we covered in the @scala[[Quickstart Guide](https://developer.lightbend.com/guides/akka-quickstart-scala/)]@java[[Quickstart Guide](https://developer.lightbend.com/guides/akka-quickstart-java/)], creation of an actor returns a reference that is a valid URL. So, for example, if we create an actor named `someActor` from the user guardian with `context.spawn(someBehavior, "someActor")`, its reference will include the path `/user/someActor`.
+As illustrated below, all your actors have a common parent, the user guardian, which is defined and created when you start the @apidoc[akka.actor.typed.ActorSystem].
+As we covered in the @ref[first Hello World example](../actors.md#first-example), creation of an actor returns a reference that is a valid URL. So, for example, if we create an actor named `someActor` from the user guardian with `context.spawn(someBehavior, "someActor")`, its reference will include the path `/user/someActor`.
 
 ![actor tree diagram](diagrams/actor_top_tree.png)
 
-In fact, before your first actor is started, Akka has already created two actors in the system. The names of these built-in actors contain _guardian_. The guardian actors include:
+In fact, before your first actor - the user guardian - is started, Akka has already created two other guardian actors in the system: `/` and `/system`. Thus, there are three _guardian_ actors at the top of the tree:
 
  - `/` the so-called _root guardian_. This is the parent of all actors in the system, and the last one to stop when the system itself is terminated.
  - `/system` the _system guardian_. Akka or other libraries built on top of Akka may create actors in the _system_ namespace.
  - `/user` the _user guardian_. This is the top level actor that you provide to start all other actors in your application.
  
-The easiest way to see the actor hierarchy in action is to print @apidoc[akka.actor.typed.ActorRef] instances. In this small experiment, we create an actor, print its reference, create a child of this actor, and print the child's reference. We start with the Hello World project, if you have not downloaded it, download the Quickstart project from the @scala[[Lightbend Tech Hub](https://developer.lightbend.com/start/?group=akka&amp;project=akka-quickstart-scala)]@java[[Lightbend Tech Hub](https://developer.lightbend.com/start/?group=akka&amp;project=akka-quickstart-java)].
+The easiest way to see the actor hierarchy in action is to print @apidoc[akka.actor.typed.ActorRef] instances. In this small experiment, we create an actor, print its reference, create a child of this actor, and print the child's reference. We start with the Hello World project, which you can download from:  
+
+* Scala [akka-quickstart-scala.zip](../attachments/akka-quickstart-scala.zip)
+* Java [akka-quickstart-java.zip](../attachments/akka-quickstart-java.zip)
 
 In your Hello World project, navigate to the `com.example` package and create @scala[a new Scala file called `ActorHierarchyExperiments.scala` here. Copy and paste the code from the snippet below to this new source file]@java[a Java file for each of the classes in the snippet below and copy the respective contents]. Save your @scala[file and run `sbt "runMain com.example.ActorHierarchyExperiments"`]@java[files and run `com.example.ActorHierarchyExperiments` from your build tool or IDE] to observe the output.
 

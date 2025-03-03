@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.dispatch
@@ -64,7 +64,7 @@ private[akka] class Mailboxes(
   private val mailboxTypeConfigurators = new ConcurrentHashMap[String, MailboxType]
 
   private val mailboxBindings: Map[Class[_ <: Any], String] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     settings.config
       .getConfig("akka.actor.mailbox.requirements")
       .root
@@ -117,7 +117,6 @@ private[akka] class Mailboxes(
     }
 
   // don’t care if this happens twice
-  private var mailboxSizeWarningIssued = false
   private var mailboxNonZeroPushTimeoutWarningIssued = false
 
   def getMailboxRequirement(config: Config) = config.getString("mailbox-requirement") match {
@@ -158,16 +157,6 @@ private[akka] class Mailboxes(
     val hasMailboxType =
       dispatcherConfig.hasPath("mailbox-type") &&
       dispatcherConfig.getString("mailbox-type") != Deploy.NoMailboxGiven
-
-    // TODO remove in 2.3
-    if (!hasMailboxType && !mailboxSizeWarningIssued && dispatcherConfig.hasPath("mailbox-size")) {
-      eventStream.publish(
-        Warning(
-          "mailboxes",
-          getClass,
-          s"ignoring setting 'mailbox-size' for dispatcher [$id], you need to specify 'mailbox-type=bounded'"))
-      mailboxSizeWarningIssued = true
-    }
 
     def verifyRequirements(mailboxType: MailboxType): MailboxType = {
       lazy val mqType: Class[_] = getProducedMessageQueueType(mailboxType)
@@ -274,7 +263,7 @@ private[akka] class Mailboxes(
 
   //INTERNAL API
   private def config(id: String): Config = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     ConfigFactory
       .parseMap(Map("id" -> id).asJava)
       .withFallback(settings.config.getConfig(id))

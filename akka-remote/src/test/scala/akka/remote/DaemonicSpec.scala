@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote
@@ -10,10 +10,8 @@ import com.typesafe.config.ConfigFactory
 
 import akka.actor.{ ActorSystem, Address }
 import akka.testkit._
-import akka.util.ccompat._
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
-@ccompatUsedUntil213
 class DaemonicSpec extends AkkaSpec {
 
   "Remoting configured with daemonic = on" must {
@@ -27,7 +25,6 @@ class DaemonicSpec extends AkkaSpec {
         ConfigFactory.parseString("""
         akka.daemonic = on
         akka.actor.provider = remote
-        akka.remote.classic.netty.tcp.port = 0
         akka.remote.artery.canonical.port = 0
         akka.log-dead-letters-during-shutdown = off
         #akka.remote.artery.advanced.aeron.idle-cpu = 5
@@ -36,7 +33,7 @@ class DaemonicSpec extends AkkaSpec {
       try {
         val unusedPort = 86 // very unlikely to ever be used, "system port" range reserved for Micro Focus Cobol
 
-        val protocol = if (RARP(daemonicSystem).provider.remoteSettings.Artery.Enabled) "akka" else "akka.tcp"
+        val protocol = "akka"
         val unusedAddress =
           RARP(daemonicSystem).provider.getExternalAddressFor(Address(protocol, "", "", unusedPort)).get
         val selection = daemonicSystem.actorSelection(s"$unusedAddress/user/SomeActor")

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -703,14 +703,14 @@ private[stream] final class WireTap[T] extends GraphStage[FanOutShape2[T, T, T]]
   val in: Inlet[T] = Inlet[T]("WireTap.in")
   val outMain: Outlet[T] = Outlet[T]("WireTap.outMain")
   val outTap: Outlet[T] = Outlet[T]("WireTap.outTap")
-  override def initialAttributes = DefaultAttributes.wireTap
+  override def initialAttributes: Attributes = DefaultAttributes.wireTap
   override val shape: FanOutShape2[T, T, T] = new FanOutShape2(in, outMain, outTap)
 
-  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-    private var pendingTap: Option[T] = None
+  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
+    new GraphStageLogic(shape) with InHandler with OutHandler {
+      private var pendingTap: Option[T] = None
 
-    setHandler(in, new InHandler {
-      override def onPush() = {
+      override def onPush(): Unit = {
         val elem = grab(in)
         push(outMain, elem)
         if (isAvailable(outTap)) {
@@ -719,42 +719,41 @@ private[stream] final class WireTap[T] extends GraphStage[FanOutShape2[T, T, T]]
           pendingTap = Some(elem)
         }
       }
-    })
-
-    setHandler(outMain, new OutHandler {
-      override def onPull() = {
+      override def onPull(): Unit = {
         pull(in)
       }
 
       override def onDownstreamFinish(cause: Throwable): Unit = {
         cancelStage(cause)
       }
-    })
 
-    // The 'tap' output can neither backpressure, nor cancel, the stage.
-    setHandler(
-      outTap,
-      new OutHandler {
-        override def onPull() = {
-          pendingTap match {
-            case Some(elem) =>
-              push(outTap, elem)
-              pendingTap = None
-            case None => // no pending element to emit
-          }
-        }
-
-        override def onDownstreamFinish(cause: Throwable): Unit = {
-          setHandler(in, new InHandler {
-            override def onPush() = {
-              push(outMain, grab(in))
+      // The 'tap' output can neither backpressure, nor cancel, the stage.
+      setHandler(
+        outTap,
+        new OutHandler {
+          override def onPull() = {
+            pendingTap match {
+              case Some(elem) =>
+                push(outTap, elem)
+                pendingTap = None
+              case None => // no pending element to emit
             }
-          })
-          // Allow any outstanding element to be garbage-collected
-          pendingTap = None
-        }
-      })
-  }
+          }
+
+          override def onDownstreamFinish(cause: Throwable): Unit = {
+            setHandler(in, new InHandler {
+              override def onPush() = {
+                push(outMain, grab(in))
+              }
+            })
+            // Allow any outstanding element to be garbage-collected
+            pendingTap = None
+          }
+        })
+
+      setHandlers(in, outMain, this)
+
+    }
   override def toString = "WireTap"
 }
 
@@ -771,7 +770,8 @@ object Partition {
    * @param outputPorts number of output ports
    * @param partitioner function deciding which output each element will be targeted
    */ // FIXME BC add `eagerCancel: Boolean = false` parameter
-  def apply[T](outputPorts: Int, partitioner: T => Int): Partition[T] = new Partition(outputPorts, partitioner, false)
+  def apply[T](outputPorts: Int, partitioner: T => Int): Partition[T] =
+    new Partition(outputPorts, partitioner, eagerCancel = false)
 }
 
 /**
@@ -790,12 +790,6 @@ object Partition {
  */
 final class Partition[T](val outputPorts: Int, val partitioner: T => Int, val eagerCancel: Boolean)
     extends GraphStage[UniformFanOutShape[T, T]] {
-
-  /**
-   * Sets `eagerCancel` to `false`.
-   */
-  @deprecated("Use the constructor which also specifies the `eagerCancel` parameter", "2.5.10")
-  def this(outputPorts: Int, partitioner: T => Int) = this(outputPorts, partitioner, false)
 
   val in: Inlet[T] = Inlet[T]("Partition.in")
   val out: Seq[Outlet[T]] = Seq.tabulate(outputPorts)(i => Outlet[T]("Partition.out" + i)) // FIXME BC make this immutable.IndexedSeq as type + Vector as concrete impl
@@ -909,7 +903,7 @@ object Balance {
    *   default value is `false`
    */
   def apply[T](outputPorts: Int, waitForAllDownstreams: Boolean = false): Balance[T] =
-    new Balance(outputPorts, waitForAllDownstreams, false)
+    new Balance(outputPorts, waitForAllDownstreams, eagerCancel = false)
 }
 
 /**
@@ -931,10 +925,6 @@ final class Balance[T](val outputPorts: Int, val waitForAllDownstreams: Boolean,
     extends GraphStage[UniformFanOutShape[T, T]] {
   // one output might seem counter intuitive but saves us from special handling in other places
   require(outputPorts >= 1, "A Balance must have one or more output ports")
-
-  @Deprecated
-  @deprecated("Use the constructor which also specifies the `eagerCancel` parameter", since = "2.5.12")
-  def this(outputPorts: Int, waitForAllDownstreams: Boolean) = this(outputPorts, waitForAllDownstreams, false)
 
   val in: Inlet[T] = Inlet[T]("Balance.in")
   val out: immutable.IndexedSeq[Outlet[T]] = Vector.tabulate(outputPorts)(i => Outlet[T]("Balance.out" + i))
@@ -1066,7 +1056,7 @@ object ZipLatest {
  */
 final class ZipLatest[A, B](eagerComplete: Boolean) extends ZipLatestWith2[A, B, (A, B)](Tuple2.apply, eagerComplete) {
 
-  def this() = this(true)
+  def this() = this(eagerComplete = true)
 
   override def toString = "ZipLatest"
 }
@@ -1209,9 +1199,6 @@ class ZipWithN[A, O](zipper: immutable.Seq[A] => O)(n: Int) extends GraphStage[U
   override def initialAttributes = DefaultAttributes.zipWithN
   override val shape = new UniformFanInShape[A, O](n)
   def out: Outlet[O] = shape.out
-
-  @deprecated("use `shape.inlets` or `shape.in(id)` instead", "2.5.5")
-  def inSeq: immutable.IndexedSeq[Inlet[A]] = shape.inlets.asInstanceOf[immutable.IndexedSeq[Inlet[A]]]
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
     new GraphStageLogic(shape) with OutHandler {

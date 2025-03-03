@@ -1,23 +1,27 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.testkit.typed.internal
 
-import akka.actor.testkit.typed.CapturedLogEvent
-import akka.actor.typed._
-import akka.actor.typed.internal._
-import akka.actor.{ ActorPath, ActorRefProvider, InvalidMessageException }
-import akka.annotation.InternalApi
-import akka.util.Helpers
-import akka.{ actor => classic }
-import org.slf4j.Logger
-import org.slf4j.helpers.{ MessageFormatter, SubstituteLoggerFactory }
-
 import java.util.concurrent.ThreadLocalRandom.{ current => rnd }
+
 import scala.collection.immutable.TreeMap
 import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration.FiniteDuration
+
+import org.slf4j.Logger
+import org.slf4j.Marker
+import org.slf4j.event.SubstituteLoggingEvent
+import org.slf4j.helpers.{ MessageFormatter, SubstituteLoggerFactory }
+
+import akka.{ actor => classic }
+import akka.actor.{ ActorPath, ActorRefProvider, InvalidMessageException }
+import akka.actor.testkit.typed.CapturedLogEvent
+import akka.actor.typed._
+import akka.actor.typed.internal._
+import akka.annotation.InternalApi
+import akka.util.Helpers
 
 /**
  * INTERNAL API
@@ -45,7 +49,7 @@ private[akka] final class FunctionRef[-T](override val path: ActorPath, send: (T
   override def provider: ActorRefProvider =
     throw new UnsupportedOperationException(
       "ActorRefs created for synchronous testing cannot be used as targets for asking. Use asynchronous testing instead. " +
-      "See https://doc.akka.io/docs/akka/current/typed/testing.html#asynchronous-testing")
+      "See https://doc.akka.io/libraries/akka-core/current/typed/testing.html#asynchronous-testing")
 
   // impl InternalRecipientRef
   def isTerminated: Boolean = false
@@ -227,7 +231,7 @@ private[akka] final class FunctionRef[-T](override val path: ActorPath, send: (T
    * this method.
    */
   def logEntries: List[CapturedLogEvent] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     substituteLoggerFactory.getEventQueue
       .iterator()
       .asScala
@@ -236,9 +240,17 @@ private[akka] final class FunctionRef[-T](override val path: ActorPath, send: (T
           level = evt.getLevel,
           message = MessageFormatter.arrayFormat(evt.getMessage, evt.getArgumentArray).getMessage,
           cause = Option(evt.getThrowable),
-          marker = Option(evt.getMarker))
+          marker = marker(evt))
       }
       .toList
+  }
+
+  private def marker(evt: SubstituteLoggingEvent): Option[Marker] = {
+    val markers = evt.getMarkers
+    if ((markers eq null) || markers.isEmpty)
+      None
+    else
+      Option(markers.get(0))
   }
 
   /**

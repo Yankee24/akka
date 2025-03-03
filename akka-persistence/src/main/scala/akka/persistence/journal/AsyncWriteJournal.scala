@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.journal
@@ -7,12 +7,10 @@ package akka.persistence.journal
 import scala.collection.immutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
-import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 import scala.util.control.NonFatal
-
 import akka.actor._
-import akka.pattern.CircuitBreaker
+import akka.pattern.CircuitBreakersRegistry
 import akka.pattern.pipe
 import akka.persistence._
 import akka.util.Helpers.toRootLowerCase
@@ -29,10 +27,8 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
   private val config = extension.configFor(self)
 
   private val breaker = {
-    val maxFailures = config.getInt("circuit-breaker.max-failures")
-    val callTimeout = config.getDuration("circuit-breaker.call-timeout", MILLISECONDS).millis
-    val resetTimeout = config.getDuration("circuit-breaker.reset-timeout", MILLISECONDS).millis
-    CircuitBreaker(context.system.scheduler, maxFailures, callTimeout, resetTimeout)
+    val id = extension.extensionIdFor(self)
+    CircuitBreakersRegistry(context.system).getOrCreate(id, config.getConfig("circuit-breaker"))
   }
 
   private val replayFilterMode: ReplayFilter.Mode =
@@ -49,7 +45,7 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
   private val replayFilterWindowSize: Int = config.getInt("replay-filter.window-size")
   private val replayFilterMaxOldWriters: Int = config.getInt("replay-filter.max-old-writers")
 
-  private val resequencer = context.actorOf(Props[Resequencer]())
+  private val resequencer = context.actorOf(Props(new Resequencer))
   private var resequencerCounter = 1L
 
   final def receive = receiveWriteJournal.orElse[Any, Unit](receivePluginInternal)
@@ -61,7 +57,7 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
     implicit val ec: ExecutionContext = context.dispatcher
 
     {
-      case WriteMessages(messages, persistentActor, actorInstanceId) =>
+      case WriteMessages(messages, persistentActor, actorInstanceId, bypassCircuitBreaker) =>
         val cctr = resequencerCounter
         resequencerCounter += messages.foldLeft(1)((acc, m) => acc + m.size)
 
@@ -75,8 +71,10 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
             Future.successful(Nil)
           case Success(prep) =>
             // try in case the asyncWriteMessages throws
-            try breaker.withCircuitBreaker(asyncWriteMessages(prep))
-            catch { case NonFatal(e) => Future.failed(e) }
+            try {
+              if (bypassCircuitBreaker) asyncWriteMessages(prep)
+              else breaker.withCircuitBreaker(asyncWriteMessages(prep))
+            } catch { case NonFatal(e) => Future.failed(e) }
           case f @ Failure(_) =>
             // exception from preparePersistentBatch => rejected
             Future.successful(messages.collect { case _: AtomicWrite => f })
@@ -147,33 +145,45 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
                 replayDebugEnabled))
           else persistentActor
 
-        val readHighestSequenceNrFrom = math.max(0L, fromSequenceNr - 1)
-        /*
-         * The API docs for the [[AsyncRecovery]] say not to rely on asyncReadHighestSequenceNr
-         * being called before a call to asyncReplayMessages even tho it currently always is. The Cassandra
-         * plugin does rely on this so if you change this change the Cassandra plugin.
-         */
-        breaker
-          .withCircuitBreaker(asyncReadHighestSequenceNr(persistenceId, readHighestSequenceNrFrom))
-          .flatMap { highSeqNr =>
-            val toSeqNr = math.min(toSequenceNr, highSeqNr)
-            if (toSeqNr <= 0L || fromSequenceNr > toSeqNr)
-              Future.successful(highSeqNr)
-            else {
-              // Send replayed messages and replay result to persistentActor directly. No need
-              // to resequence replayed messages relative to written and looped messages.
-              // not possible to use circuit breaker here
-              asyncReplayMessages(persistenceId, fromSequenceNr, toSeqNr, max) { p =>
-                if (!p.deleted) // old records from 2.3 may still have the deleted flag
-                  adaptFromJournal(p).foreach { adaptedPersistentRepr =>
-                    replyTo.tell(ReplayedMessage(adaptedPersistentRepr), Actor.noSender)
+        val replay =
+          this match {
+            case asyncReplay: AsyncReplay =>
+              asyncReplay.replayMessages(persistenceId, fromSequenceNr, toSequenceNr, max) { p =>
+                adaptFromJournal(p).foreach { adaptedPersistentRepr =>
+                  replyTo.tell(ReplayedMessage(adaptedPersistentRepr), Actor.noSender)
+                }
+              }
+
+            case _ =>
+              val readHighestSequenceNrFrom = math.max(0L, fromSequenceNr - 1)
+              /*
+               * The API docs for the [[AsyncRecovery]] say not to rely on asyncReadHighestSequenceNr
+               * being called before a call to asyncReplayMessages even tho it currently always is. The Cassandra
+               * plugin does rely on this so if you change this change the Cassandra plugin.
+               */
+              breaker.withCircuitBreaker(asyncReadHighestSequenceNr(persistenceId, readHighestSequenceNrFrom)).flatMap {
+                highSeqNr =>
+                  val toSeqNr = math.min(toSequenceNr, highSeqNr)
+                  if (toSeqNr <= 0L || fromSequenceNr > toSeqNr)
+                    Future.successful(highSeqNr)
+                  else {
+                    // Send replayed messages and replay result to persistentActor directly. No need
+                    // to resequence replayed messages relative to written and looped messages.
+                    // not possible to use circuit breaker here
+                    asyncReplayMessages(persistenceId, fromSequenceNr, toSeqNr, max) { p =>
+                      if (!p.deleted) // old records from 2.3 may still have the deleted flag
+                        adaptFromJournal(p).foreach { adaptedPersistentRepr =>
+                          replyTo.tell(ReplayedMessage(adaptedPersistentRepr), Actor.noSender)
+                        }
+                    }.map(_ => highSeqNr)(ExecutionContext.parasitic)
                   }
-              }.map(_ => highSeqNr)
-            }
+              }
           }
+
+        replay
           .map { highSeqNr =>
             RecoverySuccess(highSeqNr)
-          }
+          }(ExecutionContext.parasitic)
           .recover {
             case e => ReplayMessagesFailure(e)
           }

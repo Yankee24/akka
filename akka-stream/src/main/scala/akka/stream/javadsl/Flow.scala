@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.javadsl
@@ -10,12 +10,14 @@ import java.util.concurrent.CompletionStage
 import java.util.function.BiFunction
 import java.util.function.Supplier
 
-import scala.annotation.{ nowarn, varargs }
+import scala.annotation.nowarn
 import scala.annotation.unchecked.uncheckedVariance
+import scala.annotation.varargs
 import scala.collection.immutable
-import scala.compat.java8.FutureConverters._
-import scala.compat.java8.OptionConverters.RichOptionalGeneric
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.ExecutionContext
+import scala.jdk.DurationConverters._
+import scala.jdk.FutureConverters._
+import scala.jdk.OptionConverters.RichOptional
 import scala.reflect.ClassTag
 
 import org.reactivestreams.Processor
@@ -25,17 +27,14 @@ import akka.NotUsed
 import akka.actor.ActorRef
 import akka.actor.ClassicActorSystemProvider
 import akka.annotation.ApiMayChange
-import akka.dispatch.ExecutionContexts
 import akka.event.{ LogMarker, LoggingAdapter, MarkerLoggingAdapter }
 import akka.japi.Pair
 import akka.japi.Util
 import akka.japi.function
 import akka.japi.function.Creator
-import akka.stream.{ javadsl, _ }
+import akka.stream._
 import akka.util.ConstantFun
-import akka.util.JavaDurationConverters._
 import akka.util.Timeout
-import akka.util.unused
 
 object Flow {
 
@@ -60,7 +59,7 @@ object Flow {
     Flow.create[I]().map(f)
 
   /** Create a `Flow` which can process elements of type `T`. */
-  def of[T](@unused clazz: Class[T]): javadsl.Flow[T, T, NotUsed] = create[T]()
+  def of[T](@nowarn("msg=never used") clazz: Class[T]): javadsl.Flow[T, T, NotUsed] = create[T]()
 
   /**
    * A graph with the shape of a flow logically is a flow, this method makes it so also in type.
@@ -78,7 +77,7 @@ object Flow {
    */
   def fromMaterializer[I, O, M](
       factory: BiFunction[Materializer, Attributes, Flow[I, O, M]]): Flow[I, O, CompletionStage[M]] =
-    scaladsl.Flow.fromMaterializer((mat, attr) => factory(mat, attr).asScala).mapMaterializedValue(_.toJava).asJava
+    scaladsl.Flow.fromMaterializer((mat, attr) => factory(mat, attr).asScala).mapMaterializedValue(_.asJava).asJava
 
   /**
    * Defers the creation of a [[Flow]] until materialization. The `factory` function
@@ -88,7 +87,7 @@ object Flow {
   @deprecated("Use 'fromMaterializer' instead", "2.6.0")
   def setup[I, O, M](
       factory: BiFunction[ActorMaterializer, Attributes, Flow[I, O, M]]): Flow[I, O, CompletionStage[M]] =
-    scaladsl.Flow.setup((mat, attr) => factory(mat, attr).asScala).mapMaterializedValue(_.toJava).asJava
+    scaladsl.Flow.setup((mat, attr) => factory(mat, attr).asScala).mapMaterializedValue(_.asJava).asJava
 
   /**
    * Creates a `Flow` from a `Sink` and a `Source` where the Flow's input
@@ -263,10 +262,9 @@ object Flow {
   def lazyInit[I, O, M](
       flowFactory: function.Function[I, CompletionStage[Flow[I, O, M]]],
       fallback: function.Creator[M]): Flow[I, O, M] = {
-    import scala.compat.java8.FutureConverters._
-    val sflow = scaladsl.Flow.lazyInit(
-      (flowFactory.apply(_)).andThen(_.toScala.map(_.asScala)(ExecutionContexts.parasitic)),
-      fallback.create _)
+    import scala.jdk.FutureConverters._
+    val sflow = scaladsl.Flow
+      .lazyInit((flowFactory.apply(_)).andThen(_.asScala.map(_.asScala)(ExecutionContext.parasitic)), fallback.create _)
     new Flow(sflow)
   }
 
@@ -289,12 +287,12 @@ object Flow {
   @deprecated("Use 'Flow.lazyCompletionStageFlow' instead", "2.6.0")
   def lazyInitAsync[I, O, M](
       flowFactory: function.Creator[CompletionStage[Flow[I, O, M]]]): Flow[I, O, CompletionStage[Optional[M]]] = {
-    import scala.compat.java8.FutureConverters._
+    import scala.jdk.FutureConverters._
 
     val sflow = scaladsl.Flow
-      .lazyInitAsync(() => flowFactory.create().toScala.map(_.asScala)(ExecutionContexts.parasitic))
+      .lazyInitAsync(() => flowFactory.create().asScala.map(_.asScala)(ExecutionContext.parasitic))
       .mapMaterializedValue(fut =>
-        fut.map(_.fold[Optional[M]](Optional.empty())(m => Optional.ofNullable(m)))(ExecutionContexts.parasitic).toJava)
+        fut.map(_.fold[Optional[M]](Optional.empty())(m => Optional.ofNullable(m)))(ExecutionContext.parasitic).asJava)
     new Flow(sflow)
   }
 
@@ -306,9 +304,9 @@ object Flow {
    * [[NeverMaterializedException]] if upstream fails or downstream cancels before the completion stage has completed.
    */
   def completionStageFlow[I, O, M](flow: CompletionStage[Flow[I, O, M]]): Flow[I, O, CompletionStage[M]] = {
-    import scala.compat.java8.FutureConverters._
+    import scala.jdk.FutureConverters._
     val sflow =
-      scaladsl.Flow.futureFlow(flow.toScala.map(_.asScala)(ExecutionContexts.parasitic)).mapMaterializedValue(_.toJava)
+      scaladsl.Flow.futureFlow(flow.asScala.map(_.asScala)(ExecutionContext.parasitic)).mapMaterializedValue(_.asJava)
     new javadsl.Flow(sflow)
   }
 
@@ -328,12 +326,12 @@ object Flow {
    * '''Cancels when''' downstream cancels
    */
   def lazyFlow[I, O, M](create: Creator[Flow[I, O, M]]): Flow[I, O, CompletionStage[M]] = {
-    import scala.compat.java8.FutureConverters._
+    import scala.jdk.FutureConverters._
     val sflow = scaladsl.Flow
       .lazyFlow { () =>
         create.create().asScala
       }
-      .mapMaterializedValue(_.toJava)
+      .mapMaterializedValue(_.asJava)
     new javadsl.Flow(sflow)
   }
 
@@ -361,8 +359,8 @@ object Flow {
   def lazyCompletionStageFlow[I, O, M](
       create: Creator[CompletionStage[Flow[I, O, M]]]): Flow[I, O, CompletionStage[M]] =
     scaladsl.Flow
-      .lazyFutureFlow[I, O, M](() => create.create().toScala.map(_.asScala)(ExecutionContexts.parasitic))
-      .mapMaterializedValue(_.toJava)
+      .lazyFutureFlow[I, O, M](() => create.create().asScala.map(_.asScala)(ExecutionContext.parasitic))
+      .mapMaterializedValue(_.asJava)
       .asJava
 
   /**
@@ -398,7 +396,7 @@ object Flow {
  * A `Flow` is a set of stream processing steps that has one open input and one open output.
  */
 final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Graph[FlowShape[In, Out], Mat] {
-  import akka.util.ccompat.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   override def shape: FlowShape[In, Out] = delegate.shape
   override def traversalBuilder = delegate.traversalBuilder
@@ -416,6 +414,9 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
 
   /**
    * Materializes this [[Flow]], immediately returning (1) its materialized value, and (2) a newly materialized [[Flow]].
+   *
+   * Note that `preMaterialize` is implemented through a reactive streams `Publisher` and `Subscriber` pair which means that
+   * a buffer is introduced and that errors are not propagated upstream but are turned into cancellations without error details.
    */
   def preMaterialize(
       systemProvider: ClassicActorSystemProvider): akka.japi.Pair[Mat @uncheckedVariance, Flow[In, Out, NotUsed]] = {
@@ -425,6 +426,9 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
   /**
    * Materializes this [[Flow]], immediately returning (1) its materialized value, and (2) a newly materialized [[Flow]].
    * The returned flow is partial materialized and do not support multiple times materialization.
+   *
+   * Note that `preMaterialize` is implemented through a reactive streams `Publisher` and `Subscriber` pair which means that
+   * a buffer is introduced and that errors are not propagated upstream but are turned into cancellations without error details.
    */
   def preMaterialize(materializer: Materializer): akka.japi.Pair[Mat @uncheckedVariance, Flow[In, Out, NotUsed]] = {
     val (mat, flow) = delegate.preMaterialize()(materializer)
@@ -476,6 +480,17 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       flow: Graph[FlowShape[Out, T], M],
       combine: function.Function2[Mat, M, M2]): javadsl.Flow[In, T, M2] =
     new Flow(delegate.viaMat(flow)(combinerToScala(combine)))
+
+  /**
+   * Transform this Flow by applying a function to each *incoming* upstream element before
+   * it is passed to the [[Flow]]
+   *
+   * '''Backpressures when''' original [[Flow]] backpressures
+   *
+   * '''Cancels when''' original [[Flow]] cancels
+   */
+  def contramap[In2](f: function.Function[In2, In]): javadsl.Flow[In2, Out, Mat] =
+    new Flow(delegate.contramap(elem => f(elem)))
 
   /**
    * Connect this [[Flow]] to a [[Sink]], concatenating the processing steps of both.
@@ -707,7 +722,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    */
   def mapConcat[T](f: function.Function[Out, java.lang.Iterable[T]]): javadsl.Flow[In, T, Mat] =
     new Flow(delegate.mapConcat { elem =>
-      Util.immutableSeq(f(elem))
+      f(elem).asScala
     })
 
   /**
@@ -717,7 +732,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    * the mapping function for mapping the first element. The mapping function returns a mapped element to emit
    * downstream and a state to pass to the next mapping function. The state can be the same for each mapping return,
    * be a new immutable state but it is also safe to use a mutable state. The returned `T` MUST NOT be `null` as it is
-   * illegal as stream element - according to the Reactive Streams specification.
+   * illegal as stream element - according to the Reactive Streams specification. A `null` state is not allowed and will fail the stream.
    *
    * For stateless variant see [[map]].
    *
@@ -747,7 +762,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
     new Flow(
       delegate.statefulMap(() => create.create())(
         (s: S, out: Out) => f.apply(s, out).toScala,
-        (s: S) => onComplete.apply(s).asScala))
+        (s: S) => onComplete.apply(s).toScala))
 
   /**
    * Transform each stream element with the help of a resource.
@@ -781,13 +796,13 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    * @param close function that closes the resource, optionally outputting a last element
    */
   def mapWithResource[R, T](
-      create: function.Creator[R],
-      f: function.Function2[R, Out, T],
-      close: function.Function[R, Optional[T]]): javadsl.Flow[In, T, Mat] =
+      create: java.util.function.Supplier[R],
+      f: java.util.function.BiFunction[R, Out, T],
+      close: java.util.function.Function[R, Optional[T]]): javadsl.Flow[In, T, Mat] =
     new Flow(
-      delegate.mapWithResource(() => create.create())(
+      delegate.mapWithResource(() => create.get())(
         (resource, out) => f(resource, out),
-        resource => close.apply(resource).asScala))
+        resource => close.apply(resource).toScala))
 
   /**
    * Transform each input element into an `Iterable` of output elements that is
@@ -819,7 +834,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       f: function.Creator[function.Function[Out, java.lang.Iterable[T]]]): javadsl.Flow[In, T, Mat] =
     new Flow(delegate.statefulMapConcat { () =>
       val fun = f.create()
-      elem => Util.immutableSeq(fun(elem))
+      elem => fun(elem).asScala
     })
 
   /**
@@ -851,10 +866,51 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    *
-   * @see [[#mapAsyncUnordered]]
+   * @see [[#mapAsyncUnordered]] and [[#mapAsyncPartitioned]]
    */
   def mapAsync[T](parallelism: Int, f: function.Function[Out, CompletionStage[T]]): javadsl.Flow[In, T, Mat] =
-    new Flow(delegate.mapAsync(parallelism)(x => f(x).toScala))
+    new Flow(delegate.mapAsync(parallelism)(x => f(x).asScala))
+
+  /**
+   * Transform this stream by partitioning elements based on the provided partitioner as they pass through this
+   * processing step and then applying a given `CompletionStage`-returning function to each element and its
+   * partition key.  The value of the returned future, if successful, will be emitted downstream.
+   *
+   * The number of CompletionStages running at any given time is bounded by the 'parallelism' and 'perPartition'
+   * values.  The CompletionStages may complete in any order, but the results are emitted in the same order as
+   * the corresponding elements were received.
+   *
+   * If the functions 'partitioner' or 'f' throw an exception, or if the 'CompletionStage' is completed with failure,
+   * supervision will be applied to determine a decision.  If the decision is [[akka.stream.Supervision#stop]], the
+   * stream will be completed with failure; otherwise the element will be dropped and the stream continues.
+   *
+   * The function 'partitioner' is always invoked on the elements in the order they arrive.
+   *
+   * The function 'f' is invoked on elements with the same partition key in the order they arrive.  The order of
+   * invocation of 'f' for elements with different partition keys is undefined and subject to factors including, but
+   * not limited to, the distribution of partition keys within the stream.
+   *
+   * '''Emits when''' the CompletionStage returned by the provided function 'f' finishes for the next element in
+   * sequence
+   *
+   * '''Backpressures when''' the number of elements for which no resulting CompletionStage has completed reaches the
+   * configured parallelism and the downstream backpressures or the first CompletionStage has not completed
+   *
+   * '''Completes when''' upstream completes and all CompletionStages have been completed and all elements have
+   * been emitted
+   *
+   * '''Cancels when''' downstream cancels
+   *
+   * @see [[#mapAsync]] and [[#mapAsyncUnordered]]
+   */
+  def mapAsyncPartitioned[T, P](
+      parallelism: Int,
+      perPartition: Int,
+      partitioner: function.Function[Out, P],
+      f: BiFunction[Out, P, CompletionStage[T]]) =
+    new Flow(delegate.mapAsyncPartitioned(parallelism, perPartition)(x => partitioner(x)) { (x, p) =>
+      f(x, p).asScala
+    })
 
   /**
    * Transform this stream by applying the given function to each of the elements
@@ -887,10 +943,10 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    *
-   * @see [[#mapAsync]]
+   * @see [[#mapAsync]] and [[#mapAsyncPartitioned]]
    */
   def mapAsyncUnordered[T](parallelism: Int, f: function.Function[Out, CompletionStage[T]]): javadsl.Flow[In, T, Mat] =
-    new Flow(delegate.mapAsyncUnordered(parallelism)(x => f(x).toScala))
+    new Flow(delegate.mapAsyncUnordered(parallelism)(x => f(x).asScala))
 
   /**
    * Use the `ask` pattern to send a request-reply message to the target `ref` actor.
@@ -1204,7 +1260,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    */
   def scanAsync[T](zero: T)(f: function.Function2[T, Out, CompletionStage[T]]): javadsl.Flow[In, T, Mat] =
     new Flow(delegate.scanAsync(zero) { (out, in) =>
-      f(out, in).toScala
+      f(out, in).asScala
     })
 
   /**
@@ -1254,7 +1310,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    */
   def foldAsync[T](zero: T)(f: function.Function2[T, Out, CompletionStage[T]]): javadsl.Flow[In, T, Mat] =
     new Flow(delegate.foldAsync(zero) { (out, in) =>
-      f(out, in).toScala
+      f(out, in).asScala
     })
 
   /**
@@ -1357,32 +1413,8 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    * `maxNumber` must be positive, and `duration` must be greater than 0 seconds, otherwise
    * IllegalArgumentException is thrown.
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def groupedWithin(maxNumber: Int, duration: FiniteDuration): javadsl.Flow[In, java.util.List[Out], Mat] =
-    new Flow(delegate.groupedWithin(maxNumber, duration).map(_.asJava)) // TODO optimize to one step
-
-  /**
-   * Chunk up this stream into groups of elements received within a time window,
-   * or limited by the given number of elements, whatever happens first.
-   * Empty groups will not be emitted if no elements are received from upstream.
-   * The last group before end-of-stream will contain the buffered elements
-   * since the previously emitted group.
-   *
-   * '''Emits when''' the configured time elapses since the last group has been emitted or `n` elements is buffered
-   *
-   * '''Backpressures when''' downstream backpressures, and there are `n+1` buffered elements
-   *
-   * '''Completes when''' upstream completes (emits last group)
-   *
-   * '''Cancels when''' downstream completes
-   *
-   * `maxNumber` must be positive, and `duration` must be greater than 0 seconds, otherwise
-   * IllegalArgumentException is thrown.
-   */
-  @nowarn("msg=deprecated")
   def groupedWithin(maxNumber: Int, duration: java.time.Duration): javadsl.Flow[In, java.util.List[Out], Mat] =
-    groupedWithin(maxNumber, duration.asScala)
+    new Flow(delegate.groupedWithin(maxNumber, duration.toScala).map(_.asJava))
 
   /**
    * Chunk up this stream into groups of elements received within a time window,
@@ -1402,38 +1434,11 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    * `maxWeight` must be positive, and `duration` must be greater than 0 seconds, otherwise
    * IllegalArgumentException is thrown.
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def groupedWeightedWithin(
-      maxWeight: Long,
-      costFn: function.Function[Out, java.lang.Long],
-      duration: FiniteDuration): javadsl.Flow[In, java.util.List[Out], Mat] =
-    new Flow(delegate.groupedWeightedWithin(maxWeight, duration)(costFn.apply).map(_.asJava))
-
-  /**
-   * Chunk up this stream into groups of elements received within a time window,
-   * or limited by the weight of the elements, whatever happens first.
-   * Empty groups will not be emitted if no elements are received from upstream.
-   * The last group before end-of-stream will contain the buffered elements
-   * since the previously emitted group.
-   *
-   * '''Emits when''' the configured time elapses since the last group has been emitted or weight limit reached
-   *
-   * '''Backpressures when''' downstream backpressures, and buffered group (+ pending element) weighs more than `maxWeight`
-   *
-   * '''Completes when''' upstream completes (emits last group)
-   *
-   * '''Cancels when''' downstream completes
-   *
-   * `maxWeight` must be positive, and `duration` must be greater than 0 seconds, otherwise
-   * IllegalArgumentException is thrown.
-   */
-  @nowarn("msg=deprecated")
   def groupedWeightedWithin(
       maxWeight: Long,
       costFn: function.Function[Out, java.lang.Long],
       duration: java.time.Duration): javadsl.Flow[In, java.util.List[Out], Mat] =
-    groupedWeightedWithin(maxWeight, costFn, duration.asScala)
+    new Flow(delegate.groupedWeightedWithin(maxWeight, duration.toScala)(costFn.apply).map(_.asJava))
 
   /**
    * Chunk up this stream into groups of elements received within a time window,
@@ -1459,7 +1464,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       maxNumber: Int,
       costFn: function.Function[Out, java.lang.Long],
       duration: java.time.Duration): javadsl.Flow[In, java.util.List[Out], Mat] =
-    new Flow(delegate.groupedWeightedWithin(maxWeight, maxNumber, duration.asScala)(costFn.apply).map(_.asJava))
+    new Flow(delegate.groupedWeightedWithin(maxWeight, maxNumber, duration.toScala)(costFn.apply).map(_.asJava))
 
   /**
    * Shifts elements emission in time by a specified amount. It allows to store elements
@@ -1486,39 +1491,8 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    * @param of time to shift all messages
    * @param strategy Strategy that is used when incoming elements cannot fit inside the buffer
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def delay(of: FiniteDuration, strategy: DelayOverflowStrategy): Flow[In, Out, Mat] =
-    new Flow(delegate.delay(of, strategy))
-
-  /**
-   * Shifts elements emission in time by a specified amount. It allows to store elements
-   * in internal buffer while waiting for next element to be emitted. Depending on the defined
-   * [[akka.stream.DelayOverflowStrategy]] it might drop elements or backpressure the upstream if
-   * there is no space available in the buffer.
-   *
-   * Delay precision is 10ms to avoid unnecessary timer scheduling cycles
-   *
-   * Internal buffer has default capacity 16. You can set buffer size by calling `addAttributes(inputBuffer)`
-   *
-   * '''Emits when''' there is a pending element in the buffer and configured time for this element elapsed
-   *  * EmitEarly - strategy do not wait to emit element if buffer is full
-   *
-   * '''Backpressures when''' depending on OverflowStrategy
-   *  * Backpressure - backpressures when buffer is full
-   *  * DropHead, DropTail, DropBuffer - never backpressures
-   *  * Fail - fails the stream if buffer gets full
-   *
-   * '''Completes when''' upstream completes and buffered elements have been drained
-   *
-   * '''Cancels when''' downstream cancels
-   *
-   * @param of time to shift all messages
-   * @param strategy Strategy that is used when incoming elements cannot fit inside the buffer
-   */
-  @nowarn("msg=deprecated")
   def delay(of: java.time.Duration, strategy: DelayOverflowStrategy): Flow[In, Out, Mat] =
-    delay(of.asScala, strategy)
+    new Flow(delegate.delay(of.toScala, strategy))
 
   /**
    * Shifts elements emission in time by an amount individually determined through delay strategy a specified amount.
@@ -1582,25 +1556,8 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def dropWithin(duration: FiniteDuration): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.dropWithin(duration))
-
-  /**
-   * Discard the elements received within the given duration at beginning of the stream.
-   *
-   * '''Emits when''' the specified time elapsed and a new upstream element arrives
-   *
-   * '''Backpressures when''' downstream backpressures
-   *
-   * '''Completes when''' upstream completes
-   *
-   * '''Cancels when''' downstream cancels
-   */
-  @nowarn("msg=deprecated")
   def dropWithin(duration: java.time.Duration): javadsl.Flow[In, Out, Mat] =
-    dropWithin(duration.asScala)
+    new Flow(delegate.dropWithin(duration.toScala))
 
   /**
    * Terminate processing (and cancel the upstream publisher) after predicate
@@ -1647,7 +1604,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * See also [[Flow.limit]], [[Flow.limitWeighted]]
    */
-  def takeWhile(p: function.Predicate[Out]): javadsl.Flow[In, Out, Mat] = takeWhile(p, false)
+  def takeWhile(p: function.Predicate[Out]): javadsl.Flow[In, Out, Mat] = takeWhile(p, inclusive = false)
 
   /**
    * Discard elements at the beginning of the stream while predicate is true.
@@ -1769,7 +1726,6 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    * '''Cancels when''' downstream cancels
    *
    */
-  @nowarn("msg=deprecated")
   def recoverWith(pf: PartialFunction[Throwable, _ <: Graph[SourceShape[Out], NotUsed]]): javadsl.Flow[In, Out, Mat] =
     new Flow(delegate.recoverWith(pf))
 
@@ -1794,14 +1750,64 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * @deprecated use `recoverWithRetries` instead
    */
-  @Deprecated
-  @deprecated("Use recoverWithRetries instead.", "2.6.6")
   def recoverWith(
       clazz: Class[_ <: Throwable],
       supplier: Supplier[Graph[SourceShape[Out], NotUsed]]): javadsl.Flow[In, Out, Mat] =
     recoverWith({
       case elem if clazz.isInstance(elem) => supplier.get()
     }: PartialFunction[Throwable, Graph[SourceShape[Out], NotUsed]])
+
+  /**
+   * onErrorComplete allows to complete the stream when an upstream error occurs.
+   *
+   * Since the underlying failure signal onError arrives out-of-band, it might jump over existing elements.
+   * This operator can recover the failure signal, but not the skipped elements, which will be dropped.
+   *
+   * '''Emits when''' element is available from the upstream
+   *
+   * '''Backpressures when''' downstream backpressures
+   *
+   * '''Completes when''' upstream completes or failed with exception is an instance of the provided type
+   *
+   * '''Cancels when''' downstream cancels
+   */
+  def onErrorComplete(): javadsl.Flow[In, Out, Mat] = onErrorComplete(classOf[Throwable])
+
+  /**
+   * onErrorComplete allows to complete the stream when an upstream error occurs.
+   *
+   * Since the underlying failure signal onError arrives out-of-band, it might jump over existing elements.
+   * This operator can recover the failure signal, but not the skipped elements, which will be dropped.
+   *
+   * '''Emits when''' element is available from the upstream
+   *
+   * '''Backpressures when''' downstream backpressures
+   *
+   * '''Completes when''' upstream completes or failed with exception is an instance of the provided type
+   *
+   * '''Cancels when''' downstream cancels
+   */
+  def onErrorComplete(clazz: Class[_ <: Throwable]): javadsl.Flow[In, Out, Mat] =
+    onErrorComplete(ex => clazz.isInstance(ex))
+
+  /**
+   * onErrorComplete allows to complete the stream when an upstream error occurs.
+   *
+   * Since the underlying failure signal onError arrives out-of-band, it might jump over existing elements.
+   * This operator can recover the failure signal, but not the skipped elements, which will be dropped.
+   *
+   * '''Emits when''' element is available from the upstream
+   *
+   * '''Backpressures when''' downstream backpressures
+   *
+   * '''Completes when''' upstream completes or failed with predicate return ture
+   *
+   * '''Cancels when''' downstream cancels
+   */
+  def onErrorComplete(predicate: java.util.function.Predicate[_ >: Throwable]): javadsl.Flow[In, Out, Mat] =
+    new Flow(delegate.onErrorComplete {
+      case ex: Throwable if predicate.test(ex) => true
+    })
 
   /**
    * RecoverWithRetries allows to switch to alternative Source on flow failure. It will stay in effect after
@@ -1908,33 +1914,8 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * See also [[Flow.limit]], [[Flow.limitWeighted]]
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def takeWithin(duration: FiniteDuration): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.takeWithin(duration))
-
-  /**
-   * Terminate processing (and cancel the upstream publisher) after the given
-   * duration. Due to input buffering some elements may have been
-   * requested from upstream publishers that will then not be processed downstream
-   * of this step.
-   *
-   * Note that this can be combined with [[#take]] to limit the number of elements
-   * within the duration.
-   *
-   * '''Emits when''' an upstream element arrives
-   *
-   * '''Backpressures when''' downstream backpressures
-   *
-   * '''Completes when''' upstream completes or timer fires
-   *
-   * '''Cancels when''' downstream cancels or timer fires
-   *
-   * See also [[Flow.limit]], [[Flow.limitWeighted]]
-   */
-  @nowarn("msg=deprecated")
   def takeWithin(duration: java.time.Duration): javadsl.Flow[In, Out, Mat] =
-    takeWithin(duration.asScala)
+    new Flow(delegate.takeWithin(duration.toScala))
 
   /**
    * Allows a faster upstream to progress independently of a slower subscriber by conflating elements into a summary
@@ -2233,7 +2214,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       f: function.Function[java.lang.Iterable[Out], javadsl.Flow[Out, Out2, Mat2]],
       matF: function.Function2[Mat, CompletionStage[Mat2], Mat3]): javadsl.Flow[In, Out2, Mat3] = {
     val newDelegate = delegate.flatMapPrefixMat(n)(seq => f(seq.asJava).asScala) { (m1, fm2) =>
-      matF(m1, fm2.toJava)
+      matF(m1, fm2.asJava)
     }
     new javadsl.Flow(newDelegate)
   }
@@ -2311,7 +2292,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    * @see [[#groupBy]]
    */
   def groupBy[K](maxSubstreams: Int, f: function.Function[Out, K]): SubFlow[In, Out, Mat] =
-    new SubFlow(delegate.groupBy(maxSubstreams, f.apply, false))
+    new SubFlow(delegate.groupBy(maxSubstreams, f.apply, allowClosedSubstreamRecreation = false))
 
   /**
    * This operation applies the given predicate to all incoming elements and
@@ -2957,10 +2938,11 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       those: java.util.List[_ <: Graph[SourceShape[Out], _ <: Any]],
       segmentSize: Int,
       eagerClose: Boolean): javadsl.Flow[In, Out, Mat] = {
-    val seq = if (those != null) Util.immutableSeq(those).collect {
+    val seq = if (those != null) those.asScala.collect {
       case source: Source[Out @unchecked, _] => source.asScala
       case other                             => other
-    } else immutable.Seq()
+    }.toSeq
+    else immutable.Seq()
     new Flow(delegate.interleaveAll(seq, segmentSize, eagerClose))
   }
 
@@ -3404,7 +3386,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
 
   /**
    * If the first element has not passed through this operator before the provided timeout, the stream is failed
-   * with a [[java.util.concurrent.TimeoutException]].
+   * with a [[akka.stream.InitialTimeoutException]].
    *
    * '''Emits when''' upstream emits an element
    *
@@ -3414,30 +3396,12 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def initialTimeout(timeout: FiniteDuration): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.initialTimeout(timeout))
-
-  /**
-   * If the first element has not passed through this operator before the provided timeout, the stream is failed
-   * with a [[java.util.concurrent.TimeoutException]].
-   *
-   * '''Emits when''' upstream emits an element
-   *
-   * '''Backpressures when''' downstream backpressures
-   *
-   * '''Completes when''' upstream completes or fails if timeout elapses before first element arrives
-   *
-   * '''Cancels when''' downstream cancels
-   */
-  @nowarn("msg=deprecated")
   def initialTimeout(timeout: java.time.Duration): javadsl.Flow[In, Out, Mat] =
-    initialTimeout(timeout.asScala)
+    new Flow(delegate.initialTimeout(timeout.toScala))
 
   /**
    * If the completion of the stream does not happen until the provided timeout, the stream is failed
-   * with a [[java.util.concurrent.TimeoutException]].
+   * with a [[akka.stream.CompletionTimeoutException]].
    *
    * '''Emits when''' upstream emits an element
    *
@@ -3447,30 +3411,12 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def completionTimeout(timeout: FiniteDuration): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.completionTimeout(timeout))
-
-  /**
-   * If the completion of the stream does not happen until the provided timeout, the stream is failed
-   * with a [[java.util.concurrent.TimeoutException]].
-   *
-   * '''Emits when''' upstream emits an element
-   *
-   * '''Backpressures when''' downstream backpressures
-   *
-   * '''Completes when''' upstream completes or fails if timeout elapses before upstream completes
-   *
-   * '''Cancels when''' downstream cancels
-   */
-  @nowarn("msg=deprecated")
   def completionTimeout(timeout: java.time.Duration): javadsl.Flow[In, Out, Mat] =
-    completionTimeout(timeout.asScala)
+    new Flow(delegate.completionTimeout(timeout.toScala))
 
   /**
    * If the time between two processed elements exceeds the provided timeout, the stream is failed
-   * with a [[java.util.concurrent.TimeoutException]]. The timeout is checked periodically,
+   * with a [[akka.stream.StreamIdleTimeoutException]]. The timeout is checked periodically,
    * so the resolution of the check is one period (equals to timeout value).
    *
    * '''Emits when''' upstream emits an element
@@ -3481,31 +3427,12 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def idleTimeout(timeout: FiniteDuration): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.idleTimeout(timeout))
-
-  /**
-   * If the time between two processed elements exceeds the provided timeout, the stream is failed
-   * with a [[java.util.concurrent.TimeoutException]]. The timeout is checked periodically,
-   * so the resolution of the check is one period (equals to timeout value).
-   *
-   * '''Emits when''' upstream emits an element
-   *
-   * '''Backpressures when''' downstream backpressures
-   *
-   * '''Completes when''' upstream completes or fails if timeout elapses between two emitted elements
-   *
-   * '''Cancels when''' downstream cancels
-   */
-  @nowarn("msg=deprecated")
   def idleTimeout(timeout: java.time.Duration): javadsl.Flow[In, Out, Mat] =
-    idleTimeout(timeout.asScala)
+    new Flow(delegate.idleTimeout(timeout.toScala))
 
   /**
    * If the time between the emission of an element and the following downstream demand exceeds the provided timeout,
-   * the stream is failed with a [[java.util.concurrent.TimeoutException]]. The timeout is checked periodically,
+   * the stream is failed with a [[akka.stream.BackpressureTimeoutException]]. The timeout is checked periodically,
    * so the resolution of the check is one period (equals to timeout value).
    *
    * '''Emits when''' upstream emits an element
@@ -3516,27 +3443,8 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def backpressureTimeout(timeout: FiniteDuration): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.backpressureTimeout(timeout))
-
-  /**
-   * If the time between the emission of an element and the following downstream demand exceeds the provided timeout,
-   * the stream is failed with a [[java.util.concurrent.TimeoutException]]. The timeout is checked periodically,
-   * so the resolution of the check is one period (equals to timeout value).
-   *
-   * '''Emits when''' upstream emits an element
-   *
-   * '''Backpressures when''' downstream backpressures
-   *
-   * '''Completes when''' upstream completes or fails if timeout elapses between element emission and downstream demand.
-   *
-   * '''Cancels when''' downstream cancels
-   */
-  @nowarn("msg=deprecated")
   def backpressureTimeout(timeout: java.time.Duration): javadsl.Flow[In, Out, Mat] =
-    backpressureTimeout(timeout.asScala)
+    new Flow(delegate.backpressureTimeout(timeout.toScala))
 
   /**
    * Injects additional elements if upstream does not emit for a configured amount of time. In other words, this
@@ -3555,31 +3463,8 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def keepAlive(maxIdle: FiniteDuration, injectedElem: function.Creator[Out]): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.keepAlive(maxIdle, () => injectedElem.create()))
-
-  /**
-   * Injects additional elements if upstream does not emit for a configured amount of time. In other words, this
-   * operator attempts to maintains a base rate of emitted elements towards the downstream.
-   *
-   * If the downstream backpressures then no element is injected until downstream demand arrives. Injected elements
-   * do not accumulate during this period.
-   *
-   * Upstream elements are always preferred over injected elements.
-   *
-   * '''Emits when''' upstream emits an element or if the upstream was idle for the configured period
-   *
-   * '''Backpressures when''' downstream backpressures
-   *
-   * '''Completes when''' upstream completes
-   *
-   * '''Cancels when''' downstream cancels
-   */
-  @nowarn("msg=deprecated")
   def keepAlive(maxIdle: java.time.Duration, injectedElem: function.Creator[Out]): javadsl.Flow[In, Out, Mat] =
-    keepAlive(maxIdle.asScala, injectedElem)
+    new Flow(delegate.keepAlive(maxIdle.toScala, injectedElem.create _))
 
   /**
    * Sends elements downstream with speed limited to `elements/per`. In other words, this operator set the maximum rate
@@ -3612,48 +3497,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    */
   def throttle(elements: Int, per: java.time.Duration): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.throttle(elements, per.asScala))
-
-  /**
-   * Sends elements downstream with speed limited to `elements/per`. In other words, this operator set the maximum rate
-   * for emitting messages. This operator works for streams where all elements have the same cost or length.
-   *
-   * Throttle implements the token bucket model. There is a bucket with a given token capacity (burst size or maximumBurst).
-   * Tokens drops into the bucket at a given rate and can be `spared` for later use up to bucket capacity
-   * to allow some burstiness. Whenever stream wants to send an element, it takes as many
-   * tokens from the bucket as element costs. If there isn't any, throttle waits until the
-   * bucket accumulates enough tokens. Elements that costs more than the allowed burst will be delayed proportionally
-   * to their cost minus available tokens, meeting the target rate. Bucket is full when stream just materialized and started.
-   *
-   * Parameter `mode` manages behavior when upstream is faster than throttle rate:
-   *  - [[akka.stream.ThrottleMode.Shaping]] makes pauses before emitting messages to meet throttle rate
-   *  - [[akka.stream.ThrottleMode.Enforcing]] fails with exception when upstream is faster than throttle rate
-   *
-   * It is recommended to use non-zero burst sizes as they improve both performance and throttling precision by allowing
-   * the implementation to avoid using the scheduler when input rates fall below the enforced limit and to reduce
-   * most of the inaccuracy caused by the scheduler resolution (which is in the range of milliseconds).
-   *
-   *  WARNING: Be aware that throttle is using scheduler to slow down the stream. This scheduler has minimal time of triggering
-   *  next push. Consequently it will slow down the stream as it has minimal pause for emitting. This can happen in
-   *  case burst is 0 and speed is higher than 30 events per second. You need to increase the `maximumBurst`  if
-   *  elements arrive with small interval (30 milliseconds or less). Use the overloaded `throttle` method without
-   *  `maximumBurst` parameter to automatically calculate the `maximumBurst` based on the given rate (`cost/per`).
-   *  In other words the throttler always enforces the rate limit when `maximumBurst` parameter is given, but in
-   *  certain cases (mostly due to limited scheduler resolution) it enforces a tighter bound than what was prescribed.
-   *
-   * '''Emits when''' upstream emits an element and configured time per each element elapsed
-   *
-   * '''Backpressures when''' downstream backpressures or the incoming rate is higher than the speed limit
-   *
-   * '''Completes when''' upstream completes
-   *
-   * '''Cancels when''' downstream cancels
-   *
-   */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def throttle(elements: Int, per: FiniteDuration, maximumBurst: Int, mode: ThrottleMode): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.throttle(elements, per, maximumBurst, mode))
+    new Flow(delegate.throttle(elements, per.toScala))
 
   /**
    * Sends elements downstream with speed limited to `elements/per`. In other words, this operator set the maximum rate
@@ -3696,56 +3540,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       per: java.time.Duration,
       maximumBurst: Int,
       mode: ThrottleMode): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.throttle(elements, per.asScala, maximumBurst, mode))
-
-  /**
-   * Sends elements downstream with speed limited to `cost/per`. Cost is
-   * calculating for each element individually by calling `calculateCost` function.
-   * This operator works for streams when elements have different cost(length).
-   * Streams of `ByteString` for example.
-   *
-   * Throttle implements the token bucket model. There is a bucket with a given token capacity (burst size or maximumBurst).
-   * Tokens drops into the bucket at a given rate and can be `spared` for later use up to bucket capacity
-   * to allow some burstiness. Whenever stream wants to send an element, it takes as many
-   * tokens from the bucket as element costs. If there isn't any, throttle waits until the
-   * bucket accumulates enough tokens. Elements that costs more than the allowed burst will be delayed proportionally
-   * to their cost minus available tokens, meeting the target rate. Bucket is full when stream just materialized and started.
-   *
-   * Parameter `mode` manages behavior when upstream is faster than throttle rate:
-   *  - [[akka.stream.ThrottleMode.Shaping]] makes pauses before emitting messages to meet throttle rate
-   *  - [[akka.stream.ThrottleMode.Enforcing]] fails with exception when upstream is faster than throttle rate. Enforcing
-   *  cannot emit elements that cost more than the maximumBurst
-   *
-   * It is recommended to use non-zero burst sizes as they improve both performance and throttling precision by allowing
-   * the implementation to avoid using the scheduler when input rates fall below the enforced limit and to reduce
-   * most of the inaccuracy caused by the scheduler resolution (which is in the range of milliseconds).
-   *
-   *  WARNING: Be aware that throttle is using scheduler to slow down the stream. This scheduler has minimal time of triggering
-   *  next push. Consequently it will slow down the stream as it has minimal pause for emitting. This can happen in
-   *  case burst is 0 and speed is higher than 30 events per second. You need to increase the `maximumBurst`  if
-   *  elements arrive with small interval (30 milliseconds or less). Use the overloaded `throttle` method without
-   *  `maximumBurst` parameter to automatically calculate the `maximumBurst` based on the given rate (`cost/per`).
-   *  In other words the throttler always enforces the rate limit when `maximumBurst` parameter is given, but in
-   *  certain cases (mostly due to limited scheduler resolution) it enforces a tighter bound than what was prescribed.
-   *
-   * '''Emits when''' upstream emits an element and configured time per each element elapsed
-   *
-   * '''Backpressures when''' downstream backpressures or the incoming rate is higher than the speed limit
-   *
-   * '''Completes when''' upstream completes
-   *
-   * '''Cancels when''' downstream cancels
-   *
-   */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def throttle(
-      cost: Int,
-      per: FiniteDuration,
-      maximumBurst: Int,
-      costCalculation: function.Function[Out, Integer],
-      mode: ThrottleMode): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.throttle(cost, per, maximumBurst, costCalculation.apply, mode))
+    new Flow(delegate.throttle(elements, per.toScala, maximumBurst, mode))
 
   /**
    * Sends elements downstream with speed limited to `cost/per`. Cost is
@@ -3783,7 +3578,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       cost: Int,
       per: java.time.Duration,
       costCalculation: function.Function[Out, Integer]): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.throttle(cost, per.asScala, costCalculation.apply))
+    new Flow(delegate.throttle(cost, per.toScala, costCalculation.apply))
 
   /**
    * Sends elements downstream with speed limited to `cost/per`. Cost is
@@ -3830,75 +3625,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       maximumBurst: Int,
       costCalculation: function.Function[Out, Integer],
       mode: ThrottleMode): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.throttle(cost, per.asScala, maximumBurst, costCalculation.apply, mode))
-
-  /**
-   * This is a simplified version of throttle that spreads events evenly across the given time interval.
-   *
-   * Use this operator when you need just slow down a stream without worrying about exact amount
-   * of time between events.
-   *
-   * If you want to be sure that no time interval has no more than specified number of events you need to use
-   * [[throttle]] with maximumBurst attribute.
-   * @see [[#throttle]]
-   */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def throttleEven(elements: Int, per: FiniteDuration, mode: ThrottleMode): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.throttleEven(elements, per, mode))
-
-  /**
-   * This is a simplified version of throttle that spreads events evenly across the given time interval.
-   *
-   * Use this operator when you need just slow down a stream without worrying about exact amount
-   * of time between events.
-   *
-   * If you want to be sure that no time interval has no more than specified number of events you need to use
-   * [[throttle]] with maximumBurst attribute.
-   * @see [[#throttle]]
-   */
-  @Deprecated
-  @deprecated("Use throttle without `maximumBurst` parameter instead.", "2.5.12")
-  def throttleEven(elements: Int, per: java.time.Duration, mode: ThrottleMode): javadsl.Flow[In, Out, Mat] =
-    throttleEven(elements, per.asScala, mode)
-
-  /**
-   * This is a simplified version of throttle that spreads events evenly across the given time interval.
-   *
-   * Use this operator when you need just slow down a stream without worrying about exact amount
-   * of time between events.
-   *
-   * If you want to be sure that no time interval has no more than specified number of events you need to use
-   * [[throttle]] with maximumBurst attribute.
-   * @see [[#throttle]]
-   */
-  @Deprecated
-  @deprecated("Use throttle without `maximumBurst` parameter instead.", "2.5.12")
-  def throttleEven(
-      cost: Int,
-      per: FiniteDuration,
-      costCalculation: function.Function[Out, Integer],
-      mode: ThrottleMode): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.throttleEven(cost, per, costCalculation.apply, mode))
-
-  /**
-   * This is a simplified version of throttle that spreads events evenly across the given time interval.
-   *
-   * Use this operator when you need just slow down a stream without worrying about exact amount
-   * of time between events.
-   *
-   * If you want to be sure that no time interval has no more than specified number of events you need to use
-   * [[throttle]] with maximumBurst attribute.
-   * @see [[#throttle]]
-   */
-  @Deprecated
-  @deprecated("Use throttle without `maximumBurst` parameter instead.", "2.5.12")
-  def throttleEven(
-      cost: Int,
-      per: java.time.Duration,
-      costCalculation: function.Function[Out, Integer],
-      mode: ThrottleMode): javadsl.Flow[In, Out, Mat] =
-    throttleEven(cost, per.asScala, costCalculation, mode)
+    new Flow(delegate.throttle(cost, per.toScala, maximumBurst, costCalculation.apply, mode))
 
   /**
    * Detaches upstream demand from downstream demand without detaching the
@@ -3921,19 +3648,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    * downstream.
    */
   def watchTermination[M]()(matF: function.Function2[Mat, CompletionStage[Done], M]): javadsl.Flow[In, Out, M] =
-    new Flow(delegate.watchTermination()((left, right) => matF(left, right.toJava)))
-
-  /**
-   * Materializes to `FlowMonitor[Out]` that allows monitoring of the current flow. All events are propagated
-   * by the monitor unchanged. Note that the monitor inserts a memory barrier every time it processes an
-   * event, and may therefor affect performance.
-   *
-   * The `combine` function is used to combine the `FlowMonitor` with this flow's materialized value.
-   */
-  @Deprecated
-  @deprecated("Use monitor() or monitorMat(combine) instead", "2.5.17")
-  def monitor[M]()(combine: function.Function2[Mat, FlowMonitor[Out], M]): javadsl.Flow[In, Out, M] =
-    new Flow(delegate.monitorMat(combinerToScala(combine)))
+    new Flow(delegate.watchTermination()((left, right) => matF(left, right.asJava)))
 
   /**
    * Materializes to `FlowMonitor[Out]` that allows monitoring of the current flow. All events are propagated
@@ -3969,25 +3684,8 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    *
    * '''Cancels when''' downstream cancels
    */
-  @Deprecated
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def initialDelay(delay: FiniteDuration): javadsl.Flow[In, Out, Mat] =
-    new Flow(delegate.initialDelay(delay))
-
-  /**
-   * Delays the initial element by the specified duration.
-   *
-   * '''Emits when''' upstream emits an element if the initial delay is already elapsed
-   *
-   * '''Backpressures when''' downstream backpressures or initial delay is not yet elapsed
-   *
-   * '''Completes when''' upstream completes
-   *
-   * '''Cancels when''' downstream cancels
-   */
-  @nowarn("msg=deprecated")
   def initialDelay(delay: java.time.Duration): javadsl.Flow[In, Out, Mat] =
-    initialDelay(delay.asScala)
+    new Flow(delegate.initialDelay(delay.toScala))
 
   /**
    * Replace the attributes of this [[Flow]] with the given ones. If this Flow is a composite
@@ -4267,7 +3965,7 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
         aggregate = (agg, out) => aggregate.apply(agg, out).toScala,
         harvest = agg => harvest.apply(agg),
         emitOnTimer = Option(emitOnTimer).map {
-          case Pair(predicate, duration) => (agg => predicate.test(agg), duration.asScala)
+          case Pair(predicate, duration) => (agg => predicate.test(agg), duration.toScala)
         })
       .asJava
 

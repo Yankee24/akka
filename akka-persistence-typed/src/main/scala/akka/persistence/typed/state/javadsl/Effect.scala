@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.javadsl
@@ -9,8 +9,8 @@ import akka.annotation.ApiMayChange
 import akka.annotation.DoNotInherit
 import akka.annotation.InternalApi
 import akka.japi.function
-import akka.persistence.typed.state.internal.SideEffect
 import akka.persistence.typed.state.internal._
+import akka.persistence.typed.state.internal.SideEffect
 
 /**
  * INTERNAL API: see `class EffectFactories`
@@ -34,7 +34,12 @@ import akka.persistence.typed.state.internal._
    */
   final def persist(state: State): EffectBuilder[State] = Persist(state)
 
-  // FIXME add delete effect
+  /**
+   * Delete the persisted state.
+   *
+   * Side effects can be chained with `thenRun`.
+   */
+  def delete(): EffectBuilder[State] = Delete().asInstanceOf[EffectBuilder[State]]
 
   /**
    * Do not persist anything
@@ -204,4 +209,7 @@ import akka.persistence.typed.state.internal._
    * by another `unstashAll`.
    */
   def thenUnstashAll(): ReplyEffect[State]
+
+  /** Stops the actor as a side effect */
+  def thenStop(): ReplyEffect[State]
 }

@@ -4,9 +4,9 @@ project.description: Upgrade strategy for downstream libraries
 # Downstream upgrade strategy
 
 When a new Akka version is released, downstream projects (such as
-[Akka Management](https://doc.akka.io/docs/akka-management/current/),
-[Akka HTTP](https://doc.akka.io/docs/akka-http/current/) and
-[Akka gRPC](https://doc.akka.io/docs/akka-grpc/current/))
+@extref:[Akka Management](akka-management:),
+[Akka HTTP](https://doc.akka.io/libraries/akka-http/current/) and
+[Akka gRPC](https://doc.akka.io/libraries/akka-grpc/current/))
 do not need to update immediately: because of our
 @ref[binary compatibility](../common/binary-compatibility-rules.md) approach,
 applications can take advantage of the latest version of Akka without having to

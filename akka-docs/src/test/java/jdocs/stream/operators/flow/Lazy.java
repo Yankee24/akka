@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream.operators.flow;
@@ -11,7 +11,6 @@ import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.RunnableGraph;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

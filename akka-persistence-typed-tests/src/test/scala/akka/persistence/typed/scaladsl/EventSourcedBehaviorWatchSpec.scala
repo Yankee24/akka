@@ -1,8 +1,13 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+
+import java.util.concurrent.atomic.AtomicInteger
+
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.slf4j.LoggerFactory
 
 import akka.actor.testkit.typed.TestException
 import akka.actor.testkit.typed.scaladsl.LogCapturing
@@ -12,22 +17,17 @@ import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.Behaviors
-import akka.persistence.typed.internal.EventSourcedBehaviorImpl.WriterIdentity
+import akka.persistence.typed.NoOpEventAdapter
+import akka.persistence.typed.PersistenceId
+import akka.persistence.typed.RecoveryCompleted
 import akka.persistence.typed.internal.BehaviorSetup
+import akka.persistence.typed.internal.EventSourcedBehaviorImpl.WriterIdentity
 import akka.persistence.typed.internal.EventSourcedSettings
 import akka.persistence.typed.internal.InternalProtocol
 import akka.persistence.typed.internal.NoOpSnapshotAdapter
 import akka.persistence.typed.internal.StashState
-import akka.persistence.typed.NoOpEventAdapter
-import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.RecoveryCompleted
-import akka.persistence.{ Recovery => ClassicRecovery }
+import akka.persistence.typed.telemetry.EmptyEventSourcedBehaviorInstrumentation
 import akka.serialization.jackson.CborSerializable
-import akka.util.ConstantFun
-import org.scalatest.wordspec.AnyWordSpecLike
-import org.slf4j.LoggerFactory
-
-import java.util.concurrent.atomic.AtomicInteger
 
 object EventSourcedBehaviorWatchSpec {
   sealed trait Command extends CborSerializable
@@ -64,18 +64,22 @@ class EventSourcedBehaviorWatchSpec
       eventHandler = (state, evt) => state + evt,
       WriterIdentity.newIdentity(),
       pf,
-      _ => Set.empty[String],
+      (_, _) => Set.empty[String],
       NoOpEventAdapter.instance[String],
       NoOpSnapshotAdapter.instance[String],
-      snapshotWhen = ConstantFun.scalaAnyThreeToFalse,
-      ClassicRecovery(),
+      snapshotWhen = SnapshotWhenPredicate.noSnapshot,
+      Recovery.default,
       RetentionCriteria.disabled,
       holdingRecoveryPermit = false,
       settings = settings,
       stashState = new StashState(context.asInstanceOf[ActorContext[InternalProtocol]], settings),
       replication = None,
       publishEvents = false,
-      internalLoggerFactory = () => logger)
+      internalLoggerFactory = () => logger,
+      retentionInProgress = false,
+      EmptyEventSourcedBehaviorInstrumentation,
+      None,
+      None)
 
   "A typed persistent parent actor watching a child" must {
 

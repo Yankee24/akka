@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
 
+import scala.annotation.nowarn
 import scala.concurrent.duration._
 
 import com.typesafe.config.ConfigFactory
@@ -14,9 +15,7 @@ import akka.cluster.sharding.ShardRegion.{ CurrentRegions, GetCurrentRegions }
 import akka.remote.testconductor.RoleName
 import akka.serialization.jackson.CborSerializable
 import akka.testkit._
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 object MultiDcClusterShardingSpec {
   sealed trait EntityMsg extends CborSerializable {
     def id: String
@@ -48,13 +47,12 @@ object MultiDcClusterShardingSpec {
 object MultiDcClusterShardingSpecConfig
     extends MultiNodeClusterShardingConfig(
       loglevel = "DEBUG", //issue #23741
-      additionalConfig = s"""
+      additionalConfig = """
     akka.cluster {
       debug.verbose-heartbeat-logging = on
       debug.verbose-gossip-logging = on
       sharding.retry-interval = 200ms
     }
-    akka.remote.log-remote-lifecycle-events = on
     """) {
 
   val first = role("first")
@@ -76,6 +74,7 @@ class MultiDcClusterShardingSpecMultiJvmNode2 extends MultiDcClusterShardingSpec
 class MultiDcClusterShardingSpecMultiJvmNode3 extends MultiDcClusterShardingSpec
 class MultiDcClusterShardingSpecMultiJvmNode4 extends MultiDcClusterShardingSpec
 
+@nowarn("msg=Use Akka Distributed Cluster")
 abstract class MultiDcClusterShardingSpec
     extends MultiNodeClusterShardingSpec(MultiDcClusterShardingSpecConfig)
     with ImplicitSender {

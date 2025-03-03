@@ -1,8 +1,12 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.javadsl;
+
+import static akka.Done.done;
+import static akka.stream.testkit.StreamTestKit.PublisherProbeSubscription;
+import static org.junit.Assert.*;
 
 import akka.Done;
 import akka.NotUsed;
@@ -12,34 +16,29 @@ import akka.japi.Pair;
 import akka.japi.function.*;
 import akka.japi.pf.PFBuilder;
 import akka.stream.*;
-import akka.stream.scaladsl.FlowSpec;
-import akka.stream.testkit.javadsl.TestSink;
-import akka.util.ConstantFun;
 import akka.stream.javadsl.GraphDSL.Builder;
+import akka.stream.scaladsl.FlowSpec;
 import akka.stream.stage.*;
-import akka.testkit.AkkaSpec;
 import akka.stream.testkit.TestPublisher;
-import akka.testkit.javadsl.TestKit;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.reactivestreams.Publisher;
+import akka.stream.testkit.javadsl.TestSink;
 import akka.testkit.AkkaJUnitActorSystemResource;
-
+import akka.testkit.AkkaSpec;
+import akka.testkit.javadsl.TestKit;
+import akka.util.ConstantFun;
+import java.time.Duration;
 import java.util.*;
-import java.util.function.Supplier;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.time.Duration;
-
-import static akka.Done.done;
-import static akka.stream.testkit.StreamTestKit.PublisherProbeSubscription;
-import static org.junit.Assert.*;
+import org.junit.Assert;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.reactivestreams.Publisher;
 
 @SuppressWarnings("serial")
 public class FlowTest extends StreamTest {
@@ -112,6 +111,20 @@ public class FlowTest extends StreamTest {
   }
 
   @Test
+  public void mustBeAbleToUseContraMap() {
+    final Source<String, NotUsed> source = Source.from(Arrays.asList("1", "2", "3"));
+    final Flow<Integer, String, NotUsed> flow = Flow.fromFunction(String::valueOf);
+    source
+        .via(flow.contramap(Integer::valueOf))
+        .runWith(TestSink.create(system), system)
+        .request(3)
+        .expectNext("1")
+        .expectNext("2")
+        .expectNext("3")
+        .expectComplete();
+  }
+
+  @Test
   public void mustBeAbleToUseDropWhile() throws Exception {
     final TestKit probe = new TestKit(system);
     final Source<Integer, NotUsed> source = Source.from(Arrays.asList(0, 1, 2, 3));
@@ -177,6 +190,23 @@ public class FlowTest extends StreamTest {
     final CompletionStage<String> grouped =
         source.via(flow).runFold("", (acc, elem) -> acc + elem, system);
     Assert.assertEquals("[1, 2][3, 4][5]", grouped.toCompletableFuture().get(3, TimeUnit.SECONDS));
+  }
+
+  @Test
+  public void mustBeAbleToUseMapWithResource() {
+    Source.from(Arrays.asList("1", "2", "3"))
+        .via(
+            Flow.of(String.class)
+                .mapWithResource(
+                    () -> "resource",
+                    (resource, elem) -> elem,
+                    (resource) -> {
+                      return Optional.of("end");
+                    }))
+        .runWith(TestSink.create(system), system)
+        .request(4)
+        .expectNext("1", "2", "3", "end")
+        .expectComplete();
   }
 
   @Test
@@ -1106,7 +1136,7 @@ public class FlowTest extends StreamTest {
 
     source
         .via(flow)
-        .runWith(TestSink.probe(system), system)
+        .runWith(TestSink.create(system), system)
         .request(2)
         .expectNext(head)
         .expectError(boom);
@@ -1293,10 +1323,9 @@ public class FlowTest extends StreamTest {
                     .runWith(Sink.head(), system)
                     .toCompletableFuture()
                     .get(3, TimeUnit.SECONDS));
-    assertEquals(
+    assertTrue(
         "A TimeoutException was expected",
-        TimeoutException.class,
-        executionException.getCause().getClass());
+        TimeoutException.class.isAssignableFrom(executionException.getCause().getClass()));
   }
 
   @Test
@@ -1310,10 +1339,9 @@ public class FlowTest extends StreamTest {
                     .runWith(Sink.head(), system)
                     .toCompletableFuture()
                     .get(3, TimeUnit.SECONDS));
-    assertEquals(
+    assertTrue(
         "A TimeoutException was expected",
-        TimeoutException.class,
-        executionException.getCause().getClass());
+        TimeoutException.class.isAssignableFrom(executionException.getCause().getClass()));
   }
 
   @Test
@@ -1327,10 +1355,9 @@ public class FlowTest extends StreamTest {
                     .runWith(Sink.head(), system)
                     .toCompletableFuture()
                     .get(3, TimeUnit.SECONDS));
-    assertEquals(
+    assertTrue(
         "A TimeoutException was expected",
-        TimeoutException.class,
-        executionException.getCause().getClass());
+        TimeoutException.class.isAssignableFrom(executionException.getCause().getClass()));
   }
 
   @Test

@@ -1,17 +1,18 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.receptionist
 
+import akka.actor.typed.scaladsl.AskPattern._
+import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.ActorRef
+import akka.actor.typed.ActorSystem
+import akka.util.Timeout
+
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Success
-
-import akka.actor.typed.{ ActorRef, ActorSystem }
-import akka.actor.typed.scaladsl.AskPattern._
-import akka.actor.typed.scaladsl.Behaviors
-import akka.util.Timeout
 
 object ReceptionistApiSpec {
 
@@ -72,8 +73,8 @@ object ReceptionistApiSpec {
         case key.Listing(services) =>
           services.foreach(_ ! "woho")
           Behaviors.same
-        case key.Registered(service) => // ack on Register above
-          service ! "woho"
+        case key.Registered(service2) => // ack on Register above
+          service2 ! "woho"
           Behaviors.same
       }
 

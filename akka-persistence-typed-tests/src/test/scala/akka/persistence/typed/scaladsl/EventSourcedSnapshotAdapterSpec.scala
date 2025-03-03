@@ -1,8 +1,12 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+
+import java.util.concurrent.atomic.AtomicInteger
+
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -15,9 +19,6 @@ import akka.persistence.testkit.query.scaladsl.PersistenceTestKitReadJournal
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.SnapshotAdapter
 import akka.serialization.jackson.CborSerializable
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import java.util.concurrent.atomic.AtomicInteger
 
 object EventSourcedSnapshotAdapterSpec {
 
@@ -33,10 +34,11 @@ class EventSourcedSnapshotAdapterSpec
     with AnyWordSpecLike
     with LogCapturing {
   import EventSourcedSnapshotAdapterSpec._
+
   import akka.actor.typed.scaladsl.adapter._
 
   val pidCounter = new AtomicInteger(0)
-  private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()})")
+  private def nextPid(): PersistenceId = PersistenceId.ofUniqueId(s"c${pidCounter.incrementAndGet()}")
 
   val queries: PersistenceTestKitReadJournal =
     PersistenceQuery(system.toClassic)

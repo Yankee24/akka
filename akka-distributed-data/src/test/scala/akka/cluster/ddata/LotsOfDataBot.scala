@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata
@@ -32,7 +32,7 @@ object LotsOfDataBot {
     ports.foreach { port =>
       // Override the configuration of the port
       val config = ConfigFactory
-        .parseString("akka.remote.classic.netty.tcp.port=" + port)
+        .parseString("akka.remote.artery.canonical.port=" + port)
         .withFallback(
           ConfigFactory.load(ConfigFactory.parseString("""
             passive = off

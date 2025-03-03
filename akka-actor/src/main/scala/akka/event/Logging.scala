@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.event
@@ -8,12 +8,11 @@ import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.annotation.implicitNotFound
+import scala.annotation.nowarn
 import scala.collection.immutable
 import scala.concurrent.Await
 import scala.language.existentials
 import scala.util.control.{ NoStackTrace, NonFatal }
-
-import scala.annotation.nowarn
 
 import akka.{ AkkaException, ConfigurationException }
 import akka.actor._
@@ -23,7 +22,6 @@ import akka.dispatch.RequiresMessageQueue
 import akka.event.Logging._
 import akka.util.{ Helpers, ReentrantGuard }
 import akka.util.Timeout
-import akka.util.unused
 
 /**
  * This trait brings log level handling to the EventStream: it reads the log
@@ -268,7 +266,7 @@ trait LoggingBus extends ActorEventBus {
   "Cannot find LogSource for ${T} please see ScalaDoc for LogSource for how to obtain or construct one.") trait LogSource[
     -T] {
   def genString(t: T): String
-  def genString(t: T, @unused system: ActorSystem): String = genString(t)
+  def genString(t: T, @nowarn("msg=never used") system: ActorSystem): String = genString(t)
   def getClazz(t: T): Class[_] = t.getClass
 }
 
@@ -464,7 +462,7 @@ object Logging {
   /**
    * INTERNAL API
    */
-  private[akka] class LogExt(@unused system: ExtendedActorSystem) extends Extension {
+  private[akka] class LogExt(@nowarn("msg=never used") system: ExtendedActorSystem) extends Extension {
     private val loggerId = new AtomicInteger
     def id() = loggerId.incrementAndGet()
   }
@@ -752,7 +750,7 @@ object Logging {
      * Java API: Retrieve the contents of the MDC.
      */
     def getMDC: java.util.Map[String, Any] = {
-      import akka.util.ccompat.JavaConverters._
+      import scala.jdk.CollectionConverters._
       mdc.asJava
     }
   }
@@ -1199,7 +1197,8 @@ trait LoggingAdapter {
   protected def notifyError(message: String): Unit
   protected def notifyError(cause: Throwable, message: String): Unit
   protected def notifyWarning(message: String): Unit
-  protected def notifyWarning(@unused cause: Throwable, message: String): Unit = notifyWarning(message)
+  protected def notifyWarning(@nowarn("msg=never used") cause: Throwable, message: String): Unit =
+    notifyWarning(message)
   protected def notifyInfo(message: String): Unit
   protected def notifyDebug(message: String): Unit
 
@@ -1615,7 +1614,8 @@ trait DiagnosticLoggingAdapter extends LoggingAdapter {
 
   import Logging._
 
-  import akka.util.ccompat.JavaConverters._
+  import scala.jdk.CollectionConverters._
+  //import scala.jdk.CollectionConverters._
 
   private var _mdc = emptyMDC
 
@@ -1680,7 +1680,7 @@ class LogMarker(val name: String, val properties: Map[String, Any]) {
 
   /** Java API */
   def getProperties: java.util.Map[String, Object] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     properties.map { case (k, v) => (k, v.asInstanceOf[AnyRef]) }.asJava
   }
 
@@ -1701,17 +1701,9 @@ object LogMarker {
 
   /** Java API */
   def create(name: String, properties: java.util.Map[String, Any]): LogMarker = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     apply(name, properties.asScala.toMap)
   }
-
-  @Deprecated
-  @deprecated("use akka.event.LogEventWithMarker#marker instead", since = "2.5.12")
-  def extractFromMDC(mdc: MDC): Option[String] =
-    mdc.get(MDCKey) match {
-      case Some(v) => Some(v.toString)
-      case None    => None
-    }
 
   private[akka] final val Security = apply("SECURITY")
 

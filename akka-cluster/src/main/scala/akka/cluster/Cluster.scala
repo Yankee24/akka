@@ -1,20 +1,25 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
 import java.io.Closeable
+import java.util.concurrent.CompletionStage
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicBoolean
 
+import scala.annotation.nowarn
 import scala.annotation.varargs
 import scala.collection.immutable
 import scala.concurrent.{ Await, ExecutionContext }
+import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.Failure
+import scala.util.Success
 import scala.util.control.NonFatal
+import scala.jdk.CollectionConverters._
 
-import scala.annotation.nowarn
 import com.typesafe.config.{ Config, ConfigFactory }
 
 import akka.ConfigurationException
@@ -29,6 +34,7 @@ import akka.event.MarkerLoggingAdapter
 import akka.japi.Util
 import akka.pattern._
 import akka.remote.{ UniqueAddress => _, _ }
+import akka.util.Version
 
 /**
  * Cluster Extension Id and factory for creating Cluster extension.
@@ -78,7 +84,7 @@ class Cluster(val system: ExtendedActorSystem) extends Extension {
    */
   val selfUniqueAddress: UniqueAddress = system.provider match {
     case c: ClusterActorRefProvider =>
-      UniqueAddress(c.transport.defaultAddress, AddressUidExtension(system).longAddressUid)
+      UniqueAddress(c.transport.defaultAddress, system.uid)
     case other =>
       throw new ConfigurationException(
         s"ActorSystem [${system}] needs to have 'akka.actor.provider' set to 'cluster' in the configuration, currently uses [${other.getClass.getName}]")
@@ -90,6 +96,7 @@ class Cluster(val system: ExtendedActorSystem) extends Extension {
   def selfAddress: Address = selfUniqueAddress.address
 
   /** Data center to which this node belongs to (defaults to "default" if not configured explicitly) */
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def selfDataCenter: DataCenter = settings.SelfDataCenter
 
   /**
@@ -100,9 +107,7 @@ class Cluster(val system: ExtendedActorSystem) extends Extension {
   /**
    * Java API: roles that this member has
    */
-  @nowarn("msg=deprecated")
-  def getSelfRoles: java.util.Set[String] =
-    scala.collection.JavaConverters.setAsJavaSetConverter(selfRoles).asJava
+  def getSelfRoles: java.util.Set[String] = selfRoles.asJava
 
   private val _isTerminated = new AtomicBoolean(false)
   private val log = Logging.withMarker(system, ClusterLogClass.ClusterCore)
@@ -140,7 +145,7 @@ class Cluster(val system: ExtendedActorSystem) extends Extension {
           "auto-down-unreachable-after") != "off"))
       logWarning(
         "auto-down has been removed in Akka 2.6.0. See " +
-        "https://doc.akka.io/docs/akka/2.6/typed/cluster.html#downing for alternatives.")
+        "https://doc.akka.io/libraries/akka-core/current/typed/cluster.html#downing for alternatives.")
   }
 
   // ========================================================
@@ -194,7 +199,7 @@ class Cluster(val system: ExtendedActorSystem) extends Extension {
   // create supervisor for daemons under path "/system/cluster"
   private val clusterDaemons: ActorRef = {
     system.systemActorOf(
-      Props(classOf[ClusterDaemon], joinConfigCompatChecker).withDispatcher(UseDispatcher).withDeploy(Deploy.local),
+      Props(new ClusterDaemon(joinConfigCompatChecker)).withDispatcher(UseDispatcher).withDeploy(Deploy.local),
       name = "cluster")
   }
 
@@ -358,6 +363,37 @@ class Cluster(val system: ExtendedActorSystem) extends Extension {
    */
   def joinSeedNodes(seedNodes: java.util.List[Address]): Unit =
     joinSeedNodes(Util.immutableSeq(seedNodes))
+
+  /**
+   * Scala API: If the `appVersion` is read from an external system (e.g. Kubernetes) it can be defined after
+   * system startup but before joining by completing the `appVersion` `Future`. In that case, `setAppVersionLater`
+   * should be called before calling `join` or `joinSeedNodes`. It's fine to call `join` or `joinSeedNodes`
+   * immediately afterwards (before the `Future` is completed. The join will then wait for the `appVersion`
+   * to be completed.
+   */
+  def setAppVersionLater(appVersion: Future[Version]): Unit = {
+    clusterCore ! ClusterUserAction.SetAppVersionLater
+    import system.dispatcher
+    appVersion.onComplete {
+      case Success(version) =>
+        clusterCore ! ClusterUserAction.SetAppVersion(version)
+      case Failure(exc) =>
+        logWarning("Later appVersion failed. Fallback to configured appVersion [{}]. {}", settings.AppVersion, exc)
+        clusterCore ! ClusterUserAction.SetAppVersion(settings.AppVersion)
+    }
+  }
+
+  /**
+   * Java API: If the `appVersion` is read from an external system (e.g. Kubernetes) it can be defined after
+   * system startup but before joining by completing the `appVersion` `CompletionStage`. In that case,
+   * `setAppVersionLater` should be called before calling `join` or `joinSeedNodes`. It's fine to call
+   * `join` or `joinSeedNodes` immediately afterwards (before the `CompletionStage` is completed. The join will
+   * then wait for the `appVersion` to be completed.
+   */
+  def setAppVersionLater(appVersion: CompletionStage[Version]): Unit = {
+    import scala.jdk.FutureConverters._
+    setAppVersionLater(appVersion.asScala)
+  }
 
   /**
    * Send command to issue state transition to LEAVING for the node specified by 'address'.

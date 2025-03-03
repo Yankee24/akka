@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.event.slf4j
+
+import scala.annotation.nowarn
 
 import org.slf4j.{ MDC, Marker, MarkerFactory, Logger => SLFLogger, LoggerFactory => SLFLoggerFactory }
 
@@ -10,7 +12,7 @@ import akka.actor._
 import akka.dispatch.RequiresMessageQueue
 import akka.event.{ LogMarker, _ }
 import akka.event.Logging._
-import akka.util.{ unused, Helpers }
+import akka.util.Helpers
 
 /**
  * Base trait for all classes that wants to be able use the SLF4J logging infrastructure.
@@ -63,7 +65,15 @@ class Slf4jLogger extends Actor with SLF4JLogging with RequiresMessageQueue[Logg
   val mdcAkkaUidAttributeName = "akkaUid"
 
   private def akkaAddress = context.system.asInstanceOf[ExtendedActorSystem].provider.addressString
-  private val akkaUid: String = context.system.asInstanceOf[ExtendedActorSystem].uid.toString
+  private def akkaUid: String = {
+    try {
+      context.system.asInstanceOf[ExtendedActorSystem].uid.toString
+    } catch {
+      case _: IllegalStateException =>
+        // when logging before generating the uid (transport binding when remoting is enabled)
+        ""
+    }
+  }
 
   def receive = {
 
@@ -124,7 +134,9 @@ class Slf4jLogger extends Actor with SLF4JLogging with RequiresMessageQueue[Logg
     MDC.put(mdcAkkaTimestamp, formatTimestamp(logEvent.timestamp))
     MDC.put(mdcActorSystemAttributeName, context.system.name)
     MDC.put(mdcAkkaAddressAttributeName, akkaAddress)
-    MDC.put(mdcAkkaUidAttributeName, akkaUid)
+    val uid = akkaUid
+    if (uid != "")
+      MDC.put(mdcAkkaUidAttributeName, uid)
     logEvent.mdc.foreach { case (k, v) => MDC.put(k, String.valueOf(v)) }
 
     try logStatement
@@ -159,7 +171,7 @@ class Slf4jLogger extends Actor with SLF4JLogging with RequiresMessageQueue[Logg
  * backend configuration (e.g. logback.xml) to filter log events before publishing
  * the log events to the `eventStream`.
  */
-class Slf4jLoggingFilter(@unused settings: ActorSystem.Settings, eventStream: EventStream)
+class Slf4jLoggingFilter(@nowarn("msg=never used") settings: ActorSystem.Settings, eventStream: EventStream)
     extends LoggingFilterWithMarker {
   def isErrorEnabled(logClass: Class[_], logSource: String) =
     (eventStream.logLevel >= ErrorLevel) && Logger(logClass, logSource).isErrorEnabled

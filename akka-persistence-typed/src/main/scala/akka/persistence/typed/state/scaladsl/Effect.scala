@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.scaladsl
@@ -7,8 +7,8 @@ package akka.persistence.typed.state.scaladsl
 import akka.actor.typed.ActorRef
 import akka.annotation.ApiMayChange
 import akka.annotation.DoNotInherit
-import akka.persistence.typed.state.internal.SideEffect
 import akka.persistence.typed.state.internal._
+import akka.persistence.typed.state.internal.SideEffect
 
 /**
  * Factory methods for creating [[Effect]] directives - how a `DurableStateBehavior` reacts on a command.
@@ -185,4 +185,7 @@ trait EffectBuilder[+State] extends Effect[State] {
    * by another `unstashAll`.
    */
   def thenUnstashAll(): ReplyEffect[State]
+
+  /** Stops the actor as a side effect */
+  def thenStop(): ReplyEffect[State]
 }

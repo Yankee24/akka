@@ -1,24 +1,23 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.akka.typed;
+
+import static jdocs.akka.typed.StashDocSample.DB;
+import static jdocs.akka.typed.StashDocSample.DataAccess;
 
 import akka.Done;
 import akka.actor.testkit.typed.javadsl.LogCapturing;
 import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.scalatestplus.junit.JUnitSuite;
-
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-
-import static jdocs.akka.typed.StashDocSample.DB;
-import static jdocs.akka.typed.StashDocSample.DataAccess;
 
 public class StashDocTest extends JUnitSuite {
 

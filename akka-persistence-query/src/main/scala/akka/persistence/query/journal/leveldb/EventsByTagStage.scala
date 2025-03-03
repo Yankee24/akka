@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.query.journal.leveldb
 
 import scala.concurrent.duration.FiniteDuration
+
 import akka.actor.ActorRef
 import akka.annotation.InternalApi
 import akka.persistence.JournalProtocol.RecoverySuccess

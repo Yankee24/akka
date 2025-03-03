@@ -1,17 +1,17 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.internal.routing
+
+import java.util.function
+import java.util.function.Predicate
 
 import akka.actor.typed._
 import akka.actor.typed.javadsl.PoolRouter
 import akka.actor.typed.scaladsl.{ AbstractBehavior, ActorContext, Behaviors }
 import akka.annotation.InternalApi
 import akka.util.ConstantFun
-
-import java.util.function
-import java.util.function.Predicate
 
 /**
  * INTERNAL API
@@ -86,7 +86,7 @@ private final class PoolRouterImpl[T](
 
   def onMessage(msg: T): Behavior[T] = {
     if ((broadcastPredicate ne ConstantFun.anyToFalse) && broadcastPredicate(msg)) {
-      ctx.children.foreach(_.unsafeUpcast ! msg)
+      ctx.children.foreach(_.unsafeUpcast[Any] ! msg)
     } else {
       logic.selectRoutee(msg) ! msg
     }

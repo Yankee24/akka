@@ -4,6 +4,14 @@
 
 ## Dependency
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Classic Akka Actors, you must add the following dependency in your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -31,7 +39,6 @@ To use Classic Akka Actors, you must add the following dependency in your projec
 * [routing](routing.md)
 * [fsm](fsm.md)
 * [persistence](persistence.md)
-* [persistence-fsm](persistence-fsm.md)
 * [testing](testing.md)
 
 @@@

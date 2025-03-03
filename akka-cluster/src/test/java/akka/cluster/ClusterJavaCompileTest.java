@@ -1,12 +1,11 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster;
 
 import akka.actor.ActorSystem;
 import akka.actor.Address;
-
 import java.util.Collections;
 import java.util.List;
 

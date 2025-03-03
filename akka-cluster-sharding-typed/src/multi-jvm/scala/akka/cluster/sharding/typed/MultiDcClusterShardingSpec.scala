@@ -1,12 +1,15 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
+import scala.annotation.nowarn
 import scala.concurrent.duration._
+
 import com.typesafe.config.ConfigFactory
 import org.scalatest.concurrent.ScalaFutures
+
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
 import akka.cluster.MultiNodeClusterSpec
@@ -48,6 +51,7 @@ class MultiDcClusterShardingMultiJvmNode2 extends MultiDcClusterShardingSpec
 class MultiDcClusterShardingMultiJvmNode3 extends MultiDcClusterShardingSpec
 class MultiDcClusterShardingMultiJvmNode4 extends MultiDcClusterShardingSpec
 
+@nowarn("msg=Use Akka Distributed Cluster")
 abstract class MultiDcClusterShardingSpec
     extends MultiNodeSpec(MultiDcClusterShardingSpecConfig)
     with MultiNodeTypedClusterSpec

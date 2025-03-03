@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.testkit
@@ -11,17 +11,17 @@ import java.util.concurrent.CountDownLatch
 import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
 import scala.reflect.ClassTag
 
-import akka.actor.ClassicActorSystemProvider
 import org.reactivestreams.{ Publisher, Subscriber, Subscription }
+
 import akka.actor.{ ActorRef, ActorSystem, DeadLetterSuppression, NoSerializationVerificationNeeded }
+import akka.actor.ClassicActorSystemProvider
 import akka.stream._
 import akka.stream.impl._
 import akka.testkit.{ TestActor, TestProbe }
 import akka.testkit.TestActor.AutoPilot
-import akka.util.JavaDurationConverters
-import akka.util.ccompat._
 
 /**
  * Provides factory methods for various Publishers.
@@ -94,7 +94,6 @@ object TestPublisher {
 
     type Self <: ManualProbe[I]
 
-    @ccompatUsedUntil213
     private val probe: TestProbe = TestProbe()
 
     //this is a way to pause receiving message from probe until subscription is done
@@ -138,26 +137,6 @@ object TestPublisher {
      */
     def expectRequest(subscription: Subscription, n: Int): Self = executeAfterSubscription {
       probe.expectMsg(RequestMore(subscription, n))
-      self
-    }
-
-    /**
-     * Expect no messages.
-     * NOTE! Timeout value is automatically multiplied by timeFactor.
-     */
-    @deprecated(message = "Use expectNoMessage instead", since = "2.5.5")
-    def expectNoMsg(): Self = executeAfterSubscription {
-      probe.expectNoMsg()
-      self
-    }
-
-    /**
-     * Expect no messages for a given duration.
-     * NOTE! Timeout value is automatically multiplied by timeFactor.
-     */
-    @deprecated(message = "Use expectNoMessage instead", since = "2.5.5")
-    def expectNoMsg(max: FiniteDuration): Self = executeAfterSubscription {
-      probe.expectNoMsg(max)
       self
     }
 
@@ -636,30 +615,6 @@ object TestSubscriber {
     /**
      * Fluent DSL
      *
-     * Same as `expectNoMsg(remaining)`, but correctly treating the timeFactor.
-     * NOTE! Timeout value is automatically multiplied by timeFactor.
-     */
-    @deprecated(message = "Use expectNoMessage instead", since = "2.5.5")
-    def expectNoMsg(): Self = {
-      probe.expectNoMsg()
-      self
-    }
-
-    /**
-     * Fluent DSL
-     *
-     * Assert that no message is received for the specified time.
-     * NOTE! Timeout value is automatically multiplied by timeFactor.
-     */
-    @deprecated(message = "Use expectNoMessage instead", since = "2.5.5")
-    def expectNoMsg(remaining: FiniteDuration): Self = {
-      probe.expectNoMsg(remaining)
-      self
-    }
-
-    /**
-     * Fluent DSL
-     *
      * Assert that no message is received for the specified time.
      */
     def expectNoMessage(remaining: FiniteDuration): Self = {
@@ -683,8 +638,7 @@ object TestSubscriber {
      * Java API: Assert that no message is received for the specified time.
      */
     def expectNoMessage(remaining: java.time.Duration): Self = {
-      import JavaDurationConverters._
-      probe.expectNoMessage(remaining.asScala)
+      probe.expectNoMessage(remaining.toScala)
       self
     }
 

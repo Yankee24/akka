@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -15,7 +15,7 @@ object MultiDcLastNodeSpec extends MultiNodeConfig {
   val second = role("second")
   val third = role("third")
 
-  commonConfig(ConfigFactory.parseString(s"""
+  commonConfig(ConfigFactory.parseString("""
       akka.loglevel = INFO
     """).withFallback(MultiNodeClusterSpec.clusterConfig))
 

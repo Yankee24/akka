@@ -1,8 +1,17 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+
+import scala.collection.immutable
+import scala.concurrent.Future
+import scala.concurrent.duration._
+import scala.util.Try
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.testkit.typed.TestException
 import akka.actor.testkit.typed.TestKitSettings
@@ -17,18 +26,12 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.persistence.AtomicWrite
 import akka.persistence.journal.inmem.InmemJournal
 import akka.persistence.typed.EventRejectedException
+import akka.persistence.typed.PersistFailed
+import akka.persistence.typed.PersistRejected
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.RecoveryCompleted
 import akka.persistence.typed.RecoveryFailed
 import akka.persistence.typed.internal.JournalFailureException
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import scala.collection.immutable
-import scala.concurrent.Future
-import scala.concurrent.duration._
-import scala.util.Try
 
 class ChaosJournal extends InmemJournal {
   var counts = Map.empty[String, Int]
@@ -41,6 +44,8 @@ class ChaosJournal extends InmemJournal {
     if (pid == "fail-first-2" && counts(pid) <= 2) {
       Future.failed(TestException("database says no"))
     } else if (pid.startsWith("fail-fifth") && counts(pid) == 5) {
+      Future.failed(TestException("database says no"))
+    } else if (pid.startsWith("fail-persist")) {
       Future.failed(TestException("database says no"))
     } else if (pid == "reject-first" && reject) {
       reject = false
@@ -189,6 +194,36 @@ class EventSourcedBehaviorFailureSpec
       }
     }
 
+    "stop when persist fails" in {
+      val probe = TestProbe[String]()
+      val behav = failingPersistentActor(PersistenceId.ofUniqueId("fail-persist-1"), probe.ref)
+      val c = spawn(behav)
+      probe.expectMessage("starting")
+      // fail
+      c ! "one"
+      probe.expectMessage("persisting")
+      probe.expectMessage("one")
+      probe.expectMessage("stopped")
+      // no restart
+      probe.expectNoMessage()
+    }
+
+    "signal PersistFailure when persist fails" in {
+      val probe = TestProbe[String]()
+      val behav = failingPersistentActor(PersistenceId.ofUniqueId("fail-persist-2"), probe.ref, {
+        case (_, PersistFailed(_, cmd)) =>
+          probe.ref.tell(s"failed ${cmd.get}")
+      })
+      val c = spawn(behav)
+      probe.expectMessage("starting")
+      // fail
+      c ! "one"
+      probe.expectMessage("persisting")
+      probe.expectMessage("one")
+      probe.expectMessage("failed one") // signal
+      probe.expectMessage("stopped")
+    }
+
     "restart with backoff" in {
       val probe = TestProbe[String]()
       val behav = failingPersistentActor(PersistenceId.ofUniqueId("fail-first-2"), probe.ref).onPersistFailure(
@@ -231,7 +266,10 @@ class EventSourcedBehaviorFailureSpec
       val probe = TestProbe[String]()
       val behav =
         Behaviors
-          .supervise(failingPersistentActor(PersistenceId.ofUniqueId("reject-first"), probe.ref))
+          .supervise(failingPersistentActor(PersistenceId.ofUniqueId("reject-first"), probe.ref, {
+            case (_, PersistRejected(_, cmd)) =>
+              probe.ref.tell(s"rejected ${cmd.get}")
+          }))
           .onFailure[EventRejectedException](
             SupervisorStrategy.restartWithBackoff(1.milli, 5.millis, 0.1).withLoggingEnabled(enabled = false))
       val c = spawn(behav)
@@ -240,6 +278,7 @@ class EventSourcedBehaviorFailureSpec
       c ! "one"
       probe.expectMessage("persisting")
       probe.expectMessage("one")
+      probe.expectMessage("rejected one") // signal
       probe.expectMessage("restarting")
       probe.expectMessage("starting")
       c ! "two"

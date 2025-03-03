@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
@@ -10,9 +10,7 @@ import akka.actor.{ Actor, ActorRef, Props }
 import akka.cluster.MemberStatus
 import akka.serialization.jackson.CborSerializable
 import akka.testkit._
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 object ClusterShardingLeavingSpec {
   case class Ping(id: String) extends CborSerializable
 

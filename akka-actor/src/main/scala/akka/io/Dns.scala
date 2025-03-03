@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.io
@@ -8,9 +8,9 @@ import java.net.{ Inet4Address, Inet6Address, InetAddress, UnknownHostException 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.{ Function => JFunction }
 
+import scala.annotation.nowarn
 import scala.collection.immutable
 
-import scala.annotation.nowarn
 import com.typesafe.config.Config
 
 import akka.actor._
@@ -21,15 +21,12 @@ import akka.io.dns.AAAARecord
 import akka.io.dns.ARecord
 import akka.io.dns.DnsProtocol
 import akka.routing.ConsistentHashingRouter.ConsistentHashable
-import akka.util.ccompat._
-import akka.util.unused
 
 /**
  * Not for user extension.
  *
  * This used to be a supported extension point but will be removed in future versions of Akka.
  */
-@ccompatUsedUntil213
 @DoNotInherit
 abstract class Dns {
 
@@ -38,7 +35,7 @@ abstract class Dns {
    * the akka.actor.io.dns.resolver that is configured.
    */
   @deprecated("Use cached(DnsProtocol.Resolve)", "2.6.0")
-  def cached(@unused name: String): Option[Dns.Resolved] = None
+  def cached(name: String): Option[Dns.Resolved] = None
 
   /**
    * If an entry is cached return it immediately. If it is not then
@@ -53,7 +50,7 @@ abstract class Dns {
     ret
   }
 
-  def cached(@unused request: DnsProtocol.Resolve): Option[DnsProtocol.Resolved] = None
+  def cached(request: DnsProtocol.Resolve): Option[DnsProtocol.Resolved] = None
 
   def resolve(request: DnsProtocol.Resolve, system: ActorSystem, sender: ActorRef): Option[DnsProtocol.Resolved] = {
     val ret = cached(request)
@@ -116,7 +113,6 @@ object Dns extends ExtensionId[DnsExt] with ExtensionIdProvider {
    * trigger a resolve and return None.
    */
   @deprecated("use resolve(DnsProtocol.Resolve)", "2.6.0")
-  @nowarn("msg=deprecated")
   def resolve(name: String)(system: ActorSystem, sender: ActorRef): Option[Resolved] = {
     Dns(system).cache.resolve(name)(system, sender)
   }

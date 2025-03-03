@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.internal
 import scala.annotation.tailrec
 import scala.collection.immutable.TreeMap
+
 import akka.annotation.InternalApi
 
 /**

@@ -1,15 +1,16 @@
 /*
- * Copyright (C) 2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2022-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
-import akka.stream.testkit._
-import akka.stream.testkit.scaladsl.TestSink
-
 import java.util.StringJoiner
 import java.util.concurrent.atomic.AtomicBoolean
+
 import scala.util.control.NoStackTrace
+
+import akka.stream.testkit._
+import akka.stream.testkit.scaladsl.TestSink
 
 class FlowConcatAllLazySpec extends StreamSpec("""
     akka.stream.materializer.initial-input-buffer-size = 2
@@ -29,13 +30,13 @@ class FlowConcatAllLazySpec extends StreamSpec("""
       val s6 = Source.empty
       val s7 = Source.single(11)
 
-      val sub = s1.concatAllLazy(s2, s3, s4, s5, s6, s7).runWith(TestSink.probe[Int]);
+      val sub = s1.concatAllLazy(s2, s3, s4, s5, s6, s7).runWith(TestSink[Int]());
       sub.expectSubscription().request(11)
       sub.expectNextN(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)).expectComplete()
     }
 
     "concat single upstream elements to its downstream" in {
-      val sub = Source(1 to 3).concatAllLazy().runWith(TestSink.probe[Int])
+      val sub = Source(1 to 3).concatAllLazy().runWith(TestSink[Int]())
       sub.expectSubscription().request(3)
       sub.expectNextN(List(1, 2, 3)).expectComplete()
     }
@@ -45,7 +46,7 @@ class FlowConcatAllLazySpec extends StreamSpec("""
       val pub2 = TestPublisher.probe[Int]()
       Source(1 to 3)
         .concatAllLazy(Source.fromPublisher(pub1), Source.fromPublisher(pub2))
-        .runWith(TestSink.probe[Int])
+        .runWith(TestSink[Int]())
         .request(2)
         .expectNext(1, 2)
         .cancel()
@@ -60,7 +61,7 @@ class FlowConcatAllLazySpec extends StreamSpec("""
       val (promise, sub) = Source
         .maybe[Int]
         .concatAllLazy(Source.fromPublisher(pub1), Source.fromPublisher(pub2))
-        .toMat(TestSink.probe[Int])(Keep.both)
+        .toMat(TestSink[Int]())(Keep.both)
         .run()
       promise.tryFailure(testException)
       sub.expectSubscriptionAndError(testException)
@@ -75,7 +76,7 @@ class FlowConcatAllLazySpec extends StreamSpec("""
           materialized.set(true)
           Source.single(4)
         }))
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
         .request(2)
         .expectNext(1, 2)
         .cancel()

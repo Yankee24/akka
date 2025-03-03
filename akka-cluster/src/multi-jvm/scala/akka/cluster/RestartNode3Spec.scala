@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -16,13 +16,11 @@ import akka.actor.Deploy
 import akka.actor.Props
 import akka.actor.RootActorPath
 import akka.cluster.MemberStatus._
+import akka.remote.testkit.Direction
 import akka.remote.testkit.MultiNodeConfig
 import akka.remote.testkit.MultiNodeSpec
-import akka.remote.transport.ThrottlerTransportAdapter.Direction
 import akka.testkit._
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 object RestartNode3MultiJvmSpec extends MultiNodeConfig {
   val first = role("first")
   val second = role("second")
@@ -63,7 +61,6 @@ abstract class RestartNode3Spec extends MultiNodeClusterSpec(RestartNode3MultiJv
     system.name,
     ConfigFactory.parseString(s"""
         akka.remote.artery.canonical.port = ${secondUniqueAddress.address.port.get}
-        akka.remote.classic.netty.tcp.port = ${secondUniqueAddress.address.port.get}
         """).withFallback(system.settings.config))
 
   override def afterAll(): Unit = {
@@ -85,8 +82,8 @@ abstract class RestartNode3Spec extends MultiNodeClusterSpec(RestartNode3MultiJv
       runOn(first, third) {
         system.actorOf(Props(new Actor {
           def receive = {
-            case a: UniqueAddress =>
-              secondUniqueAddress = a
+            case ad: UniqueAddress =>
+              secondUniqueAddress = ad
               sender() ! "ok"
           }
         }).withDeploy(Deploy.local), name = "address-receiver")

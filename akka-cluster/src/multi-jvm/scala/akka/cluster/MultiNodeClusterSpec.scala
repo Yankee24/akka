@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
 import java.util.concurrent.ConcurrentHashMap
 
+import scala.annotation.nowarn
 import scala.collection.immutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -20,14 +21,12 @@ import akka.cluster.ClusterEvent.{ MemberEvent, MemberRemoved }
 import akka.event.Logging.ErrorLevel
 import akka.remote.DefaultFailureDetectorRegistry
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.MultiNodeConfig
 import akka.remote.testkit.{ MultiNodeSpec, STMultiNodeSpec }
+import akka.remote.testkit.MultiNodeConfig
 import akka.serialization.jackson.CborSerializable
 import akka.testkit._
 import akka.testkit.TestEvent._
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 object MultiNodeClusterSpec {
 
   def clusterConfigWithFailureDetectorPuppet: Config =
@@ -38,7 +37,8 @@ object MultiNodeClusterSpec {
   def clusterConfig(failureDetectorPuppet: Boolean): Config =
     if (failureDetectorPuppet) clusterConfigWithFailureDetectorPuppet else clusterConfig
 
-  def clusterConfig: Config = ConfigFactory.parseString(s"""
+  def clusterConfig: Config =
+    ConfigFactory.parseString("""
     akka.actor.provider = cluster
     akka.actor.warn-about-java-serializer-usage = off
     akka.cluster {
@@ -59,9 +59,6 @@ object MultiNodeClusterSpec {
     akka.loglevel = INFO
     akka.log-dead-letters = off
     akka.log-dead-letters-during-shutdown = off
-    akka.remote {
-      log-remote-lifecycle-events = off
-    }
     akka.loggers = ["akka.testkit.TestEventListener"]
     akka.test {
       single-expect-default = 5 s
@@ -92,6 +89,7 @@ object MultiNodeClusterSpec {
   }
 }
 
+@nowarn("msg=Use Akka Distributed Cluster")
 abstract class MultiNodeClusterSpec(multiNodeconfig: MultiNodeConfig)
     extends MultiNodeSpec(multiNodeconfig)
     with Suite
@@ -133,12 +131,7 @@ abstract class MultiNodeClusterSpec(multiNodeconfig: MultiNodeConfig)
         classOf[GossipStatus],
         classOf[InternalClusterAction.Tick],
         classOf[akka.actor.PoisonPill],
-        classOf[akka.dispatch.sysmsg.DeathWatchNotification],
-        classOf[akka.remote.transport.AssociationHandle.Disassociated],
-        //        akka.remote.transport.AssociationHandle.Disassociated.getClass,
-        classOf[akka.remote.transport.ActorTransportAdapter.DisassociateUnderlying],
-        //        akka.remote.transport.ActorTransportAdapter.DisassociateUnderlying.getClass,
-        classOf[akka.remote.transport.AssociationHandle.InboundPayload])(sys)
+        classOf[akka.dispatch.sysmsg.DeathWatchNotification])(sys)
 
     }
   }

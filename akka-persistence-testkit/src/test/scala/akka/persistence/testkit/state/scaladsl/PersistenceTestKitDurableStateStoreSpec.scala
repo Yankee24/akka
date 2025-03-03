@@ -1,21 +1,23 @@
 /*
- * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit.state.scaladsl
 
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
+
 import akka.actor.ExtendedActorSystem
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
+import akka.persistence.query.DeletedDurableState
+import akka.persistence.query.DurableStateChange
 import akka.persistence.query.NoOffset
 import akka.persistence.query.Sequence
 import akka.persistence.query.UpdatedDurableState
 import akka.persistence.testkit.PersistenceTestKitDurableStateStorePlugin
 import akka.stream.scaladsl.Sink
 import akka.stream.testkit.scaladsl.TestSink
-
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
 
 object PersistenceTestKitDurableStateStoreSpec {
   val config =
@@ -68,6 +70,26 @@ class PersistenceTestKitDurableStateStoreSpec
       secondStateChange.offset
         .asInstanceOf[Sequence]
         .value should be >= (firstStateChange.offset.asInstanceOf[Sequence].value)
+    }
+
+    "find tagged state changes for deleted object" in {
+      val stateStore = new PersistenceTestKitDurableStateStore[Record](classic.asInstanceOf[ExtendedActorSystem])
+      val record = Record(1, "name-1")
+      val tag = "tag-1"
+      val persistenceId = "record-1"
+      val testSink = stateStore.changes(tag, NoOffset).runWith(TestSink[DurableStateChange[Record]]())
+
+      stateStore.upsertObject(persistenceId, 1L, record, tag)
+      val updatedDurableState = testSink.request(1).expectNext().asInstanceOf[UpdatedDurableState[Record]]
+      updatedDurableState.persistenceId should be(persistenceId)
+      updatedDurableState.value should be(record)
+      updatedDurableState.revision should be(1L)
+
+      stateStore.deleteObject(persistenceId, 2L)
+      val deletedDurableState = testSink.request(1).expectNext().asInstanceOf[DeletedDurableState[Record]]
+      deletedDurableState.persistenceId should be(persistenceId)
+      deletedDurableState.revision should be(2L)
+      deletedDurableState.timestamp should be >= updatedDurableState.timestamp
     }
 
     "find tagged current state changes ordered by upsert" in {

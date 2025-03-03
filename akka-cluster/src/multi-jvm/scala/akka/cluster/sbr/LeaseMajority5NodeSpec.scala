@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sbr
@@ -7,15 +7,15 @@ package akka.cluster.sbr
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-import akka.cluster.MemberStatus
-import akka.remote.testconductor.RoleName
-import akka.remote.testkit.MultiNodeConfig
-import akka.remote.transport.ThrottlerTransportAdapter
 import com.typesafe.config.ConfigFactory
 
+import akka.cluster.MemberStatus
 import akka.cluster.MultiNodeClusterSpec
 import akka.coordination.lease.TestLease
 import akka.coordination.lease.TestLeaseExt
+import akka.remote.testconductor.RoleName
+import akka.remote.testkit.Direction
+import akka.remote.testkit.MultiNodeConfig
 
 object LeaseMajority5NodeSpec extends MultiNodeConfig {
   val node1 = role("node1")
@@ -122,7 +122,7 @@ class LeaseMajority5NodeSpec extends MultiNodeClusterSpec(LeaseMajority5NodeSpec
       enterBarrier("lease-in-place")
       runOn(node1) {
         for (x <- List(node1, node2, node3); y <- List(node4, node5)) {
-          testConductor.blackhole(x, y, ThrottlerTransportAdapter.Direction.Both).await
+          testConductor.blackhole(x, y, Direction.Both).await
         }
       }
       enterBarrier("blackholed-clean-partition")
@@ -168,7 +168,7 @@ class LeaseMajority5NodeSpec extends MultiNodeClusterSpec(LeaseMajority5NodeSpec
     enterBarrier("lease-in-place-2")
     runOn(node1) {
       for (x <- List(node1); y <- List(node2, node3)) {
-        testConductor.blackhole(x, y, ThrottlerTransportAdapter.Direction.Both).await
+        testConductor.blackhole(x, y, Direction.Both).await
       }
     }
     enterBarrier("blackholed-clean-partition-2")

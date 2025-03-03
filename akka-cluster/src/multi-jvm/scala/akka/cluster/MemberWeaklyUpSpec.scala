@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -10,8 +10,8 @@ import scala.language.postfixOps
 import com.typesafe.config.ConfigFactory
 
 import akka.cluster.MemberStatus.WeaklyUp
+import akka.remote.testkit.Direction
 import akka.remote.testkit.MultiNodeConfig
-import akka.remote.transport.ThrottlerTransportAdapter.Direction
 import akka.testkit._
 
 object MemberWeaklyUpSpec extends MultiNodeConfig {
@@ -22,7 +22,6 @@ object MemberWeaklyUpSpec extends MultiNodeConfig {
   val fifth = role("fifth")
 
   commonConfig(debugConfig(on = false).withFallback(ConfigFactory.parseString("""
-        akka.remote.retry-gate-closed-for = 3 s
         akka.cluster.allow-weakly-up-members = 3 s
         """)).withFallback(MultiNodeClusterSpec.clusterConfig))
 

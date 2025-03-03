@@ -1,15 +1,14 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.setup;
 
-import org.junit.Test;
-import org.scalatestplus.junit.JUnitSuite;
+import static org.junit.Assert.*;
 
 import java.util.Optional;
-
-import static org.junit.Assert.*;
+import org.junit.Test;
+import org.scalatestplus.junit.JUnitSuite;
 
 public class ActorSystemSetupTest extends JUnitSuite {
 

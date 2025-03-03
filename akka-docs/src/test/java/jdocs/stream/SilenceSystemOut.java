@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream;
 
 import akka.actor.ActorRef;
-
 import java.util.function.Predicate;
 
 /**

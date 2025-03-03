@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.akka.cluster.typed
@@ -24,8 +24,9 @@ import org.scalatest.time.{ Millis, Seconds, Span }
 
 import scala.concurrent.duration._
 
+@nowarn("msg=Use Akka Distributed Cluster")
 object BasicClusterExampleSpec {
-  val configSystem1 = ConfigFactory.parseString(s"""
+  val configSystem1 = ConfigFactory.parseString("""
 akka.loglevel = DEBUG
 #config-seeds
 akka {
@@ -50,8 +51,7 @@ akka {
 #config-seeds
      """)
 
-  val configSystem2 = ConfigFactory.parseString(s"""
-        akka.remote.classic.netty.tcp.port = 0
+  val configSystem2 = ConfigFactory.parseString("""
         akka.remote.artery.canonical.port = 0
      """).withFallback(configSystem1)
 
@@ -116,10 +116,10 @@ class BasicClusterConfigSpec extends AnyWordSpec with ScalaFutures with Eventual
   "Cluster API" must {
     "init cluster" in {
       // config is pulled into docs, but we don't want to hardcode ports because that makes for brittle tests
-      val sys1Port = SocketUtil.temporaryLocalPort()
-      val sys2Port = SocketUtil.temporaryLocalPort()
+      val addresses = SocketUtil.temporaryServerAddresses(2)
+      val sys1Port = addresses.head.getPort
+      val sys2Port = addresses.last.getPort
       def config(port: Int) = ConfigFactory.parseString(s"""
-          akka.remote.classic.netty.tcp.port = $port
           akka.remote.artery.canonical.port = $port
           akka.cluster.jmx.multi-mbeans-in-same-jvm = on
           akka.cluster.seed-nodes = [ "akka://ClusterSystem@127.0.0.1:$sys1Port", "akka://ClusterSystem@127.0.0.1:$sys2Port" ]
@@ -142,7 +142,7 @@ class BasicClusterConfigSpec extends AnyWordSpec with ScalaFutures with Eventual
 }
 
 object BasicClusterManualSpec {
-  val clusterConfig = ConfigFactory.parseString(s"""
+  val clusterConfig = ConfigFactory.parseString("""
 akka.loglevel = DEBUG
 akka.cluster.jmx.multi-mbeans-in-same-jvm = on
 #config
@@ -159,7 +159,6 @@ akka {
      """)
 
   val noPort = ConfigFactory.parseString("""
-      akka.remote.classic.netty.tcp.port = 0
       akka.remote.artery.canonical.port = 0
     """)
 

@@ -1,20 +1,21 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.testkit.typed.scaladsl._
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.RecoveryCompleted
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
 
 object PrimitiveStateSpec {
 
-  private val conf = ConfigFactory.parseString(s"""
+  private val conf = ConfigFactory.parseString("""
       akka.persistence.journal.plugin = "akka.persistence.journal.inmem"
       akka.persistence.journal.inmem.test-serialization = on
     """)

@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
 import scala.annotation.nowarn
+import scala.concurrent.ExecutionContext
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
 
@@ -128,6 +129,34 @@ class SinkSpec extends StreamSpec with DefaultTimeout with ScalaFutures {
       }
     }
 
+    "combine many sinks to one" in {
+      val source = Source(List(0, 1, 2, 3, 4, 5))
+      implicit val ex = ExecutionContext.parasitic
+      val sink = Sink
+        .combine(
+          List(
+            Sink.reduce[Int]((a, b) => a + b),
+            Sink.reduce[Int]((a, b) => a + b),
+            Sink.reduce[Int]((a, b) => a + b)))(Broadcast[Int](_))
+        .mapMaterializedValue(Future.reduceLeft(_)(_ + _))
+      val result = source.runWith(sink)
+      result.futureValue should be(45)
+    }
+
+    "combine two sinks with combineMat" in {
+      implicit val ex = ExecutionContext.parasitic
+      Source(List(0, 1, 2, 3, 4, 5))
+        .toMat(Sink.combineMat(Sink.reduce[Int]((a, b) => a + b), Sink.reduce[Int]((a, b) => a + b))(Broadcast[Int](_))(
+          (f1, f2) => {
+            for {
+              r1 <- f1
+              r2 <- f2
+            } yield r1 + r2
+          }))(Keep.right)
+        .run()
+        .futureValue should be(30)
+    }
+
     "combine to two sinks with simplified API" in {
       val probes = Seq.fill(2)(TestSubscriber.manualProbe[Int]())
       val sink = Sink.combine(Sink.fromSubscriber(probes(0)), Sink.fromSubscriber(probes(1)))(Broadcast[Int](_))
@@ -176,28 +205,11 @@ class SinkSpec extends StreamSpec with DefaultTimeout with ScalaFutures {
       s.traversalBuilder.attributes.get[Name](Name("default")) shouldEqual Name("name")
     }
 
-    "given no attributes of a class when getting first attribute with default value should get default value" in {
-      import Attributes._
-      val s: Sink[Int, Future[Int]] = Sink.head[Int].withAttributes(none).async
-
-      @nowarn("msg=deprecated")
-      val res = s.traversalBuilder.attributes.getFirst[Name](Name("default"))
-      res shouldEqual Name("default")
-    }
-
     "given no attributes of a class when getting last attribute with default value should get default value" in {
       import Attributes._
       val s: Sink[Int, Future[Int]] = Sink.head[Int].withAttributes(none).async
 
       s.traversalBuilder.attributes.get[Name](Name("default")) shouldEqual Name("default")
-    }
-
-    "given multiple attributes of a class when getting first attribute with default value should get first attribute" in {
-      import Attributes._
-      val s: Sink[Int, Future[Int]] = Sink.head[Int].withAttributes(none).async.named("name").named("another_name")
-      @nowarn("msg=deprecated")
-      val res = s.traversalBuilder.attributes.getFirst[Name](Name("default"))
-      res shouldEqual Name("name")
     }
 
     "given multiple attributes of a class when getting last attribute with default value should get last attribute" in {
@@ -229,7 +241,7 @@ class SinkSpec extends StreamSpec with DefaultTimeout with ScalaFutures {
   "The never sink" should {
 
     "always backpressure" in {
-      val (source, doneFuture) = TestSource.probe[Int].toMat(Sink.never)(Keep.both).run()
+      val (source, doneFuture) = TestSource[Int]().toMat(Sink.never)(Keep.both).run()
       source.ensureSubscription()
       source.expectRequest()
       source.sendComplete()
@@ -237,7 +249,7 @@ class SinkSpec extends StreamSpec with DefaultTimeout with ScalaFutures {
     }
 
     "can failed with upstream failure" in {
-      val (source, doneFuture) = TestSource.probe[Int].toMat(Sink.never)(Keep.both).run()
+      val (source, doneFuture) = TestSource[Int]().toMat(Sink.never)(Keep.both).run()
       source.ensureSubscription()
       source.expectRequest()
       source.sendError(new RuntimeException("Oops"))
@@ -305,7 +317,7 @@ class SinkSpec extends StreamSpec with DefaultTimeout with ScalaFutures {
       val publisherSink: Sink[String, Publisher[String]] = Sink.asPublisher[String](false)
       val (matPub, sink) = publisherSink.preMaterialize()
 
-      val probe = Source.fromPublisher(matPub).runWith(TestSink.probe)
+      val probe = Source.fromPublisher(matPub).runWith(TestSink())
       probe.expectNoMessage(100.millis)
 
       Source.single("hello").runWith(sink)
@@ -318,8 +330,8 @@ class SinkSpec extends StreamSpec with DefaultTimeout with ScalaFutures {
       val publisherSink: Sink[String, Publisher[String]] = Sink.asPublisher[String](fanout = true)
       val (matPub, sink) = publisherSink.preMaterialize()
 
-      val probe1 = Source.fromPublisher(matPub).runWith(TestSink.probe)
-      val probe2 = Source.fromPublisher(matPub).runWith(TestSink.probe)
+      val probe1 = Source.fromPublisher(matPub).runWith(TestSink())
+      val probe2 = Source.fromPublisher(matPub).runWith(TestSink())
 
       Source.single("hello").runWith(sink)
 
@@ -335,8 +347,8 @@ class SinkSpec extends StreamSpec with DefaultTimeout with ScalaFutures {
       val publisherSink: Sink[String, Publisher[String]] = Sink.asPublisher[String](fanout = false)
       val (matPub, sink) = publisherSink.preMaterialize()
 
-      val probe1 = Source.fromPublisher(matPub).runWith(TestSink.probe)
-      val probe2 = Source.fromPublisher(matPub).runWith(TestSink.probe)
+      val probe1 = Source.fromPublisher(matPub).runWith(TestSink())
+      val probe2 = Source.fromPublisher(matPub).runWith(TestSink())
 
       Source.single("hello").runWith(sink)
 

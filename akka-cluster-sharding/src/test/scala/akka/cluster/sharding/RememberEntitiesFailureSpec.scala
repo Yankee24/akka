@@ -1,28 +1,29 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
+
+import scala.annotation.nowarn
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
+
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.Done
 import akka.actor.{ Actor, ActorLogging, ActorRef, Props, Timers }
 import akka.cluster.Cluster
 import akka.cluster.MemberStatus
+import akka.cluster.sharding.ShardCoordinator.ShardAllocationStrategy
 import akka.cluster.sharding.ShardRegion.ShardId
 import akka.cluster.sharding.internal.RememberEntitiesCoordinatorStore
-import akka.cluster.sharding.internal.RememberEntitiesShardStore
 import akka.cluster.sharding.internal.RememberEntitiesProvider
+import akka.cluster.sharding.internal.RememberEntitiesShardStore
 import akka.testkit.AkkaSpec
 import akka.testkit.TestException
 import akka.testkit.TestProbe
 import akka.testkit.WithLogCapturing
-import scala.annotation.nowarn
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
-
-import akka.cluster.sharding.ShardCoordinator.ShardAllocationStrategy
 
 object RememberEntitiesFailureSpec {
   val config = ConfigFactory.parseString(s"""
@@ -30,7 +31,6 @@ object RememberEntitiesFailureSpec {
       akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
       akka.actor.provider = cluster
       akka.remote.artery.canonical.port = 0
-      akka.remote.classic.netty.tcp.port = 0
       akka.cluster.sharding.distributed-data.durable.keys = []
       # must be ddata or else remember entities store is ignored
       akka.cluster.sharding.state-store-mode = ddata

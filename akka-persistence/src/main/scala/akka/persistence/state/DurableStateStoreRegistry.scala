@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.state
 
+import scala.annotation.nowarn
 import scala.reflect.ClassTag
 
 import com.typesafe.config.Config
@@ -19,7 +20,6 @@ import akka.persistence.Persistence
 import akka.persistence.PersistencePlugin
 import akka.persistence.PluginProvider
 import akka.persistence.state.scaladsl.DurableStateStore
-import akka.util.unused
 
 /**
  * Persistence extension for queries.
@@ -86,7 +86,7 @@ class DurableStateStoreRegistry(system: ExtendedActorSystem)
    * configuration entry.
    */
   final def getDurableStateStoreFor[T <: javadsl.DurableStateStore[_]](
-      @unused clazz: Class[T], // FIXME generic Class could be problematic in Java
+      @nowarn("msg=never used") clazz: Class[T],
       pluginId: String): T = {
     pluginFor(pluginIdOrDefault(pluginId), pluginConfig(pluginId)).javadslPlugin.asInstanceOf[T]
   }

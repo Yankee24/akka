@@ -1,29 +1,40 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.dungeon
 
 import java.util.Optional
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.util.control.NonFatal
-import scala.annotation.nowarn
+import scala.jdk.CollectionConverters._
+
 import akka.actor._
+import akka.annotation.InternalApi
 import akka.annotation.InternalStableApi
 import akka.serialization.{ Serialization, SerializationExtension, Serializers }
 import akka.util.{ Helpers, Unsafe }
 
+/**
+ * INTERNAL API
+ */
+@InternalApi
 private[akka] object Children {
   val GetNobody = () => Nobody
 }
 
+/**
+ * INTERNAL API
+ */
+@InternalApi
 private[akka] trait Children { this: ActorCell =>
 
   import ChildrenContainer._
 
-  @nowarn("msg=never used")
+  @nowarn("msg=never")
   @volatile
   private var _childrenRefsDoNotCallMeDirectly: ChildrenContainer = EmptyChildrenContainer
 
@@ -31,9 +42,8 @@ private[akka] trait Children { this: ActorCell =>
     Unsafe.instance.getObjectVolatile(this, AbstractActorCell.childrenOffset).asInstanceOf[ChildrenContainer]
 
   final def children: immutable.Iterable[ActorRef] = childrenRefs.children
-  @nowarn("msg=deprecated")
-  final def getChildren(): java.lang.Iterable[ActorRef] =
-    scala.collection.JavaConverters.asJavaIterableConverter(children).asJava
+
+  final def getChildren(): java.lang.Iterable[ActorRef] = children.asJava
 
   final def child(name: String): Option[ActorRef] = Option(getChild(name))
   final def getChild(name: String): ActorRef = childrenRefs.getByName(name) match {

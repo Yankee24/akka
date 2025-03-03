@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed
@@ -9,24 +9,26 @@ import java.time.Duration
 import java.util.ArrayList
 import java.util.Optional
 import java.util.concurrent.CompletionStage
+
+import scala.annotation.switch
+import scala.concurrent.ExecutionContext
 import scala.concurrent.{ ExecutionContextExecutor, Future }
+import scala.jdk.DurationConverters._
 import scala.reflect.ClassTag
+import scala.util.Failure
+import scala.util.Success
 import scala.util.Try
-import scala.annotation.{ nowarn, switch }
+
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+
 import akka.actor.Address
 import akka.actor.typed.internal.adapter.ActorSystemAdapter
 import akka.annotation.InternalApi
-import akka.dispatch.ExecutionContexts
 import akka.pattern.StatusReply
 import akka.util.BoxedType
-import akka.util.JavaDurationConverters._
 import akka.util.OptionVal
 import akka.util.Timeout
-
-import scala.util.Failure
-import scala.util.Success
 
 /**
  * INTERNAL API
@@ -191,10 +193,10 @@ import scala.util.Success
   }
 
   override def setReceiveTimeout(duration: java.time.Duration, msg: T): Unit =
-    setReceiveTimeout(duration.asScala, msg)
+    setReceiveTimeout(duration.toScala, msg)
 
   override def scheduleOnce[U](delay: java.time.Duration, target: ActorRef[U], msg: U): akka.actor.Cancellable =
-    scheduleOnce(delay.asScala, target, msg)
+    scheduleOnce(delay.toScala, target, msg)
 
   override def spawn[U](behavior: akka.actor.typed.Behavior[U], name: String): akka.actor.typed.ActorRef[U] =
     spawn(behavior, name, Props.empty)
@@ -231,7 +233,6 @@ import scala.util.Success
     }
 
   // Java API impl
-  @nowarn("msg=never used") // resClass is just a pretend param
   override def ask[Req, Res](
       resClass: Class[Res],
       target: RecipientRef[Req],
@@ -267,7 +268,7 @@ import scala.util.Success
 
   // Scala API impl
   def pipeToSelf[Value](future: Future[Value])(mapResult: Try[Value] => T): Unit = {
-    future.onComplete(value => self.unsafeUpcast ! AdaptMessage(value, mapResult))(ExecutionContexts.parasitic)
+    future.onComplete(value => self.unsafeUpcast[Any] ! AdaptMessage(value, mapResult))(ExecutionContext.parasitic)
   }
 
   // Java API impl
@@ -276,8 +277,8 @@ import scala.util.Success
       applyToResult: akka.japi.function.Function2[Value, Throwable, T]): Unit = {
     future.whenComplete { (value, ex) =>
       if (ex != null)
-        self.unsafeUpcast ! AdaptMessage(ex, applyToResult.apply(null.asInstanceOf[Value], _: Throwable))
-      else self.unsafeUpcast ! AdaptMessage(value, applyToResult.apply(_: Value, null))
+        self.unsafeUpcast[Any] ! AdaptMessage(ex, applyToResult.apply(null.asInstanceOf[Value], _: Throwable))
+      else self.unsafeUpcast[Any] ! AdaptMessage(value, applyToResult.apply(_: Value, null))
     }
   }
 

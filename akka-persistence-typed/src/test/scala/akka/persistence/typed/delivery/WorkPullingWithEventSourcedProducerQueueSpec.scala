@@ -1,12 +1,13 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.delivery
 
-import scala.concurrent.duration._
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
+
+import scala.concurrent.duration._
 
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory

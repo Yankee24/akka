@@ -1,13 +1,12 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.cluster;
 
+import akka.actor.AbstractActor;
 import java.util.HashMap;
 import java.util.Map;
-
-import akka.actor.AbstractActor;
 
 // #worker
 public class StatsWorker extends AbstractActor {

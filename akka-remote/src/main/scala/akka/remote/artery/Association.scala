@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
@@ -12,13 +12,13 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
+import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
-import scala.annotation.nowarn
 import org.agrona.concurrent.ManyToOneConcurrentArrayQueue
 
 import akka.Done
@@ -40,6 +40,7 @@ import akka.remote.RemoteLogMarker
 import akka.remote.UniqueAddress
 import akka.remote.artery.ArteryTransport.AeronTerminated
 import akka.remote.artery.ArteryTransport.ShuttingDown
+import akka.remote.artery.Association.UidCollisionException
 import akka.remote.artery.Encoder.OutboundCompressionAccess
 import akka.remote.artery.InboundControlJunction.ControlMessageSubject
 import akka.remote.artery.OutboundControlJunction.OutboundControlIngress
@@ -59,7 +60,6 @@ import akka.util.OptionVal
 import akka.util.PrettyDuration._
 import akka.util.Unsafe
 import akka.util.WildcardIndex
-import akka.util.ccompat._
 
 /**
  * INTERNAL API
@@ -122,6 +122,8 @@ private[remote] object Association {
       streamKillSwitch: OptionVal[SharedKillSwitch],
       completed: Future[Done],
       stopping: OptionVal[StopSignal])
+
+  final class UidCollisionException(message: String) extends IllegalArgumentException(message) with NoStackTrace
 }
 
 /**
@@ -130,7 +132,6 @@ private[remote] object Association {
  * Thread-safe, mutable holder for association state. Main entry point for remote destined message to a specific
  * remote address.
  */
-@ccompatUsedUntil213
 private[remote] class Association(
     val transport: ArteryTransport,
     val materializer: Materializer,
@@ -147,7 +148,6 @@ private[remote] class Association(
   require(remoteAddress.port.nonEmpty)
 
   private val log = Logging.withMarker(transport.system, classOf[Association])
-  private def flightRecorder = transport.flightRecorder
 
   override def settings = transport.settings
   private def advancedSettings = transport.settings.Advanced
@@ -249,7 +249,6 @@ private[remote] class Association(
    * Holds reference to shared state of Association - *access only via helper methods*
    */
   @volatile
-  @nowarn("msg=never used")
   private[artery] var _sharedStateDoNotCallMeDirectly: AssociationState = AssociationState()
 
   /**
@@ -353,7 +352,7 @@ private[remote] class Association(
       transport.system.eventStream
         .publish(Dropped(message, reason, env.sender.getOrElse(ActorRef.noSender), recipient.getOrElse(deadletters)))
 
-      flightRecorder.transportSendQueueOverflow(queueIndex)
+      RemotingFlightRecorder.transportSendQueueOverflow(queueIndex)
       deadletters ! env
     }
 
@@ -528,13 +527,13 @@ private[remote] class Association(
         current.uniqueRemoteAddress() match {
           case Some(peer) if peer.uid == u =>
             if (!current.isQuarantined(u)) {
-              val newState = current.newQuarantined()
+              val newState = current.newQuarantined(harmless)
               if (swapState(current, newState)) {
                 // quarantine state change was performed
                 if (harmless) {
                   log.info(
-                    "Association to [{}] having UID [{}] has been stopped. All " +
-                    "messages to this UID will be delivered to dead letters. Reason: {}",
+                    "Association to [{}] having UID [{}] has been stopped. Harmless quarantine. " +
+                    "All messages to this UID will be delivered to dead letters. Reason: {}",
                     remoteAddress,
                     u,
                     reason)
@@ -551,13 +550,14 @@ private[remote] class Association(
                     reason)
                   transport.system.eventStream.publish(QuarantinedEvent(UniqueAddress(remoteAddress, u)))
                 }
-                flightRecorder.transportQuarantined(remoteAddress, u)
+                RemotingFlightRecorder.transportQuarantined(remoteAddress, u)
                 clearOutboundCompression()
                 clearInboundCompression(u)
                 // end delivery of system messages to that incarnation after this point
                 send(ClearSystemMessageDelivery(current.incarnation), OptionVal.None, OptionVal.None)
                 if (!harmless) {
                   // try to tell the other system that we have quarantined it
+                  log.info("Sending Quarantined to [{}]", peer)
                   sendControl(Quarantined(localAddress, peer))
                 }
                 setupStopQuarantinedTimer()
@@ -595,7 +595,7 @@ private[remote] class Association(
    */
   def removedAfterQuarantined(): Unit = {
     if (!isRemovedAfterQuarantined()) {
-      flightRecorder.transportRemoveQuarantined(remoteAddress)
+      RemotingFlightRecorder.transportRemoveQuarantined(remoteAddress)
       queues(ControlQueueIndex) = RemovedQueueWrapper
 
       if (transport.largeMessageChannelEnabled)
@@ -684,7 +684,7 @@ private[remote] class Association(
                       case OptionVal.Some(k) =>
                         // for non-control streams we can stop the entire stream
                         log.info("Stopping idle outbound stream [{}] to [{}]", queueIndex, remoteAddress)
-                        flightRecorder.transportStopIdleOutbound(remoteAddress, queueIndex)
+                        RemotingFlightRecorder.transportStopIdleOutbound(remoteAddress, queueIndex)
                         setStopReason(queueIndex, OutboundStreamStopIdleSignal)
                         clearStreamKillSwitch(queueIndex, k)
                         k.abort(OutboundStreamStopIdleSignal)
@@ -697,7 +697,7 @@ private[remote] class Association(
                     associationState.controlIdleKillSwitch match {
                       case OptionVal.Some(killSwitch) =>
                         log.info("Stopping idle outbound control stream to [{}]", remoteAddress)
-                        flightRecorder.transportStopIdleOutbound(remoteAddress, queueIndex)
+                        RemotingFlightRecorder.transportStopIdleOutbound(remoteAddress, queueIndex)
                         setControlIdleKillSwitch(OptionVal.None)
                         killSwitch.abort(OutboundStreamStopIdleSignal)
                       case _ => // already stopped
@@ -939,7 +939,7 @@ private[remote] class Association(
       restart: () => Unit): Unit = {
 
     def lazyRestart(): Unit = {
-      flightRecorder.transportRestartOutbound(remoteAddress, streamName)
+      RemotingFlightRecorder.transportRestartOutbound(remoteAddress, streamName)
       outboundCompressionAccess = Vector.empty
       if (queueIndex == ControlQueueIndex) {
         materializing = new CountDownLatch(1)
@@ -1159,7 +1159,7 @@ private[remote] class AssociationRegistry(createAssociation: Address => Associat
           a
         else
           // make sure we don't overwrite same UID with different association
-          throw new IllegalArgumentException(s"UID collision old [$previous] new [$a]")
+          throw new UidCollisionException(s"UID collision old [$previous] new [$a]")
       case _ =>
         // update associationsByUid Map with the uid -> association
         val newMap = currentMap.updated(peer.uid, a)

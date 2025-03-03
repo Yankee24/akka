@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -17,7 +17,6 @@ object JoinConfigCompatCheckerSpec {
     ConfigFactory.parseString("""
      akka.actor.provider = "cluster"
      akka.coordinated-shutdown.terminate-actor-system = on
-     akka.remote.classic.netty.tcp.port = 0
      akka.remote.artery.canonical.port = 0
      akka.cluster.jmx.multi-mbeans-in-same-jvm = on
      akka.remote.artery.advanced.aeron.idle-cpu-level = 3
@@ -494,7 +493,7 @@ class JoinConfigCompatCheckerSpec extends AkkaSpec with ClusterTestKit {
           val restartedNode = clusterTestUtil.quitAndRestart(firstNode, joinNodeConfig.withFallback(configWithChecker))
           clusterTestUtil.joinCluster(restartedNode)
 
-          // node will will have joined the cluster
+          // node will have joined the cluster
           awaitCond(clusterTestUtil.isMemberUp(restartedNode), message = "awaiting restarted node to be 'Up'")
         }
       } finally {
@@ -539,7 +538,7 @@ class JoinConfigCompatCheckerSpec extends AkkaSpec with ClusterTestKit {
           val restartedNode = clusterTestUtil.quitAndRestart(firstNode, joinNodeConfig.withFallback(configWithChecker))
           clusterTestUtil.joinCluster(restartedNode)
 
-          // node will will have joined the cluster
+          // node will have joined the cluster
           awaitCond(clusterTestUtil.isMemberUp(restartedNode), message = "awaiting restarted node to be 'Up'")
         }
       } finally {

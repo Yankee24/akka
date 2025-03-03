@@ -1,11 +1,13 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
 
 import java.nio.{ ByteBuffer, ByteOrder }
+
 import org.agrona.concurrent.{ ManyToManyConcurrentArrayQueue, UnsafeBuffer }
+
 import akka.actor.ActorRef
 import akka.actor.InternalActorRef
 import akka.io.DirectByteBufferPool

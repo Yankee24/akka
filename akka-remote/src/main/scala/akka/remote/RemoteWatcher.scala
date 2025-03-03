@@ -1,13 +1,12 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote
 
+import scala.annotation.nowarn
 import scala.collection.mutable
 import scala.concurrent.duration._
-
-import scala.annotation.nowarn
 
 import akka.actor._
 import akka.annotation.InternalApi
@@ -17,7 +16,6 @@ import akka.dispatch.sysmsg.{ DeathWatchNotification, Watch }
 import akka.event.AddressTerminatedTopic
 import akka.remote.artery.ArteryMessage
 import akka.remote.artery.ArteryTransport
-import akka.util.unused
 
 /**
  * INTERNAL API
@@ -107,16 +105,9 @@ private[akka] class RemoteWatcher(
   def scheduler = context.system.scheduler
 
   val remoteProvider: RemoteActorRefProvider = RARP(context.system).provider
-  val artery = remoteProvider.remoteSettings.Artery.Enabled
 
-  val (heartBeatMsg, selfHeartbeatRspMsg) =
-    if (artery) (ArteryHeartbeat, ArteryHeartbeatRsp(AddressUidExtension(context.system).longAddressUid))
-    else {
-      // For classic remoting the 'int' part is sufficient
-      @nowarn("msg=deprecated")
-      val addressUid = AddressUidExtension(context.system).addressUid
-      (Heartbeat, HeartbeatRsp(addressUid))
-    }
+  val heartBeatMsg = ArteryHeartbeat
+  val selfHeartbeatRspMsg = ArteryHeartbeatRsp(context.system.asInstanceOf[ExtendedActorSystem].uid)
 
   // actors that this node is watching, map of watchee -> Set(watchers)
   @nowarn("msg=deprecated")
@@ -210,7 +201,7 @@ private[akka] class RemoteWatcher(
   /** Returns true if either has cluster or `akka.remote.use-unsafe-remote-features-outside-cluster`
    * is enabled. Can be overridden when using RemoteWatcher as a superclass.
    */
-  protected def shouldWatch(@unused watchee: InternalActorRef): Boolean = {
+  protected def shouldWatch(@nowarn("msg=never used") watchee: InternalActorRef): Boolean = {
     // In this it is unnecessary if only created by RARP, but cluster needs it.
     // Cleaner than overriding Cluster watcher addWatch/removeWatch just for one boolean test
     remoteProvider.remoteSettings.UseUnsafeRemoteFeaturesWithoutCluster

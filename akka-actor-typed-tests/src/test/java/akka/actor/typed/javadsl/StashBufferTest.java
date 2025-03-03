@@ -1,20 +1,19 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.javadsl;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import akka.actor.testkit.typed.internal.StubbedActorContext;
 import akka.actor.testkit.typed.javadsl.LogCapturing;
 import akka.actor.typed.internal.StashBufferImpl;
+import java.util.function.Function;
 import org.junit.Rule;
 import org.junit.Test;
 import org.scalatestplus.junit.JUnitSuite;
-
-import java.util.function.Function;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class StashBufferTest extends JUnitSuite {
 

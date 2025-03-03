@@ -1,8 +1,15 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.scaladsl
+
+import java.util.UUID
+
+import scala.concurrent.duration._
+
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.testkit.typed.TestException
 import akka.actor.testkit.typed.scaladsl.LogCapturing
@@ -16,11 +23,6 @@ import akka.persistence.testkit.PersistenceTestKitSnapshotPlugin
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.RecoveryCompleted
 import akka.persistence.typed.scaladsl.EventSourcedBehavior.CommandHandler
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import java.util.UUID
-import scala.concurrent.duration._
 
 object PerformanceSpec {
 
@@ -115,7 +117,7 @@ class PerformanceSpec
     extends ScalaTestWithActorTestKit(
       PersistenceTestKitPlugin.config
         .withFallback(PersistenceTestKitSnapshotPlugin.config)
-        .withFallback(ConfigFactory.parseString(s"""
+        .withFallback(ConfigFactory.parseString("""
       akka.persistence.publish-plugin-commands = on
       akka.actor.testkit.typed.single-expect-default = 10s
       """))

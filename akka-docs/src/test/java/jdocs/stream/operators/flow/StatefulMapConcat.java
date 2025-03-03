@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream.operators.flow;
@@ -9,7 +9,6 @@ import akka.actor.typed.ActorSystem;
 import akka.japi.Pair;
 import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.Source;
-
 import java.util.*;
 
 public class StatefulMapConcat {

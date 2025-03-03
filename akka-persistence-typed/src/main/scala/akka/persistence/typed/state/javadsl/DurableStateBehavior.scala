@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.javadsl
@@ -13,14 +13,16 @@ import akka.actor.typed.internal.BehaviorImpl.DeferredBehavior
 import akka.actor.typed.javadsl.ActorContext
 import akka.annotation.ApiMayChange
 import akka.annotation.InternalApi
+import akka.persistence.typed.PersistenceId
+import akka.persistence.typed.SnapshotAdapter
 import akka.persistence.typed.state.internal
 import akka.persistence.typed.state.internal._
 import akka.persistence.typed.state.scaladsl
-import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.SnapshotAdapter
 
 /**
  * A `Behavior` for a persistent actor with durable storage of its state.
+ *
+ * For projects using Java 17 and newer, also see [[DurableStateOnCommandBehavior]]
  *
  * API May Change
  */
@@ -99,6 +101,14 @@ abstract class DurableStateBehavior[Command, State] private[akka] (
   }
 
   /**
+   * API May Change: Override this and implement the [[ChangeEventHandler]] to store additional change event
+   * when the state is updated or deleted. The event can be used in Projections.
+   */
+  @ApiMayChange
+  protected def changeEventHandler(): ChangeEventHandler[Command, State, _] =
+    ChangeEventHandler.undefined[Command, State, Any]
+
+  /**
    * Override and define the `DurableStateStore` plugin id that this actor should use instead of the default.
    */
   def durableStateStorePluginId: String = ""
@@ -131,15 +141,33 @@ abstract class DurableStateBehavior[Command, State] private[akka] (
       (state, cmd) => commandHandler()(state, cmd).asInstanceOf[EffectImpl[State]],
       getClass).withTag(tag).snapshotAdapter(snapshotAdapter()).withDurableStateStorePluginId(durableStateStorePluginId)
 
-    val handler = signalHandler()
-    val behaviorWithSignalHandler =
+    val behaviorWithSignalHandler = {
+      val handler = signalHandler()
       if (handler.isEmpty) behavior
       else behavior.receiveSignal(handler.handler)
+    }
 
-    if (onPersistFailure.isPresent)
-      behaviorWithSignalHandler.onPersistFailure(onPersistFailure.get)
-    else
-      behaviorWithSignalHandler
+    val withSignalHandler =
+      if (onPersistFailure.isPresent)
+        behaviorWithSignalHandler.onPersistFailure(onPersistFailure.get)
+      else
+        behaviorWithSignalHandler
+
+    val withChangeEventHandler = changeEventHandler() match {
+      case handler if handler eq ChangeEventHandler.Undefined => withSignalHandler
+      case handler: ChangeEventHandler[Command, State, _] @unchecked =>
+        withSignalHandler.withChangeEventHandler(
+          scaladsl.ChangeEventHandler(
+            updateHandler = (previousState, newState, command) =>
+              handler.updateHandler(previousState, newState, command),
+            deleteHandler = (previousState, command) => handler.deleteHandler(previousState, command)))
+    }
+
+    if (stashCapacity.isPresent) {
+      withChangeEventHandler.withStashCapacity(stashCapacity.get)
+    } else {
+      withChangeEventHandler
+    }
   }
 
   /**
@@ -148,6 +176,12 @@ abstract class DurableStateBehavior[Command, State] private[akka] (
   final def lastSequenceNumber(ctx: ActorContext[_]): Long = {
     scaladsl.DurableStateBehavior.lastSequenceNumber(ctx.asScala)
   }
+
+  /**
+   * Override to define a custom stash capacity per entity.
+   * If not defined, the default `akka.persistence.typed.stash-capacity` will be used.
+   */
+  def stashCapacity: Optional[java.lang.Integer] = Optional.empty()
 
 }
 

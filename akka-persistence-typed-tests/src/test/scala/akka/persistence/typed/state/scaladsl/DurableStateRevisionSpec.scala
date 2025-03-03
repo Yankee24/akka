@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.scaladsl
@@ -8,19 +8,20 @@ import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import org.scalatest.wordspec.AnyWordSpecLike
 
-import akka.actor.testkit.typed.scaladsl.LogCapturing
-import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
-import akka.actor.testkit.typed.scaladsl.TestProbe
+import akka.actor.Dropped
+import akka.actor.testkit.typed.scaladsl.{ LogCapturing, LoggingTestKit, ScalaTestWithActorTestKit, TestProbe }
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
-import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import akka.actor.typed.scaladsl.adapter._
 import akka.persistence.testkit.PersistenceTestKitDurableStateStorePlugin
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.state.RecoveryCompleted
 
 object DurableStateRevisionSpec {
 
-  def conf: Config = PersistenceTestKitDurableStateStorePlugin.config.withFallback(ConfigFactory.parseString(s"""
+  def conf: Config =
+    PersistenceTestKitDurableStateStorePlugin.config.withFallback(ConfigFactory.parseString("""
     akka.loglevel = INFO
     """))
 
@@ -31,39 +32,45 @@ class DurableStateRevisionSpec
     with AnyWordSpecLike
     with LogCapturing {
 
-  private def behavior(pid: PersistenceId, probe: ActorRef[String]): Behavior[String] =
-    Behaviors.setup(
-      ctx =>
-        DurableStateBehavior[String, String](
-          pid,
-          "",
-          (state, command) =>
-            state match {
-              case "stashing" =>
-                command match {
-                  case "unstash" =>
-                    probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} unstash"
-                    Effect.persist("normal").thenUnstashAll()
-                  case _ =>
-                    Effect.stash()
-                }
+  private def durableState(ctx: ActorContext[String], pid: PersistenceId, probe: ActorRef[String]) = {
+    DurableStateBehavior[String, String](
+      pid,
+      "",
+      (state, command) =>
+        state match {
+          case "stashing" =>
+            command match {
+              case "unstash" =>
+                probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} unstash"
+                Effect.persist("normal").thenUnstashAll()
               case _ =>
-                command match {
-                  case "cmd" =>
-                    probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} onCommand"
-                    Effect
-                      .persist("state")
-                      .thenRun(_ => probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} thenRun")
-                  case "stash" =>
-                    probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} stash"
-                    Effect.persist("stashing")
-                  case "snapshot" =>
-                    Effect.persist("snapshot")
-                }
-            }).receiveSignal {
-          case (_, RecoveryCompleted) =>
-            probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} onRecoveryComplete"
-        })
+                Effect.stash()
+            }
+          case _ =>
+            command match {
+              case "cmd" =>
+                probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} onCommand"
+                Effect.persist("state").thenRun(_ => probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} thenRun")
+              case "stash" =>
+                probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} stash"
+                Effect.persist("stashing")
+              case "snapshot" =>
+                Effect.persist("snapshot")
+            }
+        }).receiveSignal {
+      case (_, RecoveryCompleted) =>
+        probe ! s"${DurableStateBehavior.lastSequenceNumber(ctx)} onRecoveryComplete"
+    }
+  }
+
+  private def behavior(pid: PersistenceId, probe: ActorRef[String]): Behavior[String] =
+    Behaviors.setup(ctx => durableState(ctx, pid, probe))
+
+  private def behaviorWithCustomStashSize(
+      pid: PersistenceId,
+      probe: ActorRef[String],
+      customStashSize: Int): Behavior[String] =
+    Behaviors.setup(ctx => durableState(ctx, pid, probe).withStashCapacity(customStashSize))
 
   "The revision number" must {
 
@@ -125,6 +132,39 @@ class DurableStateRevisionSpec
       probe.expectMessage("1 thenRun")
       probe.expectMessage("2 onCommand") // second command
       probe.expectMessage("3 thenRun")
+    }
+
+    "discard when custom stash has reached limit with default dropped setting" in {
+      val customLimit = 100
+      val probe = TestProbe[AnyRef]()
+      system.toClassic.eventStream.subscribe(probe.ref.toClassic, classOf[Dropped])
+      val durableState = spawn(behaviorWithCustomStashSize(PersistenceId.ofUniqueId("pid-4"), probe.ref, customLimit))
+      probe.expectMessage("0 onRecoveryComplete")
+
+      durableState ! "stash"
+
+      probe.expectMessage("0 stash")
+
+      LoggingTestKit.warn("Stash buffer is full, dropping message").expect {
+        (0 to customLimit).foreach { _ =>
+          durableState ! s"cmd"
+        }
+      }
+      probe.expectMessageType[Dropped]
+
+      durableState ! "unstash"
+      probe.expectMessage("1 unstash")
+
+      val lastSequenceId = 2
+      (lastSequenceId until customLimit + lastSequenceId).foreach { n =>
+        probe.expectMessage(s"$n onCommand")
+        probe.expectMessage(s"${n + 1} thenRun") // after persisting
+      }
+
+      durableState ! s"cmd"
+      probe.expectMessage(s"${102} onCommand")
+      probe.expectMessage(s"${103} thenRun")
+
     }
   }
 }

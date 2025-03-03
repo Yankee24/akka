@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka
@@ -65,7 +65,7 @@ object Scaladoc extends AutoPlugin {
       "-doc-version",
       ver,
       "-doc-canonical-base-url",
-      "https://doc.akka.io/api/akka/current/")
+      "https://doc.akka.io/api/akka-core/current/")
     CliOptions.scaladocDiagramsEnabled.ifTrue("-diagrams").toList ::: opts
   }
 
@@ -141,15 +141,12 @@ object UnidocRoot extends AutoPlugin {
 
   val akkaSettings = UnidocRoot.CliOptions.genjavadocEnabled
     .ifTrue(Seq(
-      JavaUnidoc / unidoc / javacOptions := {
-        if (JdkOptions.isJdk8) Seq("-Xdoclint:none")
-        else Seq("-Xdoclint:none", "--ignore-source-errors", "--no-module-directories")
-      },
+      JavaUnidoc / unidoc / javacOptions := Seq("-Xdoclint:none", "--ignore-source-errors", "--no-module-directories"),
       publishRsyncArtifacts ++= {
         val releaseVersion = if (isSnapshot.value) "snapshot" else version.value
         (Compile / unidoc).value match {
           case Seq(japi, api) =>
-            Seq((japi -> s"www/japi/akka/$releaseVersion"), (api -> s"www/api/akka/$releaseVersion"))
+            Seq((japi -> s"www/japi/akka-core/$releaseVersion"), (api -> s"www/api/akka-core/$releaseVersion"))
         }
       }))
     .getOrElse(Nil)
@@ -194,7 +191,7 @@ object BootstrapGenjavadoc extends AutoPlugin {
   override def requires =
     UnidocRoot.CliOptions.genjavadocEnabled
       .ifTrue {
-        // require 11, fail fast for 8, 9, 10
+        // require 11, fail fast for 9, 10
         require(JdkOptions.isJdk11orHigher, "Javadoc generation requires at least jdk 11")
         sbtunidoc.GenJavadocPlugin
       }
@@ -202,7 +199,7 @@ object BootstrapGenjavadoc extends AutoPlugin {
 
   override lazy val projectSettings = UnidocRoot.CliOptions.genjavadocEnabled
     .ifTrue(Seq(
-      unidocGenjavadocVersion := "0.18",
+      unidocGenjavadocVersion := "0.19",
       Compile / scalacOptions ++= Seq(
           "-P:genjavadoc:fabricateParams=false",
           "-P:genjavadoc:suppressSynthetic=false",

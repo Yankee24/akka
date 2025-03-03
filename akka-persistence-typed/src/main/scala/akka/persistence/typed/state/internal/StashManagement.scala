@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.internal
@@ -8,7 +8,6 @@ import akka.actor.Dropped
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.LoggerOps
 import akka.actor.typed.scaladsl.StashBuffer
 import akka.actor.typed.scaladsl.StashOverflowException
 import akka.actor.typed.scaladsl.adapter._
@@ -80,6 +79,13 @@ private[akka] trait StashManagement[C, S] {
   }
 
   /**
+   * @return false if `tryUnstashOne` will unstash a message
+   */
+  protected def isStashEmpty: Boolean =
+    if (stashState.isUnstashAllInProgress) stashState.userStashBuffer.isEmpty
+    else stashState.internalStashBuffer.isEmpty
+
+  /**
    * Subsequent `tryUnstashOne` will drain the user stash buffer before using the
    * internal stash buffer. It will unstash as many commands as are in the buffer when
    * `unstashAll` was called, i.e. if subsequent commands stash more, those will
@@ -99,7 +105,7 @@ private[akka] trait StashManagement[C, S] {
 
   private def logStashMessage(msg: InternalProtocol, buffer: StashBuffer[InternalProtocol]): Unit = {
     if (setup.settings.logOnStashing)
-      setup.internalLogger.debugN(
+      setup.internalLogger.debug(
         "Stashing message to {} stash: [{}] ",
         if (buffer eq stashState.internalStashBuffer) "internal" else "user",
         msg)
@@ -107,7 +113,7 @@ private[akka] trait StashManagement[C, S] {
 
   private def logUnstashMessage(buffer: StashBuffer[InternalProtocol]): Unit = {
     if (setup.settings.logOnStashing)
-      setup.internalLogger.debugN(
+      setup.internalLogger.debug(
         "Unstashing message from {} stash: [{}]",
         if (buffer eq stashState.internalStashBuffer) "internal" else "user",
         buffer.head)
@@ -115,7 +121,7 @@ private[akka] trait StashManagement[C, S] {
 
   private def logUnstashAll(): Unit = {
     if (setup.settings.logOnStashing)
-      setup.internalLogger.debug2(
+      setup.internalLogger.debug(
         "Unstashing all [{}] messages from user stash, first is: [{}]",
         stashState.userStashBuffer.size,
         stashState.userStashBuffer.head)

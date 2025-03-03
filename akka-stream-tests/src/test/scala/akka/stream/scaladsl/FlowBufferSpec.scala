@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -172,10 +172,9 @@ class FlowBufferSpec extends StreamSpec("""
     }
 
     "drop new elements if buffer is full and configured so" in {
-      val (publisher, subscriber) = TestSource
-        .probe[Int]
+      val (publisher, subscriber) = TestSource[Int]()
         .buffer(100, overflowStrategy = OverflowStrategy.dropNew)
-        .toMat(TestSink.probe[Int])(Keep.both)
+        .toMat(TestSink[Int]())(Keep.both)
         .run()
 
       subscriber.ensureSubscription()

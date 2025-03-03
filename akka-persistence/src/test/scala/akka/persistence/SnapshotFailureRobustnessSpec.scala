@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence
@@ -39,7 +39,6 @@ object SnapshotFailureRobustnessSpec {
 
   class DeleteSnapshotTestPersistentActor(name: String, probe: ActorRef) extends NamedPersistentActor(name) {
 
-    // TODO do we call it "snapshot store" or "snapshot plugin", small inconsistency here
     override def snapshotPluginId: String =
       "akka.persistence.snapshot-store.local-delete-fail"
 

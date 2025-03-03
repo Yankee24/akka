@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -55,7 +55,7 @@ class FlowMapConcatSpec extends StreamSpec("""
       Source(1 to 5)
         .mapConcat(x => if (x == 3) throw ex else List(x))
         .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
-        .runWith(TestSink.probe[Int])
+        .runWith(TestSink[Int]())
         .request(4)
         .expectNext(1, 2, 4, 5)
         .expectComplete()
@@ -67,7 +67,7 @@ class FlowMapConcatSpec extends StreamSpec("""
       Source(1 to 5)
         .mapConcat(x => if (x == 3) throw ex else scala.collection.Iterator(x))
         .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
-        .runWith(TestSink.probe[Int])
+        .runWith(TestSink[Int]())
         .request(4)
         .expectNext(1, 2, 4, 5)
         .expectComplete()

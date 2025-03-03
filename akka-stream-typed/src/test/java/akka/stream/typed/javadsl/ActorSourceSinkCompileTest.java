@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.typed.javadsl;
@@ -9,7 +9,6 @@ import akka.actor.typed.ActorSystem;
 import akka.stream.OverflowStrategy;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
-
 import java.util.Optional;
 
 public class ActorSourceSinkCompileTest {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.io;
@@ -9,17 +9,15 @@ import akka.actor.ActorSystem;
 import akka.actor.Props;
 import akka.io.Udp;
 import akka.testkit.SocketUtil;
-
-import jdocs.AbstractJavaTest;
 import akka.testkit.javadsl.TestKit;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.*;
+import jdocs.AbstractJavaTest;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class JavaUdpMulticastTest extends AbstractJavaTest {
 

@@ -6,9 +6,7 @@ You're always welcome to submit your PR straight away and start the discussion (
 
 ## The Akka Community
 
-If you have questions about the contribution process or discuss specific issues, please visit the [akka/dev Gitter chat](https://gitter.im/akka/dev).
-
-You may also check out these [other resources](https://akka.io/get-involved/).
+Reach out with questions via the forum at [discuss.akka.io](https://discuss.akka.io). 
 
 ## Navigating around the project & codebase
 
@@ -16,8 +14,8 @@ You may also check out these [other resources](https://akka.io/get-involved/).
 
 Depending on which version (or sometimes module) you want to work on, you should target a specific branch as explained below:
 
-* `main` – active development branch of Akka 2.6.x
-* `release-2.5` – maintenance branch of Akka 2.5.x
+* `main` – active development branch of Akka 2.9.x
+* `release-2.8` – maintenance branch of Akka 2.8.x
 * similarly `release-2.#` branches contain legacy versions of Akka
 
 ### Tags
@@ -73,7 +71,7 @@ The steps are exactly the same for everyone involved in the project, including t
    - Please make sure to follow the general quality guidelines (specified below) when developing your patch.
    - Please write additional tests covering your feature and adjust existing ones if needed before submitting your pull request. The `validatePullRequest` sbt task ([explained below](#the-validatepullrequest-task)) may come in handy to verify your changes are correct.
    - Use the `verifyCodeStyle` sbt task to ensure your code is properly formatted and includes the proper copyright headers.
-1. Once your feature is complete, prepare the commit following our [Creating Commits And Writing Commit Messages](#creating-commits-and-writing-commit-messages). For example, a good commit message would be: `Adding compression support for Manifests #22222` (note the reference to the ticket it aimed to resolve).
+1. Once your feature is complete, prepare the commit following our [Creating Commits And Writing Commit Messages](#creating-commits-and-writing-commit-messages). For example, a good commit message would be: `feat: Adding compression support for Manifests #22222` (note the reference to the ticket it aimed to resolve).
 1. If it's a new feature or a change of behavior, document it on the [akka-docs](https://github.com/akka/akka/tree/main/akka-docs). When the feature touches Scala and Java DSL, document both the Scala and Java APIs.
 1. Now it's finally time to [submit the pull request](https://help.github.com/articles/using-pull-requests)!
     - Please make sure to include a reference to the issue you're solving *in the comment* for the Pull Request, as this will cause the PR to be linked properly with the issue. Examples of good phrases for this are: "Resolves #1234" or "Refs #1234".
@@ -182,14 +180,6 @@ project akka-actor
 javafmtAll
 ```
 
-To keep the *import*s sorted with:
-
-```shell
-sbt
-project akka-actor
-sortImports
-```
-
 To verify code style with:
 
 ```shell
@@ -249,7 +239,7 @@ e.g. `allCluster`, `allTyped`.
 ### Binary compatibility
 
 Binary compatibility rules and guarantees are described in depth in the [Binary Compatibility Rules
-](https://doc.akka.io/docs/akka/snapshot/common/binary-compatibility-rules.html) section of the documentation.
+](https://doc.akka.io/libraries/akka-core/current/common/binary-compatibility-rules.html) section of the documentation.
 
 Akka uses [MiMa](https://github.com/lightbend/mima) to
 validate the binary compatibility of incoming pull requests. If your PR fails due to binary compatibility issues, you may see
@@ -288,7 +278,7 @@ new wire format. This ensures users can complete a rolling upgrade first to the 
 rolling upgrade to the next version.
 
 All wire protocol changes that may concern rolling upgrades should be documented in the
-[Rolling Update Changelog](https://doc.akka.io/docs/akka/current/project/rolling-update.html#change-log)
+[Rolling Update Changelog](https://doc.akka.io/libraries/akka-core/current/project/rolling-update.html#change-log)
 (found in akka-docs/src/main/paradox/project/rolling-update.md)
 
 ### Protobuf
@@ -306,10 +296,10 @@ the settings for generation.
 For a pull request to be considered at all, it has to meet these requirements:
 
 1. Regardless if the code introduces new features or fixes bugs or regressions, it must have comprehensive tests.
-1. The code must be well documented in the Lightbend's standard documentation format (see the 'Documentation' section below).
+1. The code must be well documented in the Akka's standard documentation format (see the 'Documentation' section below).
 1. The commit messages must properly describe the changes. See further below.
 1. A pull request must be [linked to the issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) it aims to resolve in the PR's description (or comments). This can be achieved by writing "Fixes #1234" or similar in PR description.
-1. All Lightbend projects must include Lightbend copyright notices.  Each project can choose between one of two approaches:
+1. All Akka projects must include Lightbend copyright notices.  Each project can choose between one of two approaches:
 
     1. All source files in the project must have a Lightbend copyright notice in the file header.
     1. The Notices file for the project includes the Lightbend copyright notice and no other files contain copyright notices.  See <https://www.apache.org/legal/src-headers.html> for instructions for managing this approach for copyrights.
@@ -328,7 +318,7 @@ Some additional guidelines regarding source code are:
 
 ### Documentation
 
-All documentation is preferred to be in Lightbend's standard documentation format [Paradox](https://github.com/lightbend/paradox), which among other things, allows all code in the documentation to be externalized into compiled files and imported into the documentation.
+All documentation is preferred to be in Akka's standard documentation format [Paradox](https://github.com/lightbend/paradox), which among other things, allows all code in the documentation to be externalized into compiled files and imported into the documentation.
 
 To build the documentation locally:
 
@@ -346,8 +336,8 @@ Alternatively, use `akka-docs/paradoxBrowse` to open the generated docs in your 
 Akka Paradox supports directives to link to the Scaladoc- and Javadoc-generated API documentation:
 
 * `@apidoc[Flow]` searches for the class name and creates links to Scaladoc and Javadoc (see variants in [sbt-paradox-apidoc](https://github.com/lightbend/sbt-paradox-apidoc#examples))
-* `@scaladoc[Flow](akka.stream.scaladsl.Flow)` (see [Paradox docs](https://developer.lightbend.com/docs/paradox/current/directives/linking.html#scaladoc-directive))
-* `@javadoc[Flow](akka.stream.javadsl.Flow)` (see [Paradox docs](https://developer.lightbend.com/docs/paradox/current/directives/linking.html#javadoc-directive))
+* `@scaladoc[Flow](akka.stream.scaladsl.Flow)` (see [Paradox docs](https://github.com/lightbend/paradox/blob/main/docs/src/main/paradox/directives/linking.md#scaladoc-directive))
+* `@javadoc[Flow](akka.stream.javadsl.Flow)` (see [Paradox docs](https://github.com/lightbend/paradox/blob/main/docs/src/main/paradox/directives/linking.md#javadoc-directive))
 
 #### Scaladoc
 
@@ -395,22 +385,19 @@ Each project must also create and maintain a list of all dependencies and their 
 
 Follow these guidelines when creating public commits and writing commit messages.
 
-1. If your work spans multiple local commits (for example; if you do safe point commits while working in a feature branch or work in a branch for a long time doing merges/rebases etc.) then please do not commit it all but rewrite the history by squashing the commits into a single big commit which you write a good commit message for (like discussed in the following sections). For more info read this article: [Git Workflow](https://sandofsky.com/workflow/git-workflow/). Every commit should be able to be used in isolation, cherry picked etc.
+1. While working in a feature branch or a PR branch for a long time it's useful that the work spans multiple commits, for safe points and simplify reviewing partial changes. When a PR is done it should be squashed into a single big commit which you write a good commit message for (like discussed in the following sections). For more info read this article: [Git Workflow](https://sandofsky.com/workflow/git-workflow/). Every commit should be able to be used in isolation, cherry picked etc.
 
-2. The first line should be a descriptive sentence what the commit is doing, including the ticket number. It should be possible to fully understand what the commit does—but not necessarily how it does it—by just reading this single line. We follow the "imperative present tense" style for commit messages ([more info here](https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html)).
+3. The first line should be a descriptive sentence what the commit is doing, including the ticket number (if any). It should be possible to fully understand what the commit does—but not necessarily how it does it—by just reading this single line. We follow the "imperative present tense" style for commit messages ([more info here](https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html)). It's encouraged to use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) prefixes, such as `feat:`, `fix:`, `perf:`, `build:`, `chore:`, `docs:`, but no need to use the scope syntax.
 
    It is **not ok** to only list the ticket number, type "minor fix" or similar.
    If the commit is a small fix, then you are done. If not, go to 3.
 
-3. Following the single line description should be a blank line followed by an enumerated list with the details of the commit.
-
-4. You can request a review by a specific team member  for your commit (depending on the degree of automation we reach, the list may change over time):
-    * "Review by @gituser "- if you want to notify someone on the team. The others can and are encouraged to participate.
+4. Following the single line description should be a blank line followed by an enumerated list with the details of the commit.
 
 Example:
 
 ```
-Enable Travis CI #1
+feat: Adding compression support for Manifests #22222
 
 * Details 1
 * Details 2
@@ -465,8 +452,6 @@ Akka prefers flattened imports rather than grouped, which helps reduce merge con
 If you are using IntelliJ IDEA, you can disable it by unchecking: `Preferences` -> `Code Style` -> `Scala` -> `Imports` -> `Merge imports with the same prefix into one statement`.
 
 
-It's recommended to run `sbt +sortImports` to keep the *import*s sorted.
-
 #### Java style
 
 Akka uses [the sbt Java Formatter plugin](https://github.com/sbt/sbt-java-formatter) to format Java sources.
@@ -507,7 +492,7 @@ next step would be to add it to Akka as an "may change"-feature (possibly in a n
 then when the feature is hardened, well documented and
 tested it becomes an officially supported Akka feature.
 
-[List of Akka features marked as may change](https://doc.akka.io/docs/akka/current/common/may-change.html)
+[List of Akka features marked as may change](https://doc.akka.io/libraries/akka-core/current/common/may-change.html)
 
 ### Java APIs in Akka
 
@@ -537,10 +522,6 @@ Scala has proven the most viable way to do it, as long as you keep the following
 1. If the underlying Scala code requires an `ExecutionContext`, make the Java API take an `Executor` and use
    `ExecutionContext.fromExecutor(executor)` for conversion.
 
-1. Make use of `scala-java8-compat` conversions, see [GitHub](https://github.com/scala/scala-java8-compat)
-   (eg. `scala.compat.java8.FutureConverters` to translate Futures to `CompletionStage`s).
-   Note that we cannot upgrade to a newer version scala-java8-compat because of binary compatibility issues.
-
 1. Make sure there are Java tests or sample code touching all parts of the API
 
 1. Do not use lower type bounds: `trait[T] { def method[U >: Something]: U }` as they do not work with Java
@@ -564,7 +545,7 @@ Scala has proven the most viable way to do it, as long as you keep the following
 | `scala.collection.immutable.Seq[T]` | `java.util.List<T>` |
 | `scala.concurrent.Future[T]` | `java.util.concurrent.CompletionStage<T>` |
 | `scala.concurrent.Promise[T]` | `java.util.concurrent.CompletableFuture<T>` |
-| `scala.concurrent.duration.FiniteDuration` | `java.time.Duration` (use `akka.util.JavaDurationConverters`) |
+| `scala.concurrent.duration.FiniteDuration` | `java.time.Duration` |
 | `T => Unit` | `java.util.function.Consumer<T>` |
 | `() => R` (`scala.Function0[R]`) | `java.util.function.Supplier<R>` |
 | `T => R` (`scala.Function1[T, R]`) | `java.util.function.Function<T, R>` |
@@ -619,5 +600,5 @@ Anyone can propose new changes to our CI workflows, and we will gladly review th
 ### Related links
 
 * [Akka Contributor License Agreement](https://www.lightbend.com/contribute/cla/akka)
-* [Akka Issue Tracker](https://doc.akka.io/docs/akka/current/project/issue-tracking.html)
+* [Akka Issue Tracker](https://doc.akka.io/libraries/akka-core/current/project/issue-tracking.html)
 * [Scalafmt](https://scalameta.org/scalafmt/)

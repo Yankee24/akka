@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata.protobuf
@@ -8,8 +8,10 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
+
 import scala.annotation.tailrec
 import scala.collection.immutable.TreeMap
+
 import akka.actor.ActorRef
 import akka.actor.Address
 import akka.actor.ExtendedActorSystem
@@ -20,13 +22,11 @@ import akka.protobufv3.internal.ByteString
 import akka.protobufv3.internal.MessageLite
 import akka.remote.ByteStringUtils
 import akka.serialization._
-import akka.util.ccompat._
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
  * Some useful serialization helper methods.
  */
-@ccompatUsedUntil213
 trait SerializationSupport {
 
   private final val BufferSize = 1024 * 4

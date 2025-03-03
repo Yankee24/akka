@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
 
 import java.nio.{ ByteBuffer, ByteOrder }
+
 import akka.actor._
 import akka.remote.artery.compress.{ CompressionTable, CompressionTestUtils, InboundCompressions }
 import akka.serialization.Serialization

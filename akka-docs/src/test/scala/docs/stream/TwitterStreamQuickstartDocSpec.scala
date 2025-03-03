@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.stream
@@ -10,6 +10,8 @@ import akka.{ Done, NotUsed }
 import akka.actor.ActorSystem
 import akka.stream.{ ClosedShape, OverflowStrategy }
 import akka.stream.scaladsl._
+
+import scala.annotation.nowarn
 import scala.concurrent.Await
 import scala.concurrent.Future
 import scala.io.StdIn.readLine
@@ -20,10 +22,6 @@ import akka.testkit.AkkaSpec
 import scala.concurrent.ExecutionContext
 
 object TwitterStreamQuickstartDocSpec {
-  //#fiddle_code
-  import akka.NotUsed
-  import akka.actor.ActorSystem
-  import akka.stream.scaladsl._
 
   //#model
   final case class Author(handle: String)
@@ -43,15 +41,12 @@ object TwitterStreamQuickstartDocSpec {
   val akkaTag = Hashtag("#akka")
   //#model
 
-  //#fiddle_code
-
   abstract class TweetSourceDecl {
     //#tweet-source
     val tweets: Source[Tweet, NotUsed]
     //#tweet-source
   }
 
-  //#fiddle_code
   val tweets: Source[Tweet, NotUsed] = Source(
     Tweet(Author("rolandkuhn"), System.currentTimeMillis, "#akka rocks!") ::
     Tweet(Author("patriknw"), System.currentTimeMillis, "#akka !") ::
@@ -64,10 +59,9 @@ object TwitterStreamQuickstartDocSpec {
     Tweet(Author("appleman"), System.currentTimeMillis, "#apples rock!") ::
     Tweet(Author("drama"), System.currentTimeMillis, "we compared #apples to #oranges!") ::
     Nil)
-
-  //#fiddle_code
 }
 
+@nowarn("msg=never used") // sample snippets
 class TwitterStreamQuickstartDocSpec extends AkkaSpec {
   import TwitterStreamQuickstartDocSpec._
 
@@ -77,14 +71,11 @@ class TwitterStreamQuickstartDocSpec extends AkkaSpec {
   def println(s: Any): Unit = ()
 
   trait Example1 {
-    //#fiddle_code
     //#first-sample
     //#system-setup
     implicit val system: ActorSystem = ActorSystem("reactive-tweets")
     //#system-setup
     //#first-sample
-
-    //#fiddle_code
   }
 
   "filter and map" in {
@@ -146,20 +137,6 @@ class TwitterStreamQuickstartDocSpec extends AkkaSpec {
     g.run()
     //#graph-dsl-broadcast
     // format: ON
-  }
-
-  "simple fiddle showcase" in {
-
-    //#fiddle_code
-    tweets
-      .filterNot(_.hashtags.contains(akkaTag)) // Remove all tweets containing #akka hashtag
-      .map(_.hashtags) // Get all sets of hashtags ...
-      .reduce(_ ++ _) // ... and reduce them to a single set, removing duplicates across all tweets
-      .mapConcat(identity) // Flatten the set of hashtags to a stream of hashtags
-      .map(_.name.toUpperCase) // Convert all hashtags to upper case
-      .runWith(Sink.foreach(println)) // Attach the Flow to a Sink that will finally print the hashtags
-      //#fiddle_code
-      .value
   }
 
   "slowProcessing" in {

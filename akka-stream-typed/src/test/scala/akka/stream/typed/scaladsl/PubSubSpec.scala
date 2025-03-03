@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.typed.scaladsl
+
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -11,7 +13,6 @@ import akka.actor.typed.pubsub.Topic
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Source
 import akka.stream.testkit.scaladsl.TestSink
-import org.scalatest.wordspec.AnyWordSpecLike
 
 class PubSubSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with LogCapturing {
 

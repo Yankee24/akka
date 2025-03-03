@@ -14,7 +14,7 @@ When starting clusters on cloud systems such as Kubernetes, AWS, Google Cloud, A
 you may want to automate the discovery of nodes for the cluster joining process, using your cloud providers,
 cluster orchestrator, or other form of service discovery (such as managed DNS).
 
-The open source Akka Management library includes the @extref:[Cluster Bootstrap](akka-management:bootstrap/index.html)
+The Akka Management library includes the @extref:[Cluster Bootstrap](akka-management:bootstrap/index.html)
 module which handles just that. Please refer to its documentation for more details.
 
 @@@ note
@@ -59,7 +59,7 @@ Member nodes are identified by their address, in format *`akka://actor-system-na
 
 ## Monitoring and Observability
 
-Aside from log monitoring and the monitoring provided by your APM or platform provider, [Lightbend Telemetry](https://developer.lightbend.com/docs/telemetry/current/instrumentations/akka/akka.html),
-available through a [Lightbend Subscription](https://www.lightbend.com/lightbend-subscription),
+Aside from log monitoring and the monitoring provided by your APM or platform provider, [Akka Insights](https://doc.akka.io/libraries/akka-insights/current/home.html),
+available through a [Akka Subscription](https://akka.io/pricing/do-it-yourself),
 can provide additional insights in the run-time characteristics of your application, including metrics, events,
 and distributed tracing for Akka Actors, Cluster, HTTP, and more.

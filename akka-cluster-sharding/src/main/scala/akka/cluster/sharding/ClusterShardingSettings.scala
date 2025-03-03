@@ -1,8 +1,14 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
+
+import scala.collection.immutable
+import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
+
+import com.typesafe.config.Config
 
 import akka.actor.ActorSystem
 import akka.actor.NoSerializationVerificationNeeded
@@ -12,11 +18,6 @@ import akka.cluster.singleton.ClusterSingletonManagerSettings
 import akka.coordination.lease.LeaseUsageSettings
 import akka.japi.Util.immutableSeq
 import akka.util.Helpers.toRootLowerCase
-import akka.util.JavaDurationConverters._
-import com.typesafe.config.Config
-
-import scala.collection.immutable
-import scala.concurrent.duration._
 
 object ClusterShardingSettings {
 
@@ -86,7 +87,8 @@ object ClusterShardingSettings {
       coordinatorStateWriteMajorityPlus = configMajorityPlus("coordinator-state.write-majority-plus"),
       coordinatorStateReadMajorityPlus = configMajorityPlus("coordinator-state.read-majority-plus"),
       leastShardAllocationAbsoluteLimit = config.getInt("least-shard-allocation-strategy.rebalance-absolute-limit"),
-      leastShardAllocationRelativeLimit = config.getDouble("least-shard-allocation-strategy.rebalance-relative-limit"))
+      leastShardAllocationRelativeLimit = config.getDouble("least-shard-allocation-strategy.rebalance-relative-limit"),
+      passivationStopTimeout = config.getDuration("passivation.stop-timeout", MILLISECONDS).millis)
 
     val coordinatorSingletonSettings = ClusterSingletonManagerSettings(config.getConfig("coordinator-singleton"))
 
@@ -94,7 +96,13 @@ object ClusterShardingSettings {
 
     val lease = config.getString("use-lease") match {
       case s if s.isEmpty => None
-      case other          => Some(new LeaseUsageSettings(other, config.getDuration("lease-retry-interval").asScala))
+      case other =>
+        Some(
+          new LeaseUsageSettings(
+            other,
+            config.getDuration("lease-retry-interval").toScala,
+            leaseName = "" // intentionally not in config because would be high risk of not using unique names
+          ))
     }
 
     new ClusterShardingSettings(
@@ -261,11 +269,11 @@ object ClusterShardingSettings {
 
       def withTimeout(timeout: FiniteDuration): IdleSettings = copy(timeout = timeout)
 
-      def withTimeout(timeout: java.time.Duration): IdleSettings = withTimeout(timeout.asScala)
+      def withTimeout(timeout: java.time.Duration): IdleSettings = withTimeout(timeout.toScala)
 
       def withInterval(interval: FiniteDuration): IdleSettings = copy(interval = Some(interval))
 
-      def withInterval(interval: java.time.Duration): IdleSettings = withInterval(interval.asScala)
+      def withInterval(interval: java.time.Duration): IdleSettings = withInterval(interval.toScala)
 
       private def copy(timeout: FiniteDuration = timeout, interval: Option[FiniteDuration] = interval): IdleSettings =
         new IdleSettings(timeout, interval)
@@ -922,7 +930,8 @@ object ClusterShardingSettings {
       val coordinatorStateWriteMajorityPlus: Int,
       val coordinatorStateReadMajorityPlus: Int,
       val leastShardAllocationAbsoluteLimit: Int,
-      val leastShardAllocationRelativeLimit: Double) {
+      val leastShardAllocationRelativeLimit: Double,
+      val passivationStopTimeout: FiniteDuration) {
 
     require(
       entityRecoveryStrategy == "all" || entityRecoveryStrategy == "constant",
@@ -930,7 +939,58 @@ object ClusterShardingSettings {
 
     // included for binary compatibility
     @deprecated(
-      "Use the ClusterShardingSettings factory methods or the constructor including " +
+      "Use the TuningParameters factory methods or the constructor including " +
+      "passivationStopTimeout instead",
+      since = "2.9.4")
+    def this(
+        coordinatorFailureBackoff: FiniteDuration,
+        retryInterval: FiniteDuration,
+        bufferSize: Int,
+        handOffTimeout: FiniteDuration,
+        shardStartTimeout: FiniteDuration,
+        shardFailureBackoff: FiniteDuration,
+        entityRestartBackoff: FiniteDuration,
+        rebalanceInterval: FiniteDuration,
+        snapshotAfter: Int,
+        keepNrOfBatches: Int,
+        leastShardAllocationRebalanceThreshold: Int,
+        leastShardAllocationMaxSimultaneousRebalance: Int,
+        waitingForStateTimeout: FiniteDuration,
+        updatingStateTimeout: FiniteDuration,
+        entityRecoveryStrategy: String,
+        entityRecoveryConstantRateStrategyFrequency: FiniteDuration,
+        entityRecoveryConstantRateStrategyNumberOfEntities: Int,
+        coordinatorStateWriteMajorityPlus: Int,
+        coordinatorStateReadMajorityPlus: Int,
+        leastShardAllocationAbsoluteLimit: Int,
+        leastShardAllocationRelativeLimit: Double) =
+      this(
+        coordinatorFailureBackoff,
+        retryInterval,
+        bufferSize,
+        handOffTimeout,
+        shardStartTimeout,
+        shardFailureBackoff,
+        entityRestartBackoff,
+        rebalanceInterval,
+        snapshotAfter,
+        keepNrOfBatches,
+        leastShardAllocationRebalanceThreshold,
+        leastShardAllocationMaxSimultaneousRebalance,
+        waitingForStateTimeout,
+        updatingStateTimeout,
+        entityRecoveryStrategy,
+        entityRecoveryConstantRateStrategyFrequency,
+        entityRecoveryConstantRateStrategyNumberOfEntities,
+        coordinatorStateWriteMajorityPlus,
+        coordinatorStateReadMajorityPlus,
+        leastShardAllocationAbsoluteLimit = 100,
+        leastShardAllocationRelativeLimit = 0.1,
+        passivationStopTimeout = 10.seconds)
+
+    // included for binary compatibility
+    @deprecated(
+      "Use the TuningParameters factory methods or the constructor including " +
       "leastShardAllocationAbsoluteLimit and leastShardAllocationRelativeLimit instead",
       since = "2.6.10")
     def this(
@@ -1112,6 +1172,10 @@ object ClusterShardingSettings {
  * @param passivationStrategySettings settings for automatic passivation strategy, see descriptions in reference.conf
  * @param tuningParameters additional tuning parameters, see descriptions in reference.conf
  * @param shardRegionQueryTimeout the timeout for querying a shard region, see descriptions in reference.conf
+ * @param leaseSettings LeaseSettings for acquiring before creating the shard.
+ *   Note that if you define a custom lease name and have several sharding entity types each one must have a unique
+ *   lease name. If the lease name is undefined it will be derived from ActorSystem name and shard name,
+ *   but that may result in too long lease names.
  */
 final class ClusterShardingSettings(
     val role: Option[String],
@@ -1152,7 +1216,7 @@ final class ClusterShardingSettings(
       passivationStrategySettings,
       shardRegionQueryTimeout,
       tuningParameters,
-      true,
+      coordinatorSingletonOverrideRole = true,
       coordinatorSingletonSettings,
       leaseSettings)
 
@@ -1181,7 +1245,7 @@ final class ClusterShardingSettings(
       ClusterShardingSettings.PassivationStrategySettings.oldDefault(passivateIdleEntityAfter),
       shardRegionQueryTimeout,
       tuningParameters,
-      true,
+      coordinatorSingletonOverrideRole = true,
       coordinatorSingletonSettings,
       leaseSettings)
 
@@ -1238,53 +1302,6 @@ final class ClusterShardingSettings(
       coordinatorSingletonSettings,
       leaseSettings)
 
-  // bin compat for 2.5.21
-  @deprecated(
-    "Use the ClusterShardingSettings factory methods or the constructor including shardRegionQueryTimeout instead",
-    since = "2.5.21")
-  def this(
-      role: Option[String],
-      rememberEntities: Boolean,
-      journalPluginId: String,
-      snapshotPluginId: String,
-      stateStoreMode: String,
-      passivateIdleEntityAfter: FiniteDuration,
-      tuningParameters: ClusterShardingSettings.TuningParameters,
-      coordinatorSingletonSettings: ClusterSingletonManagerSettings) =
-    this(
-      role,
-      rememberEntities,
-      journalPluginId,
-      snapshotPluginId,
-      stateStoreMode,
-      passivateIdleEntityAfter,
-      3.seconds,
-      tuningParameters,
-      coordinatorSingletonSettings,
-      None)
-
-  // included for binary compatibility reasons
-  @deprecated(
-    "Use the ClusterShardingSettings factory methods or the constructor including passivateIdleEntityAfter instead",
-    since = "2.5.18")
-  def this(
-      role: Option[String],
-      rememberEntities: Boolean,
-      journalPluginId: String,
-      snapshotPluginId: String,
-      stateStoreMode: String,
-      tuningParameters: ClusterShardingSettings.TuningParameters,
-      coordinatorSingletonSettings: ClusterSingletonManagerSettings) =
-    this(
-      role,
-      rememberEntities,
-      journalPluginId,
-      snapshotPluginId,
-      stateStoreMode,
-      Duration.Zero,
-      tuningParameters,
-      coordinatorSingletonSettings)
-
   import ClusterShardingSettings.{ RememberEntitiesStoreCustom, StateStoreModeDData, StateStoreModePersistence }
   require(
     stateStoreMode == StateStoreModePersistence || stateStoreMode == StateStoreModeDData || stateStoreMode == RememberEntitiesStoreCustom,
@@ -1294,6 +1311,17 @@ final class ClusterShardingSettings(
   @InternalApi
   private[akka] def shouldHostShard(cluster: Cluster): Boolean =
     role.forall(cluster.selfMember.roles.contains)
+
+  /** If true, this node should run the shard coordinator, otherwise just a shard proxy or shard region on this node. */
+  @InternalApi
+  private[akka] def shouldHostCoordinator(cluster: Cluster): Boolean =
+    coordinatorSingletonRole.forall(cluster.selfMember.roles.contains)
+
+  /**
+   * INTERNAL API
+   */
+  @InternalApi private[akka] def coordinatorSingletonRole: Option[String] =
+    if (coordinatorSingletonOverrideRole) role else coordinatorSingletonSettings.role
 
   @InternalApi
   private[akka] val passivationStrategy: ClusterShardingSettings.PassivationStrategy =
@@ -1328,7 +1356,7 @@ final class ClusterShardingSettings(
 
   @deprecated("Use withPassivationStrategy instead", since = "2.6.18")
   def withPassivateIdleAfter(duration: java.time.Duration): ClusterShardingSettings =
-    copy(passivationStrategySettings = passivationStrategySettings.withOldIdleStrategy(duration.asScala))
+    copy(passivationStrategySettings = passivationStrategySettings.withOldIdleStrategy(duration.toScala))
 
   /**
    * API MAY CHANGE: Settings for passivation strategies may change after additional testing and feedback.
@@ -1344,8 +1372,13 @@ final class ClusterShardingSettings(
     copy(shardRegionQueryTimeout = duration)
 
   def withShardRegionQueryTimeout(duration: java.time.Duration): ClusterShardingSettings =
-    copy(shardRegionQueryTimeout = duration.asScala)
+    copy(shardRegionQueryTimeout = duration.toScala)
 
+  /**
+   * Note that if you define a custom lease name and have several sharding entity types each one must have a unique
+   * lease name. If the lease name is undefined it will be derived from ActorSystem name and shard name,
+   * but that may result in too long lease names.
+   */
   def withLeaseSettings(leaseSettings: LeaseUsageSettings): ClusterShardingSettings =
     copy(leaseSettings = Some(leaseSettings))
 

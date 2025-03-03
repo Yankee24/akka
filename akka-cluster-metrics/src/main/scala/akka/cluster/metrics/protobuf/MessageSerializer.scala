@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.metrics.protobuf
@@ -8,8 +8,10 @@ import java.{ lang => jl }
 import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, ObjectOutputStream }
 import java.io.NotSerializableException
 import java.util.zip.{ GZIPInputStream, GZIPOutputStream }
+
 import scala.annotation.tailrec
 import scala.collection.immutable
+
 import akka.actor.{ Address, ExtendedActorSystem }
 import akka.cluster.metrics._
 import akka.cluster.metrics.protobuf.msg.{ ClusterMetricsMessages => cm }
@@ -18,13 +20,11 @@ import akka.protobufv3.internal.MessageLite
 import akka.remote.ByteStringUtils
 import akka.serialization.{ BaseSerializer, SerializationExtension, SerializerWithStringManifest, Serializers }
 import akka.util.ClassLoaderObjectInputStream
-import akka.util.ccompat._
-import akka.util.ccompat.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
  * Protobuf serializer for [[akka.cluster.metrics.ClusterMetricsMessage]] types.
  */
-@ccompatUsedUntil213
 class MessageSerializer(val system: ExtendedActorSystem) extends SerializerWithStringManifest with BaseSerializer {
 
   private final val BufferSize = 4 * 1024

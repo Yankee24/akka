@@ -1,13 +1,12 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream
 
+import scala.annotation.nowarn
 import scala.util.{ Failure, Success, Try }
 import scala.util.control.NoStackTrace
-
-import scala.annotation.nowarn
 
 import akka.Done
 

@@ -1,13 +1,16 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
+import scala.concurrent.duration._
+
+import com.typesafe.config.ConfigFactory
+
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
-import akka.util.ccompat._
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.MemberStatus
 import akka.cluster.MemberStatus.Removed
@@ -21,9 +24,6 @@ import akka.cluster.typed.PrepareForFullClusterShutdown
 import akka.remote.testkit.MultiNodeConfig
 import akka.remote.testkit.MultiNodeSpec
 import akka.serialization.jackson.CborSerializable
-import com.typesafe.config.ConfigFactory
-
-import scala.concurrent.duration._
 
 object ClusterShardingPreparingForShutdownSpec extends MultiNodeConfig {
   val first = role("first")
@@ -33,7 +33,6 @@ object ClusterShardingPreparingForShutdownSpec extends MultiNodeConfig {
   commonConfig(ConfigFactory.parseString("""
     akka.loglevel = DEBUG 
     akka.actor.provider = "cluster"
-    akka.remote.log-remote-lifecycle-events = off
     akka.cluster.downing-provider-class = akka.cluster.testkit.AutoDowning
     akka.cluster.testkit.auto-down-unreachable-after = off
     akka.cluster.leader-actions-interval = 100ms
@@ -61,7 +60,6 @@ class ClusterShardingPreparingForShutdownMultiJvmNode1 extends ClusterShardingPr
 class ClusterShardingPreparingForShutdownMultiJvmNode2 extends ClusterShardingPreparingForShutdownSpec
 class ClusterShardingPreparingForShutdownMultiJvmNode3 extends ClusterShardingPreparingForShutdownSpec
 
-@ccompatUsedUntil213
 class ClusterShardingPreparingForShutdownSpec
     extends MultiNodeSpec(ClusterShardingPreparingForShutdownSpec)
     with MultiNodeTypedClusterSpec {

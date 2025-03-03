@@ -1,10 +1,18 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
 import java.util.concurrent.ThreadLocalRandom
+
+import scala.annotation.nowarn
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import org.scalatest.time.Span
+import org.scalatest.wordspec.AnyWordSpecLike
+
 import akka.actor.testkit.typed.scaladsl.{ ActorTestKit, LogCapturing, ScalaTestWithActorTestKit }
 import akka.actor.typed.ActorRef
 import akka.actor.typed.ActorSystem
@@ -12,6 +20,8 @@ import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ReplicatedShardingSpec.DataCenter
+import akka.cluster.sharding.typed.ReplicatedShardingSpec.MyReplicatedIntSet
+import akka.cluster.sharding.typed.ReplicatedShardingSpec.MyReplicatedStringSet
 import akka.cluster.sharding.typed.ReplicatedShardingSpec.Normal
 import akka.cluster.sharding.typed.ReplicatedShardingSpec.ReplicationType
 import akka.cluster.sharding.typed.ReplicatedShardingSpec.Role
@@ -21,27 +31,18 @@ import akka.cluster.typed.Join
 import akka.persistence.testkit.PersistenceTestKitPlugin
 import akka.persistence.testkit.query.scaladsl.PersistenceTestKitReadJournal
 import akka.persistence.typed.ReplicaId
-import akka.persistence.typed.scaladsl.ReplicatedEventSourcing
+import akka.persistence.typed.ReplicationId
 import akka.persistence.typed.scaladsl.Effect
 import akka.persistence.typed.scaladsl.EventSourcedBehavior
+import akka.persistence.typed.scaladsl.ReplicatedEventSourcing
 import akka.serialization.jackson.CborSerializable
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
-import akka.actor.typed.scaladsl.LoggerOps
-import akka.cluster.sharding.typed.ReplicatedShardingSpec.MyReplicatedIntSet
-import akka.cluster.sharding.typed.ReplicatedShardingSpec.MyReplicatedStringSet
-import akka.persistence.typed.ReplicationId
-import com.typesafe.config.Config
-import akka.util.ccompat._
-import org.scalatest.time.Span
 
-@ccompatUsedUntil213
+@nowarn("msg=Use Akka Distributed Cluster")
 object ReplicatedShardingSpec {
   def commonConfig = ConfigFactory.parseString("""
       akka.loglevel = DEBUG
       akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
       akka.actor.provider = "cluster"
-      akka.remote.classic.netty.tcp.port = 0
       akka.remote.artery.canonical.port = 0""").withFallback(PersistenceTestKitPlugin.config)
 
   def roleAConfig = ConfigFactory.parseString("""
@@ -184,10 +185,10 @@ object ProxyActor {
       Behaviors.receiveMessage {
         case ForwardToAllString(entityId, cmd) =>
           val entityRefs = replicatedShardingStringSet.entityRefsFor(entityId)
-          ctx.log.infoN("Entity refs {}", entityRefs)
+          ctx.log.info("Entity refs {}", entityRefs)
           entityRefs.foreach {
             case (replica, ref) =>
-              ctx.log.infoN("Forwarding to replica {} ref {}", replica, ref)
+              ctx.log.info("Forwarding to replica {} ref {}", replica, ref)
               ref ! cmd
           }
           Behaviors.same

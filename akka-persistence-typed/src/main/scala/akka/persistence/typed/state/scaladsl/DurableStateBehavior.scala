@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.state.scaladsl
@@ -15,9 +15,9 @@ import akka.actor.typed.internal.LoggerClass
 import akka.actor.typed.scaladsl.ActorContext
 import akka.annotation.ApiMayChange
 import akka.annotation.DoNotInherit
-import akka.persistence.typed.state.internal._
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.SnapshotAdapter
+import akka.persistence.typed.state.internal._
 
 /**
  * API May Change
@@ -159,5 +159,19 @@ object DurableStateBehavior {
    * If not specified the actor will be stopped on failure.
    */
   def onPersistFailure(backoffStrategy: BackoffSupervisorStrategy): DurableStateBehavior[Command, State]
+
+  /**
+   * Define a custom stash capacity per entity.
+   * If not defined, the default `akka.persistence.typed.stash-capacity` will be used.
+   */
+  def withStashCapacity(size: Int): DurableStateBehavior[Command, State]
+
+  /**
+   * API May Change: Store additional change event when the state is updated or deleted.
+   * The event can be used in Projections.
+   */
+  @ApiMayChange
+  def withChangeEventHandler[ChangeEvent](
+      handler: ChangeEventHandler[Command, State, ChangeEvent]): DurableStateBehavior[Command, State]
 
 }

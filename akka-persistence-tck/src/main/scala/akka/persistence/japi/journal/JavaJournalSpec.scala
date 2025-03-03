@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.japi.journal
@@ -7,9 +7,10 @@ package akka.persistence.japi.journal
 import scala.collection.immutable
 
 import com.typesafe.config.Config
+import org.scalatest.{ Args, ConfigMap, Filter, Status, Suite, TestData }
+
 import akka.persistence.CapabilityFlag
 import akka.persistence.journal.JournalSpec
-import org.scalatest.{ Args, ConfigMap, Filter, Status, Suite, TestData }
 
 /**
  * JAVA API

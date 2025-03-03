@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
@@ -8,10 +8,17 @@ import java.io.NotSerializableException
 import java.util.concurrent.ThreadLocalRandom
 
 import scala.concurrent.duration._
-import scala.annotation.nowarn
-import akka.actor.{ Actor, ActorRef, Dropped, PoisonPill, Props }
-import akka.remote.{ AssociationErrorEvent, DisassociatedEvent, OversizedPayloadException, RARP }
-import akka.testkit.{ EventFilter, ImplicitSender, TestActors, TestProbe }
+
+import akka.actor.Actor
+import akka.actor.ActorRef
+import akka.actor.Dropped
+import akka.actor.PoisonPill
+import akka.actor.Props
+import akka.remote.RARP
+import akka.testkit.EventFilter
+import akka.testkit.ImplicitSender
+import akka.testkit.TestActors
+import akka.testkit.TestProbe
 import akka.util.ByteString
 
 object RemoteMessageSerializationSpec {
@@ -86,6 +93,7 @@ class RemoteMessageSerializationSpec extends ArteryMultiNodeSpec with ImplicitSe
   }
 
   private def verifySend(msg: Any)(afterSend: => Unit): Unit = {
+
     val bigBounceId = s"bigBounce-${ThreadLocalRandom.current.nextInt()}"
     val bigBounceOther = remoteSystem.actorOf(Props(new Actor {
       def receive = {
@@ -93,30 +101,15 @@ class RemoteMessageSerializationSpec extends ArteryMultiNodeSpec with ImplicitSe
         case x      => sender() ! x
       }
     }), bigBounceId)
-    @nowarn
+
     val bigBounceHere =
       RARP(system).provider.resolveActorRef(s"akka://${remoteSystem.name}@localhost:$remotePort/user/$bigBounceId")
 
-    val eventForwarder = localSystem.actorOf(Props(new Actor {
-      def receive = {
-        case x => testActor ! x
-      }
-    }))
-    @nowarn
-    val associationErrorEventCls = classOf[AssociationErrorEvent]
-    @nowarn
-    val disassociatedEventCls = classOf[DisassociatedEvent]
-
-    localSystem.eventStream.subscribe(eventForwarder, associationErrorEventCls)
-    localSystem.eventStream.subscribe(eventForwarder, disassociatedEventCls)
     try {
       bigBounceHere ! msg
       afterSend
       expectNoMessage(500.millis)
     } finally {
-      localSystem.eventStream.unsubscribe(eventForwarder, associationErrorEventCls)
-      localSystem.eventStream.unsubscribe(eventForwarder, disassociatedEventCls)
-      eventForwarder ! PoisonPill
       bigBounceOther ! PoisonPill
     }
   }

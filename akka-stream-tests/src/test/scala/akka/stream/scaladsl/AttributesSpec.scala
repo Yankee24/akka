@@ -1,22 +1,24 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
 import java.util.concurrent.{ CompletionStage, TimeUnit }
+
 import scala.annotation.nowarn
 
 import com.typesafe.config.ConfigFactory
+
 import akka.{ Done, NotUsed }
 import akka.actor.ActorSystem
 import akka.dispatch.Dispatchers
-import akka.stream.ActorAttributes.Dispatcher
 import akka.stream._
+import akka.stream.ActorAttributes.Dispatcher
 import akka.stream.Attributes._
 import akka.stream.javadsl
-import akka.stream.stage._
 import akka.stream.snapshot.MaterializerState
+import akka.stream.stage._
 import akka.stream.testkit._
 import akka.testkit.TestKit
 

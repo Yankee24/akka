@@ -1,16 +1,17 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.io
 
 import java.util.concurrent.TimeUnit
+
+import scala.annotation.nowarn
 import scala.concurrent.duration.Duration
+
 import akka.actor.{ Actor, ActorLogging, Deploy, Props }
 import akka.dispatch.{ RequiresMessageQueue, UnboundedMessageQueueSemantics }
 import akka.routing.FromConfig
-
-import scala.annotation.nowarn
 
 final class SimpleDnsManager(val ext: DnsExt)
     extends Actor

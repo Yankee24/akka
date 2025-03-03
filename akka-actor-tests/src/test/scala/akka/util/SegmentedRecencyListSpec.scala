@@ -1,24 +1,13 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.util
 
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpec
-
 import scala.concurrent.duration._
 
-object SegmentedRecencyListSpec {
-  // controlled clock for testing recency windows
-  // durations are always in seconds
-  class TestClock extends RecencyList.Clock {
-    private var time = 0L
-    def tick(): Unit = time += 1
-    override def currentTime(): Long = time
-    override def earlierTime(duration: FiniteDuration): Long = currentTime() - duration.toSeconds
-  }
-}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
 class SegmentedRecencyListSpec extends AnyWordSpec with Matchers {
 
@@ -120,7 +109,7 @@ class SegmentedRecencyListSpec extends AnyWordSpec with Matchers {
     }
 
     "remove overall least recent elements" in {
-      val clock = new SegmentedRecencyListSpec.TestClock
+      val clock = new TestClock
       val recency = new SegmentedRecencyList[String](initialLimits = List(5, 5), OptionVal.Some(clock))
 
       check(recency, Nil)

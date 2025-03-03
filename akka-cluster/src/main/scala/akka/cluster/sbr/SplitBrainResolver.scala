@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sbr
@@ -7,6 +7,7 @@ package akka.cluster.sbr
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+import scala.annotation.nowarn
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -94,6 +95,7 @@ import akka.remote.artery.ThisActorSystemQuarantinedEvent
  * The implementation is split into two classes SplitBrainResolver and SplitBrainResolverBase to be
  * able to unit test the logic without running cluster.
  */
+@nowarn("msg=Use Akka Distributed Cluster")
 @InternalApi private[sbr] final class SplitBrainResolver(stableAfter: FiniteDuration, strategy: DowningStrategy)
     extends SplitBrainResolverBase(stableAfter, strategy) {
 
@@ -135,14 +137,15 @@ import akka.remote.artery.ThisActorSystemQuarantinedEvent
  * The implementation is split into two classes SplitBrainResolver and SplitBrainResolverBase to be
  * able to unit test the logic without running cluster.
  */
+@nowarn("msg=Use Akka Distributed Cluster")
 @InternalApi private[sbr] abstract class SplitBrainResolverBase(stableAfter: FiniteDuration, _strategy: DowningStrategy)
     extends Actor
     with Stash
     with Timers {
 
   import DowningStrategy._
-  import SplitBrainResolver.ReleaseLeaseCondition.NoLease
   import SplitBrainResolver._
+  import SplitBrainResolver.ReleaseLeaseCondition.NoLease
 
   val log: DiagnosticMarkerBusLoggingAdapter = Logging.withMarker(this)
 
@@ -474,7 +477,7 @@ import akka.remote.artery.ThisActorSystemQuarantinedEvent
 
     log.warning(
       ClusterLogMarker.sbrDowning(decision),
-      s"SBR took decision $decision and is downing [${nodesToDown.map(_.address).mkString(", ")}]${if (downMyself) " including myself,"
+      s"SBR took decision $decision and is downing [${nodesToDown.map(_.address).mkString(", ")}]${if (downMyself) " including myself"
       else ""}, " +
       s"[${strategy.unreachable.size}] unreachable of [${strategy.members.size}] members" +
       indirectlyConnectedLogMessage +

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata
@@ -54,7 +54,7 @@ final class PNCounterMap[A] private[akka] (private[akka] val underlying: ORMap[A
 
   /** Java API */
   def getEntries: java.util.Map[A, BigInteger] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     underlying.entries.map { case (k, c) => k -> c.value.bigInteger }.asJava
   }
 
@@ -95,10 +95,6 @@ final class PNCounterMap[A] private[akka] (private[akka] val underlying: ORMap[A
   def increment(node: SelfUniqueAddress, key: A, delta: Long): PNCounterMap[A] =
     increment(node.uniqueAddress, key, delta)
 
-  @deprecated("Use `increment` that takes a `SelfUniqueAddress` parameter instead.", since = "2.5.20")
-  def increment(node: Cluster, key: A, delta: Long): PNCounterMap[A] =
-    increment(node.selfUniqueAddress, key, delta)
-
   /**
    * INTERNAL API
    */
@@ -121,18 +117,6 @@ final class PNCounterMap[A] private[akka] (private[akka] val underlying: ORMap[A
   def decrement(node: SelfUniqueAddress, key: A, delta: Long): PNCounterMap[A] =
     decrement(node.uniqueAddress, key, delta)
 
-  @deprecated("Use `decrement` that takes a `SelfUniqueAddress` parameter instead.", since = "2.5.20")
-  def decrement(key: A, delta: Long = 1)(implicit node: Cluster): PNCounterMap[A] =
-    decrement(node.selfUniqueAddress, key, delta)
-
-  /**
-   * Decrement the counter with the delta specified.
-   * If the delta is negative then it will increment instead of decrement.
-   */
-  @deprecated("Use `decrement` that takes a `SelfUniqueAddress` parameter instead.", since = "2.5.20")
-  def decrement(node: Cluster, key: A, delta: Long): PNCounterMap[A] =
-    decrement(node.selfUniqueAddress, key, delta)
-
   /**
    * INTERNAL API
    */
@@ -147,13 +131,6 @@ final class PNCounterMap[A] private[akka] (private[akka] val underlying: ORMap[A
    */
   def remove(key: A)(implicit node: SelfUniqueAddress): PNCounterMap[A] =
     remove(node.uniqueAddress, key)
-
-  @deprecated("Use `remove` that takes a `SelfUniqueAddress` parameter instead.", since = "2.5.20")
-  def remove(node: Cluster, key: A): PNCounterMap[A] =
-    remove(node.selfUniqueAddress, key)
-
-  @deprecated("Use `remove` that takes a `SelfUniqueAddress` parameter instead.", since = "2.5.20")
-  def -(key: A)(implicit node: Cluster): PNCounterMap[A] = remove(node, key)
 
   /**
    * INTERNAL API
@@ -201,4 +178,7 @@ object PNCounterMapKey {
 }
 
 @SerialVersionUID(1L)
-final case class PNCounterMapKey[A](_id: String) extends Key[PNCounterMap[A]](_id) with ReplicatedDataSerialization
+final case class PNCounterMapKey[A](_id: String) extends Key[PNCounterMap[A]](_id) with ReplicatedDataSerialization {
+  override def withId(newId: Key.KeyId): PNCounterMapKey[A] =
+    PNCounterMapKey(newId)
+}

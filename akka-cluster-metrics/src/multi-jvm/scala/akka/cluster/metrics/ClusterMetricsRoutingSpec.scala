@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.metrics
@@ -26,9 +26,8 @@ import akka.routing.FromConfig
 import akka.routing.GetRoutees
 import akka.routing.Routees
 import akka.serialization.jackson.CborSerializable
-import akka.testkit.GHExcludeTest
 import akka.testkit.{ DefaultTimeout, ImplicitSender, LongRunningTest }
-import akka.util.unused
+import akka.testkit.GHExcludeTest
 
 object AdaptiveLoadBalancingRouterConfig extends MultiNodeConfig {
 
@@ -112,7 +111,7 @@ object AdaptiveLoadBalancingRouterConfig extends MultiNodeConfig {
 
 }
 
-class TestCustomMetricsSelector(@unused config: Config) extends MetricsSelector {
+class TestCustomMetricsSelector(@nowarn("msg=never used") config: Config) extends MetricsSelector {
   override def weights(nodeMetrics: Set[NodeMetrics]): Map[Address, Int] = Map.empty
 }
 

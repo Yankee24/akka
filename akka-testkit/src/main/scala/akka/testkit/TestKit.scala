@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.testkit
@@ -15,8 +15,6 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
-
-import scala.annotation.nowarn
 
 import akka.actor._
 import akka.actor.DeadLetter
@@ -103,7 +101,7 @@ object TestActor {
   }
 
   // make creator serializable, for VerifySerializabilitySpec
-  def props(queue: BlockingDeque[Message]): Props = Props(classOf[TestActor], queue)
+  def props(queue: BlockingDeque[Message]): Props = Props(new TestActor(queue))
 }
 
 class TestActor(queue: BlockingDeque[TestActor.Message]) extends Actor {
@@ -134,7 +132,7 @@ class TestActor(queue: BlockingDeque[TestActor.Message]) extends Actor {
   }
 
   override def postStop() = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     queue.asScala.foreach { m =>
       context.system.deadLetters.tell(DeadLetter(m.msg, m.sender, self), m.sender)
     }
@@ -709,23 +707,6 @@ trait TestKitBase {
   }
 
   /**
-   * Assert that no message is received. Waits for the default period configured as
-   * `akka.test.expect-no-message-default`.
-   * That timeout is scaled using the configuration entry "akka.test.timefactor".
-   */
-  @deprecated(message = "Use expectNoMessage instead", since = "2.5.5")
-  def expectNoMsg(): Unit = expectNoMessage()
-
-  /**
-   * Assert that no message is received for the specified time.
-   * NOTE! Supplied value is always dilated.
-   */
-  @deprecated(message = "Use expectNoMessage instead", since = "2.5.5")
-  def expectNoMsg(max: FiniteDuration): Unit = {
-    expectNoMsg_internal(max.dilated)
-  }
-
-  /**
    * Assert that no message is received for the specified time.
    * Supplied value is not dilated.
    */
@@ -969,7 +950,6 @@ trait TestKitBase {
  *
  * @since 1.1
  */
-@nowarn // 'early initializers' are deprecated on 2.13 and will be replaced with trait parameters on 2.14. https://github.com/akka/akka/issues/26753
 class TestKit(_system: ActorSystem) extends TestKitBase {
   implicit val system: ActorSystem = _system
 }

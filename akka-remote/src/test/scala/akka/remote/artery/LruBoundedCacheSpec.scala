@@ -1,17 +1,14 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.artery
 
 import scala.util.Random
 
-import scala.annotation.nowarn
-
 import akka.testkit.AkkaSpec
 import akka.util.Unsafe
 
-@nowarn
 class LruBoundedCacheSpec extends AkkaSpec {
 
   class TestCache(_capacity: Int, threshold: Int, hashSeed: String = "")

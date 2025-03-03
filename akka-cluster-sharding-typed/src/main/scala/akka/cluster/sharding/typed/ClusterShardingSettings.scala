@@ -1,25 +1,26 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
+import scala.annotation.nowarn
 import scala.collection.immutable
 import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
 
 import com.typesafe.config.Config
 
 import akka.actor.typed.ActorSystem
 import akka.annotation.{ ApiMayChange, InternalApi }
 import akka.cluster.ClusterSettings.DataCenter
-import akka.cluster.sharding.typed.ClusterShardingSettings.RememberEntitiesStoreModeDData
 import akka.cluster.sharding.{ ClusterShardingSettings => ClassicShardingSettings }
+import akka.cluster.sharding.typed.ClusterShardingSettings.RememberEntitiesStoreModeDData
 import akka.cluster.singleton.{ ClusterSingletonManagerSettings => ClassicClusterSingletonManagerSettings }
 import akka.cluster.typed.Cluster
 import akka.cluster.typed.ClusterSingletonManagerSettings
 import akka.coordination.lease.LeaseUsageSettings
 import akka.japi.Util.immutableSeq
-import akka.util.JavaDurationConverters._
 
 object ClusterShardingSettings {
 
@@ -98,7 +99,8 @@ object ClusterShardingSettings {
         coordinatorStateWriteMajorityPlus = settings.tuningParameters.coordinatorStateWriteMajorityPlus,
         coordinatorStateReadMajorityPlus = settings.tuningParameters.coordinatorStateReadMajorityPlus,
         leastShardAllocationAbsoluteLimit = settings.tuningParameters.leastShardAllocationAbsoluteLimit,
-        leastShardAllocationRelativeLimit = settings.tuningParameters.leastShardAllocationRelativeLimit),
+        leastShardAllocationRelativeLimit = settings.tuningParameters.leastShardAllocationRelativeLimit,
+        passivationStopTimeout = settings.tuningParameters.passivationStopTimeout),
       coordinatorSingletonOverrideRole = settings.coordinatorSingletonOverrideRole,
       new ClassicClusterSingletonManagerSettings(
         settings.coordinatorSingletonSettings.singletonName,
@@ -306,11 +308,11 @@ object ClusterShardingSettings {
 
       def withTimeout(timeout: FiniteDuration): IdleSettings = copy(timeout = timeout)
 
-      def withTimeout(timeout: java.time.Duration): IdleSettings = withTimeout(timeout.asScala)
+      def withTimeout(timeout: java.time.Duration): IdleSettings = withTimeout(timeout.toScala)
 
       def withInterval(interval: FiniteDuration): IdleSettings = copy(interval = Some(interval))
 
-      def withInterval(interval: java.time.Duration): IdleSettings = withInterval(interval.asScala)
+      def withInterval(interval: java.time.Duration): IdleSettings = withInterval(interval.toScala)
 
       private def copy(timeout: FiniteDuration = timeout, interval: Option[FiniteDuration] = interval): IdleSettings =
         new IdleSettings(timeout, interval)
@@ -666,7 +668,8 @@ object ClusterShardingSettings {
       val coordinatorStateWriteMajorityPlus: Int,
       val coordinatorStateReadMajorityPlus: Int,
       val leastShardAllocationAbsoluteLimit: Int,
-      val leastShardAllocationRelativeLimit: Double) {
+      val leastShardAllocationRelativeLimit: Double,
+      val passivationStopTimeout: FiniteDuration) {
 
     def this(classic: ClassicShardingSettings.TuningParameters) =
       this(
@@ -690,7 +693,8 @@ object ClusterShardingSettings {
         coordinatorStateWriteMajorityPlus = classic.coordinatorStateWriteMajorityPlus,
         coordinatorStateReadMajorityPlus = classic.coordinatorStateReadMajorityPlus,
         leastShardAllocationAbsoluteLimit = classic.leastShardAllocationAbsoluteLimit,
-        leastShardAllocationRelativeLimit = classic.leastShardAllocationRelativeLimit)
+        leastShardAllocationRelativeLimit = classic.leastShardAllocationRelativeLimit,
+        passivationStopTimeout = classic.passivationStopTimeout)
 
     require(
       entityRecoveryStrategy == "all" || entityRecoveryStrategy == "constant",
@@ -699,37 +703,37 @@ object ClusterShardingSettings {
     def withBufferSize(value: Int): TuningParameters = copy(bufferSize = value)
     def withCoordinatorFailureBackoff(value: FiniteDuration): TuningParameters = copy(coordinatorFailureBackoff = value)
     def withCoordinatorFailureBackoff(value: java.time.Duration): TuningParameters =
-      withCoordinatorFailureBackoff(value.asScala)
+      withCoordinatorFailureBackoff(value.toScala)
     def withEntityRecoveryConstantRateStrategyFrequency(value: FiniteDuration): TuningParameters =
       copy(entityRecoveryConstantRateStrategyFrequency = value)
     def withEntityRecoveryConstantRateStrategyFrequency(value: java.time.Duration): TuningParameters =
-      withEntityRecoveryConstantRateStrategyFrequency(value.asScala)
+      withEntityRecoveryConstantRateStrategyFrequency(value.toScala)
     def withEntityRecoveryConstantRateStrategyNumberOfEntities(value: Int): TuningParameters =
       copy(entityRecoveryConstantRateStrategyNumberOfEntities = value)
     def withEntityRecoveryStrategy(value: java.lang.String): TuningParameters = copy(entityRecoveryStrategy = value)
     def withEntityRestartBackoff(value: FiniteDuration): TuningParameters = copy(entityRestartBackoff = value)
-    def withEntityRestartBackoff(value: java.time.Duration): TuningParameters = withEntityRestartBackoff(value.asScala)
+    def withEntityRestartBackoff(value: java.time.Duration): TuningParameters = withEntityRestartBackoff(value.toScala)
     def withHandOffTimeout(value: FiniteDuration): TuningParameters = copy(handOffTimeout = value)
-    def withHandOffTimeout(value: java.time.Duration): TuningParameters = withHandOffTimeout(value.asScala)
+    def withHandOffTimeout(value: java.time.Duration): TuningParameters = withHandOffTimeout(value.toScala)
     def withKeepNrOfBatches(value: Int): TuningParameters = copy(keepNrOfBatches = value)
     def withLeastShardAllocationMaxSimultaneousRebalance(value: Int): TuningParameters =
       copy(leastShardAllocationMaxSimultaneousRebalance = value)
     def withLeastShardAllocationRebalanceThreshold(value: Int): TuningParameters =
       copy(leastShardAllocationRebalanceThreshold = value)
     def withRebalanceInterval(value: FiniteDuration): TuningParameters = copy(rebalanceInterval = value)
-    def withRebalanceInterval(value: java.time.Duration): TuningParameters = withRebalanceInterval(value.asScala)
+    def withRebalanceInterval(value: java.time.Duration): TuningParameters = withRebalanceInterval(value.toScala)
     def withRetryInterval(value: FiniteDuration): TuningParameters = copy(retryInterval = value)
-    def withRetryInterval(value: java.time.Duration): TuningParameters = withRetryInterval(value.asScala)
+    def withRetryInterval(value: java.time.Duration): TuningParameters = withRetryInterval(value.toScala)
     def withShardFailureBackoff(value: FiniteDuration): TuningParameters = copy(shardFailureBackoff = value)
-    def withShardFailureBackoff(value: java.time.Duration): TuningParameters = withShardFailureBackoff(value.asScala)
+    def withShardFailureBackoff(value: java.time.Duration): TuningParameters = withShardFailureBackoff(value.toScala)
     def withShardStartTimeout(value: FiniteDuration): TuningParameters = copy(shardStartTimeout = value)
-    def withShardStartTimeout(value: java.time.Duration): TuningParameters = withShardStartTimeout(value.asScala)
+    def withShardStartTimeout(value: java.time.Duration): TuningParameters = withShardStartTimeout(value.toScala)
     def withSnapshotAfter(value: Int): TuningParameters = copy(snapshotAfter = value)
     def withUpdatingStateTimeout(value: FiniteDuration): TuningParameters = copy(updatingStateTimeout = value)
-    def withUpdatingStateTimeout(value: java.time.Duration): TuningParameters = withUpdatingStateTimeout(value.asScala)
+    def withUpdatingStateTimeout(value: java.time.Duration): TuningParameters = withUpdatingStateTimeout(value.toScala)
     def withWaitingForStateTimeout(value: FiniteDuration): TuningParameters = copy(waitingForStateTimeout = value)
     def withWaitingForStateTimeout(value: java.time.Duration): TuningParameters =
-      withWaitingForStateTimeout(value.asScala)
+      withWaitingForStateTimeout(value.toScala)
     def withCoordinatorStateWriteMajorityPlus(value: Int): TuningParameters =
       copy(coordinatorStateWriteMajorityPlus = value)
     def withCoordinatorStateReadMajorityPlus(value: Int): TuningParameters =
@@ -738,6 +742,9 @@ object ClusterShardingSettings {
       copy(leastShardAllocationAbsoluteLimit = value)
     def withLeastShardAllocationRelativeLimit(value: Double): TuningParameters =
       copy(leastShardAllocationRelativeLimit = value)
+    def withPassivationStopTimeout(value: FiniteDuration): TuningParameters = copy(passivationStopTimeout = value)
+    def withPassivationStopTimeout(value: java.time.Duration): TuningParameters =
+      withPassivationStopTimeout(value.toScala)
 
     private def copy(
         bufferSize: Int = bufferSize,
@@ -760,7 +767,8 @@ object ClusterShardingSettings {
         coordinatorStateWriteMajorityPlus: Int = coordinatorStateWriteMajorityPlus,
         coordinatorStateReadMajorityPlus: Int = coordinatorStateReadMajorityPlus,
         leastShardAllocationAbsoluteLimit: Int = leastShardAllocationAbsoluteLimit,
-        leastShardAllocationRelativeLimit: Double = leastShardAllocationRelativeLimit): TuningParameters =
+        leastShardAllocationRelativeLimit: Double = leastShardAllocationRelativeLimit,
+        passivationStopTimeout: FiniteDuration = passivationStopTimeout): TuningParameters =
       new TuningParameters(
         bufferSize = bufferSize,
         coordinatorFailureBackoff = coordinatorFailureBackoff,
@@ -782,10 +790,11 @@ object ClusterShardingSettings {
         coordinatorStateWriteMajorityPlus = coordinatorStateWriteMajorityPlus,
         coordinatorStateReadMajorityPlus = coordinatorStateReadMajorityPlus,
         leastShardAllocationAbsoluteLimit = leastShardAllocationAbsoluteLimit,
-        leastShardAllocationRelativeLimit = leastShardAllocationRelativeLimit)
+        leastShardAllocationRelativeLimit = leastShardAllocationRelativeLimit,
+        passivationStopTimeout = passivationStopTimeout)
 
     override def toString =
-      s"""TuningParameters($bufferSize,$coordinatorFailureBackoff,$entityRecoveryConstantRateStrategyFrequency,$entityRecoveryConstantRateStrategyNumberOfEntities,$entityRecoveryStrategy,$entityRestartBackoff,$handOffTimeout,$keepNrOfBatches,$leastShardAllocationMaxSimultaneousRebalance,$leastShardAllocationRebalanceThreshold,$rebalanceInterval,$retryInterval,$shardFailureBackoff,$shardStartTimeout,$snapshotAfter,$updatingStateTimeout,$waitingForStateTimeout,$coordinatorStateReadMajorityPlus,$coordinatorStateReadMajorityPlus,$leastShardAllocationAbsoluteLimit,$leastShardAllocationRelativeLimit)"""
+      s"""TuningParameters($bufferSize,$coordinatorFailureBackoff,$entityRecoveryConstantRateStrategyFrequency,$entityRecoveryConstantRateStrategyNumberOfEntities,$entityRecoveryStrategy,$entityRestartBackoff,$handOffTimeout,$keepNrOfBatches,$leastShardAllocationMaxSimultaneousRebalance,$leastShardAllocationRebalanceThreshold,$rebalanceInterval,$retryInterval,$shardFailureBackoff,$shardStartTimeout,$snapshotAfter,$updatingStateTimeout,$waitingForStateTimeout,$coordinatorStateReadMajorityPlus,$coordinatorStateReadMajorityPlus,$leastShardAllocationAbsoluteLimit,$leastShardAllocationRelativeLimit,$passivationStopTimeout)"""
   }
 }
 
@@ -810,10 +819,16 @@ object ClusterShardingSettings {
  *   snapshot plugin is used. Note that this is not related to persistence used by the entity
  *   actors.
  * @param tuningParameters additional tuning parameters, see descriptions in reference.conf
+ * @param leaseSettings LeaseSettings for acquiring before creating the shard.
+ *   Note that if you define a custom lease name and have several sharding entity types each one must have a unique
+ *   lease name. If the lease name is undefined it will be derived from ActorSystem name and shard name,
+ *   but that may result in too long lease names.
  */
+@nowarn("msg=Use Akka Distributed Cluster")
 final class ClusterShardingSettings(
     val numberOfShards: Int,
     val role: Option[String],
+    @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
     val dataCenter: Option[DataCenter],
     val rememberEntities: Boolean,
     val journalPluginId: String,
@@ -854,7 +869,7 @@ final class ClusterShardingSettings(
       stateStoreMode,
       rememberEntitiesStoreMode,
       tuningParameters,
-      true,
+      coordinatorSingletonOverrideRole = true,
       coordinatorSingletonSettings,
       leaseSettings)
 
@@ -885,7 +900,7 @@ final class ClusterShardingSettings(
       stateStoreMode,
       rememberEntitiesStoreMode,
       tuningParameters,
-      true,
+      coordinatorSingletonOverrideRole = true,
       coordinatorSingletonSettings,
       leaseSettings)
 
@@ -961,6 +976,7 @@ final class ClusterShardingSettings(
 
   def withRole(role: String): ClusterShardingSettings = copy(role = ClusterShardingSettings.option(role))
 
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def withDataCenter(dataCenter: DataCenter): ClusterShardingSettings =
     copy(dataCenter = ClusterShardingSettings.option(dataCenter))
 
@@ -993,7 +1009,7 @@ final class ClusterShardingSettings(
 
   @deprecated("Use withPassivationStrategy instead", since = "2.6.18")
   def withPassivateIdleEntityAfter(duration: java.time.Duration): ClusterShardingSettings =
-    copy(passivationStrategySettings = passivationStrategySettings.withOldIdleStrategy(duration.asScala))
+    copy(passivationStrategySettings = passivationStrategySettings.withOldIdleStrategy(duration.toScala))
 
   /**
    * API MAY CHANGE: Settings for passivation strategies may change after additional testing and feedback.
@@ -1009,8 +1025,13 @@ final class ClusterShardingSettings(
     copy(shardRegionQueryTimeout = duration)
 
   def withShardRegionQueryTimeout(duration: java.time.Duration): ClusterShardingSettings =
-    copy(shardRegionQueryTimeout = duration.asScala)
+    copy(shardRegionQueryTimeout = duration.toScala)
 
+  /**
+   * Note that if you define a custom lease name and have several sharding entity types each one must have a unique
+   * lease name. If the lease name is undefined it will be derived from ActorSystem name and shard name,
+   * but that may result in too long lease names.
+   */
   def withLeaseSettings(leaseSettings: LeaseUsageSettings) = copy(leaseSettings = Option(leaseSettings))
 
   /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Supplier
 
 import scala.annotation.tailrec
-import scala.compat.java8.FutureConverters._
-import scala.compat.java8.OptionConverters._
+import scala.jdk.FutureConverters._
+import scala.jdk.OptionConverters._
 import scala.concurrent.{ Await, ExecutionContext, Future, Promise }
 import scala.concurrent.duration._
 import scala.concurrent.duration.FiniteDuration
@@ -24,10 +24,10 @@ import com.typesafe.config.ConfigFactory
 
 import akka.Done
 import akka.annotation.InternalApi
-import akka.dispatch.ExecutionContexts
 import akka.event.Logging
 import akka.pattern.after
 import akka.util.OptionVal
+import akka.util.TopologicalSort
 
 object CoordinatedShutdown extends ExtensionId[CoordinatedShutdown] with ExtensionIdProvider {
 
@@ -257,7 +257,7 @@ object CoordinatedShutdown extends ExtensionId[CoordinatedShutdown] with Extensi
         system.whenTerminated.map { _ =>
           if (exitJvm && !runningJvmHook) System.exit(exitCode)
           Done
-        }(ExecutionContexts.parasitic)
+        }(ExecutionContext.parasitic)
       } else if (exitJvm) {
         System.exit(exitCode)
         Future.successful(Done)
@@ -289,6 +289,7 @@ object CoordinatedShutdown extends ExtensionId[CoordinatedShutdown] with Extensi
   /**
    * INTERNAL API
    */
+  @InternalApi
   private[akka] final case class Phase(
       dependsOn: Set[String],
       timeout: FiniteDuration,
@@ -299,7 +300,7 @@ object CoordinatedShutdown extends ExtensionId[CoordinatedShutdown] with Extensi
    * INTERNAL API
    */
   private[akka] def phasesFromConfig(conf: Config): Map[String, Phase] = {
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     val defaultPhaseTimeout = conf.getString("default-phase-timeout")
     val phasesConf = conf.getConfig("phases")
     val defaultPhaseConfig = ConfigFactory.parseString(s"""
@@ -325,32 +326,13 @@ object CoordinatedShutdown extends ExtensionId[CoordinatedShutdown] with Extensi
    * INTERNAL API: https://en.wikipedia.org/wiki/Topological_sorting
    */
   private[akka] def topologicalSort(phases: Map[String, Phase]): List[String] = {
-    var result = List.empty[String]
-    var unmarked = phases.keySet ++ phases.values.flatMap(_.dependsOn) // in case phase is not defined as key
-    var tempMark = Set.empty[String] // for detecting cycles
-
-    while (unmarked.nonEmpty) {
-      depthFirstSearch(unmarked.head)
-    }
-
-    def depthFirstSearch(u: String): Unit = {
-      if (tempMark(u))
-        throw new IllegalArgumentException(
-          "Cycle detected in graph of phases. It must be a DAG. " +
-          s"phase [$u] depends transitively on itself. All dependencies: $phases")
-      if (unmarked(u)) {
-        tempMark += u
-        phases.get(u) match {
-          case Some(p) => p.dependsOn.foreach(depthFirstSearch)
-          case None    =>
-        }
-        unmarked -= u // permanent mark
-        tempMark -= u
-        result = u :: result
-      }
-    }
-
-    result.reverse
+    val all = (phases.keySet ++ phases.values.flatMap(_.dependsOn)).toList // in case phase is not defined as key
+    TopologicalSort
+      .topologicalSort[String](all, phases.get(_) match {
+        case Some(phase) => phase.dependsOn
+        case None        => Set.empty
+      })
+      .toList
   }
 
 }
@@ -373,12 +355,15 @@ private[akka] object JVMShutdownHooks extends JVMShutdownHooks {
   override def removeHook(t: Thread): Boolean = Runtime.getRuntime.removeShutdownHook(t)
 }
 
+/**
+ * Not for user instantiation, use the extension to access
+ */
 final class CoordinatedShutdown private[akka] (
     system: ExtendedActorSystem,
     phases: Map[String, CoordinatedShutdown.Phase],
     jvmShutdownHooks: JVMShutdownHooks = JVMShutdownHooks)
     extends Extension {
-  import CoordinatedShutdown.{ Reason, UnknownReason }
+  import CoordinatedShutdown.Reason
 
   /** INTERNAL API */
   private[akka] val log = Logging(system, classOf[CoordinatedShutdown])
@@ -483,7 +468,7 @@ final class CoordinatedShutdown private[akka] (
       override val size: Int = tasks.size
 
       override def run(recoverEnabled: Boolean)(implicit ec: ExecutionContext): Future[Done] = {
-        Future.sequence(tasks.map(_.run(recoverEnabled))).map(_ => Done)(ExecutionContexts.parasitic)
+        Future.sequence(tasks.map(_.run(recoverEnabled))).map(_ => Done)(ExecutionContext.parasitic)
       }
 
       // This method may be run multiple times during the compare-and-set loop of ConcurrentHashMap, so it must be side-effect-free
@@ -503,7 +488,7 @@ final class CoordinatedShutdown private[akka] (
     def get(phaseName: String): Option[PhaseDefinition] = Option(registeredPhases.get(phaseName))
 
     def totalDuration(): FiniteDuration = {
-      import akka.util.ccompat.JavaConverters._
+      import scala.jdk.CollectionConverters._
       registeredPhases.keySet.asScala.foldLeft(Duration.Zero) {
         case (acc, phase) =>
           acc + timeout(phase)
@@ -578,7 +563,7 @@ final class CoordinatedShutdown private[akka] (
    * to a later stage with confidence that they will be run.
    */
   def addCancellableTask(phase: String, taskName: String, task: Supplier[CompletionStage[Done]]): Cancellable = {
-    addCancellableTask(phase, taskName)(() => task.get().toScala)
+    addCancellableTask(phase, taskName)(() => task.get().asScala)
   }
 
   /**
@@ -618,7 +603,7 @@ final class CoordinatedShutdown private[akka] (
    * and it will be performed.
    */
   def addTask(phase: String, taskName: String, task: Supplier[CompletionStage[Done]]): Unit =
-    addTask(phase, taskName)(() => task.get().toScala)
+    addTask(phase, taskName)(() => task.get().asScala)
 
   /**
    * Scala API: Add an actor termination task to a phase. It doesn't remove
@@ -664,7 +649,7 @@ final class CoordinatedShutdown private[akka] (
    * and it will be performed.
    */
   def addActorTerminationTask(phase: String, taskName: String, actor: ActorRef, stopMsg: Optional[Any]): Unit =
-    addActorTerminationTask(phase, taskName, actor, stopMsg.asScala)
+    addActorTerminationTask(phase, taskName, actor, stopMsg.toScala)
 
   /**
    * The `Reason` for the shutdown as passed to the `run` method. `None` if the shutdown
@@ -676,7 +661,7 @@ final class CoordinatedShutdown private[akka] (
    * The `Reason` for the shutdown as passed to the `run` method. `Optional.empty` if the shutdown
    * has not been started.
    */
-  def getShutdownReason(): Optional[Reason] = shutdownReason().asJava
+  def getShutdownReason(): Optional[Reason] = shutdownReason().toJava
 
   /**
    * Scala API: Run tasks of all phases. The returned
@@ -687,9 +672,6 @@ final class CoordinatedShutdown private[akka] (
    */
   def run(reason: Reason): Future[Done] = run(reason, None)
 
-  @deprecated("Use the method with `reason` parameter instead", since = "2.5.8")
-  def run(): Future[Done] = run(UnknownReason)
-
   /**
    * Java API: Run tasks of all phases. The returned
    * `CompletionStage` is completed when all tasks have been completed,
@@ -697,10 +679,7 @@ final class CoordinatedShutdown private[akka] (
    *
    * It's safe to call this method multiple times. It will only run the shutdown sequence once.
    */
-  def runAll(reason: Reason): CompletionStage[Done] = run(reason).toJava
-
-  @deprecated("Use the method with `reason` parameter instead", since = "2.5.8")
-  def runAll(): CompletionStage[Done] = runAll(UnknownReason)
+  def runAll(reason: Reason): CompletionStage[Done] = run(reason).asJava
 
   /**
    * Scala API: Run tasks of all phases including and after the given phase.
@@ -773,10 +752,6 @@ final class CoordinatedShutdown private[akka] (
     runPromise.future
   }
 
-  @deprecated("Use the method with `reason` parameter instead", since = "2.5.8")
-  def run(fromPhase: Option[String]): Future[Done] =
-    run(UnknownReason, fromPhase)
-
   /**
    * Java API: Run tasks of all phases including and after the given phase.
    * The returned `CompletionStage` is completed when all such tasks have been completed,
@@ -785,11 +760,7 @@ final class CoordinatedShutdown private[akka] (
    * It's safe to call this method multiple times. It will only run the shutdown sequence once.
    */
   def run(reason: Reason, fromPhase: Optional[String]): CompletionStage[Done] =
-    run(reason, fromPhase.asScala).toJava
-
-  @deprecated("Use the method with `reason` parameter instead", since = "2.5.8")
-  def run(fromPhase: Optional[String]): CompletionStage[Done] =
-    run(UnknownReason, fromPhase)
+    run(reason, fromPhase.toScala).asJava
 
   /**
    * The configured timeout for a given `phase`.

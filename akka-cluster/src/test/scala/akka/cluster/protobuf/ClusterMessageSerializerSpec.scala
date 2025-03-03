@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.protobuf
 
-import collection.immutable.SortedSet
-
 import scala.annotation.nowarn
+
+import collection.immutable.SortedSet
 import com.typesafe.config.ConfigFactory
 
 import akka.actor.{ Address, ExtendedActorSystem }

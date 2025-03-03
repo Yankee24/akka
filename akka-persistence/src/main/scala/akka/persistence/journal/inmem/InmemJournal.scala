@@ -1,28 +1,31 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.journal.inmem
 
-import akka.actor.ActorRef
-
 import scala.collection.immutable
+import scala.concurrent.duration.Duration
 import scala.concurrent.Future
+import scala.jdk.DurationConverters._
 import scala.util.Try
 import scala.util.control.NonFatal
+
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
+import akka.actor.ActorRef
 import akka.annotation.ApiMayChange
 import akka.annotation.InternalApi
 import akka.event.Logging
 import akka.persistence.AtomicWrite
 import akka.persistence.JournalProtocol.RecoverySuccess
 import akka.persistence.PersistentRepr
-import akka.persistence.journal.inmem.InmemJournal.{ MessageWithMeta, ReplayWithMeta }
 import akka.persistence.journal.{ AsyncWriteJournal, Tagged }
+import akka.persistence.journal.inmem.InmemJournal.{ MessageWithMeta, ReplayWithMeta }
 import akka.serialization.SerializationExtension
 import akka.serialization.Serializers
 import akka.util.OptionVal
+import akka.pattern.after
 
 /**
  * The InmemJournal publishes writes and deletes to the `eventStream`, which tests may use to
@@ -60,9 +63,14 @@ object InmemJournal {
 
   private val log = Logging(context.system, classOf[InmemJournal])
 
+  private val delayWrites = {
+    val key = "delay-writes"
+    if (cfg.hasPath(key)) cfg.getDuration(key).toScala
+    else Duration.Zero
+  }
   private val testSerialization = {
     val key = "test-serialization"
-    if (cfg.hasPath(key)) cfg.getBoolean("test-serialization")
+    if (cfg.hasPath(key)) cfg.getBoolean(key)
     else false
   }
 
@@ -81,7 +89,10 @@ object InmemJournal {
         add(p)
         eventStream.publish(InmemJournal.Write(p.payload, p.persistenceId, p.sequenceNr))
       }
-      Future.successful(Nil) // all good
+      if (delayWrites == Duration.Zero)
+        Future.successful(Nil) // all good
+      else
+        after(delayWrites)(Future.successful(Nil))(context.system)
     } catch {
       case NonFatal(e) =>
         // serialization problem
@@ -96,10 +107,15 @@ object InmemJournal {
   override def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)(
       recoveryCallback: PersistentRepr => Unit): Future[Unit] = {
     val highest = highestSequenceNr(persistenceId)
-    if (highest != 0L && max != 0L)
-      read(persistenceId, fromSequenceNr, math.min(toSequenceNr, highest), max).foreach {
+    if (highest != 0L && max != 0L) {
+      val to = math.min(toSequenceNr, highest)
+      // read only last when fromSequenceNr is -1
+      val from = if (fromSequenceNr == -1) to else fromSequenceNr
+
+      read(persistenceId, from, to, max).foreach {
         case (pr, _) => recoveryCallback(pr)
       }
+    }
     Future.successful(())
   }
 

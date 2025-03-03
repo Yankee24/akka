@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2017-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2017-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.scaladsl
 
-import akka.annotation.DoNotInherit
-
 import scala.concurrent.duration.FiniteDuration
+
+import akka.annotation.DoNotInherit
 
 /**
  * Support for scheduled `self` messages in an actor.

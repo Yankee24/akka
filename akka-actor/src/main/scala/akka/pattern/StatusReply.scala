@@ -1,18 +1,20 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.pattern
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.util.{ Failure => ScalaFailure }
 import scala.util.{ Success => ScalaSuccess }
 import scala.util.Try
 import scala.util.control.NoStackTrace
+
 import akka.Done
 import akka.actor.InvalidMessageException
 import akka.annotation.InternalApi
-import akka.dispatch.ExecutionContexts
+import akka.pattern.StatusReply.ErrorMessage
 
 /**
  * Generic top-level message type for replies that signal failure or success. Convenient to use together with the
@@ -53,8 +55,9 @@ final class StatusReply[+T] private (private val status: Try[T]) {
   override def hashCode(): Int = status.hashCode
 
   override def toString: String = status match {
-    case ScalaSuccess(t)  => s"Success($t)"
-    case ScalaFailure(ex) => s"Error(${ex.getMessage})"
+    case ScalaSuccess(t)                => s"Success($t)"
+    case ScalaFailure(ex: ErrorMessage) => s"Error(${ex.getMessage})"
+    case ScalaFailure(ex)               => s"Error($ex)"
   }
 
 }
@@ -93,6 +96,32 @@ object StatusReply {
    * Also note that Akka does not contain pre-build serializers for arbitrary exceptions.
    */
   def error[T](exception: Throwable): StatusReply[T] = Error(exception)
+
+  /**
+   * Scala API: Turn a Try into a status reply.
+   *
+   * Prefer the string based error response over this one when possible to avoid tightly coupled logic across
+   * actors and passing internal failure details on to callers that can not do much to handle them. [[#fromTry]]
+   * provides a convenience factory doing that for [[scala.util.Try]].
+   *
+   * For cases where types are needed to identify errors and behave differently enumerating them with a specific
+   * set of response messages may be a better alternative to encoding them as generic exceptions.
+   *
+   * Also note that Akka does not contain pre-built serializers for arbitrary exceptions.
+   */
+  def fromTryKeepException[T](status: Try[T]): StatusReply[T] = new StatusReply(status)
+
+  /**
+   * Scala API: Turn a try into a status reply.
+   *
+   * Transforms exceptions into status reply errors containing just the exception message string.
+   *
+   * See [[#fromTryKeepException]] for passing the exception along as is.
+   */
+  def fromTry[T](status: Try[T]): StatusReply[T] = status match {
+    case scala.util.Success(value) => success(value)
+    case scala.util.Failure(t)     => error[T](t.getMessage)
+  }
 
   /**
    * Carrier exception used for textual error descriptions.
@@ -170,5 +199,5 @@ object StatusReply {
             ScalaFailure(new IllegalArgumentException(s"Unexpected status reply success value: ${unexpected}"))
         }
       case fail @ ScalaFailure(_) => fail.asInstanceOf[Try[T]]
-    }(ExecutionContexts.parasitic)
+    }(ExecutionContext.parasitic)
 }

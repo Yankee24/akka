@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton
@@ -30,7 +30,6 @@ object ClusterSingletonManagerLeaseSpec extends MultiNodeConfig {
   commonConfig(ConfigFactory.parseString(s"""
     akka.loglevel = INFO
     akka.actor.provider = "cluster"
-    akka.remote.log-remote-lifecycle-events = off
     akka.cluster.downing-provider-class = akka.cluster.testkit.AutoDowning
     akka.cluster.testkit.auto-down-unreachable-after = 0s
     test-lease {

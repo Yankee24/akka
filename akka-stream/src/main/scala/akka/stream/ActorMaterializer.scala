@@ -1,25 +1,22 @@
 /*
- * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream
 
 import java.util.concurrent.TimeUnit
-
+import scala.annotation.nowarn
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
-
-import scala.annotation.nowarn
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-
 import akka.actor.ActorContext
 import akka.actor.ActorRef
 import akka.actor.ActorRefFactory
 import akka.actor.ActorSystem
 import akka.actor.ExtendedActorSystem
 import akka.actor.Props
-import akka.annotation.InternalApi
+import akka.annotation.{ DoNotInherit, InternalApi }
 import akka.event.LoggingAdapter
 import akka.japi.function
 import akka.stream.impl._
@@ -184,7 +181,6 @@ object ActorMaterializer {
     }
     system
   }
-
 }
 
 /**
@@ -213,7 +209,7 @@ private[akka] object ActorMaterializerHelper {
 abstract class ActorMaterializer extends Materializer with MaterializerLoggingProvider {
 
   @deprecated(
-    "Use attributes to access settings from stages, see https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html",
+    "Use attributes to access settings from stages, see https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html",
     "2.6.0")
   def settings: ActorMaterializerSettings
 
@@ -258,13 +254,22 @@ abstract class ActorMaterializer extends Materializer with MaterializerLoggingPr
 class MaterializationException(msg: String, cause: Throwable = null) extends RuntimeException(msg, cause)
 
 /**
+ * A base exception for abrupt stream termination.
+ *
+ * Not for user extension
+ */
+@DoNotInherit
+sealed class AbruptStreamTerminationException(msg: String, cause: Throwable)
+    extends RuntimeException(msg, cause)
+    with NoStackTrace
+
+/**
  * This exception signals that an actor implementing a Reactive Streams Subscriber, Publisher or Processor
  * has been terminated without being notified by an onError, onComplete or cancel signal. This usually happens
  * when an ActorSystem is shut down while stream processing actors are still running.
  */
 final case class AbruptTerminationException(actor: ActorRef)
-    extends RuntimeException(s"Processor actor [$actor] terminated abruptly")
-    with NoStackTrace
+    extends AbruptStreamTerminationException(s"Processor actor [$actor] terminated abruptly", cause = null)
 
 /**
  * Signal that the operator was abruptly terminated, usually seen as a call to `postStop` of the `GraphStageLogic` without
@@ -272,9 +277,9 @@ final case class AbruptTerminationException(actor: ActorRef)
  * the actor running the graph is killed, which happens when the materializer or actor system is terminated.
  */
 final class AbruptStageTerminationException(logic: GraphStageLogic)
-    extends RuntimeException(
-      s"GraphStage [$logic] terminated abruptly, caused by for example materializer or actor system termination.")
-    with NoStackTrace
+    extends AbruptStreamTerminationException(
+      s"GraphStage [$logic] terminated abruptly, caused by for example materializer or actor system termination.",
+      cause = null)
 
 object ActorMaterializerSettings {
 
@@ -282,10 +287,10 @@ object ActorMaterializerSettings {
    * Create [[ActorMaterializerSettings]] from individual settings (Scala).
    *
    * Prefer using either config for defaults or attributes for per-stream config.
-   * See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html"
+   * See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html"
    */
   @deprecated(
-    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html",
+    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html",
     "2.6.0")
   def apply(
       initialInputBufferSize: Int,
@@ -321,10 +326,10 @@ object ActorMaterializerSettings {
    * Create [[ActorMaterializerSettings]] from the settings of an [[akka.actor.ActorSystem]] (Scala).
    *
    * Prefer using either config for defaults or attributes for per-stream config.
-   * See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html"
+   * See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html"
    */
   @deprecated(
-    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html",
+    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html",
     "2.6.0")
   def apply(system: ActorSystem): ActorMaterializerSettings =
     apply(system.settings.config.getConfig("akka.stream.materializer"))
@@ -333,10 +338,10 @@ object ActorMaterializerSettings {
    * Create [[ActorMaterializerSettings]] from a Config subsection (Scala).
    *
    * Prefer using either config for defaults or attributes for per-stream config.
-   * See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html"
+   * See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html"
    */
   @deprecated(
-    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html",
+    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html",
     "2.6.0")
   def apply(config: Config): ActorMaterializerSettings =
     new ActorMaterializerSettings(
@@ -359,10 +364,10 @@ object ActorMaterializerSettings {
    * Create [[ActorMaterializerSettings]] from individual settings (Java).
    *
    * Prefer using either config for defaults or attributes for per-stream config.
-   * See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html"
+   * See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html"
    */
   @deprecated(
-    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html",
+    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html",
     "2.6.0")
   def create(
       initialInputBufferSize: Int,
@@ -398,7 +403,7 @@ object ActorMaterializerSettings {
    * Create [[ActorMaterializerSettings]] from the settings of an [[akka.actor.ActorSystem]] (Java).
    */
   @deprecated(
-    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html",
+    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html",
     "2.6.0")
   def create(system: ActorSystem): ActorMaterializerSettings =
     apply(system)
@@ -407,10 +412,10 @@ object ActorMaterializerSettings {
    * Create [[ActorMaterializerSettings]] from a Config subsection (Java).
    *
    * Prefer using either config for defaults or attributes for per-stream config.
-   * See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html"
+   * See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html"
    */
   @deprecated(
-    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/docs/akka/2.6/project/migration-guide-2.5.x-2.6.x.html",
+    "Use config or attributes to configure the materializer. See migration guide for details https://doc.akka.io/libraries/akka-core/2.6/project/migration-guide-2.5.x-2.6.x.html",
     "2.6.0")
   def create(config: Config): ActorMaterializerSettings =
     apply(config)
@@ -465,99 +470,6 @@ final class ActorMaterializerSettings @InternalApi private (
     initialInputBufferSize <= maxInputBufferSize,
     s"initialInputBufferSize($initialInputBufferSize) must be <= maxInputBufferSize($maxInputBufferSize)")
 
-  // backwards compatibility when added IOSettings, shouldn't be needed since private, but added to satisfy mima
-  @deprecated("Use ActorMaterializerSettings.apply or ActorMaterializerSettings.create instead", "2.5.10")
-  def this(
-      initialInputBufferSize: Int,
-      maxInputBufferSize: Int,
-      dispatcher: String,
-      supervisionDecider: Supervision.Decider,
-      subscriptionTimeoutSettings: StreamSubscriptionTimeoutSettings,
-      debugLogging: Boolean,
-      outputBurstLimit: Int,
-      fuzzingMode: Boolean,
-      autoFusing: Boolean,
-      maxFixedBufferSize: Int,
-      syncProcessingLimit: Int,
-      ioSettings: IOSettings) =
-    // using config like this is not quite right but the only way to solve backwards comp without hard coding settings
-    this(
-      initialInputBufferSize,
-      maxInputBufferSize,
-      dispatcher,
-      supervisionDecider,
-      subscriptionTimeoutSettings,
-      debugLogging,
-      outputBurstLimit,
-      fuzzingMode,
-      autoFusing,
-      maxFixedBufferSize,
-      syncProcessingLimit,
-      ioSettings,
-      StreamRefSettings(ConfigFactory.defaultReference().getConfig("akka.stream.materializer.stream-ref")),
-      ConfigFactory.defaultReference().getString(ActorAttributes.IODispatcher.dispatcher))
-
-  // backwards compatibility when added IOSettings, shouldn't be needed since private, but added to satisfy mima
-  @deprecated("Use ActorMaterializerSettings.apply or ActorMaterializerSettings.create instead", "2.5.10")
-  def this(
-      initialInputBufferSize: Int,
-      maxInputBufferSize: Int,
-      dispatcher: String,
-      supervisionDecider: Supervision.Decider,
-      subscriptionTimeoutSettings: StreamSubscriptionTimeoutSettings,
-      debugLogging: Boolean,
-      outputBurstLimit: Int,
-      fuzzingMode: Boolean,
-      autoFusing: Boolean,
-      maxFixedBufferSize: Int,
-      syncProcessingLimit: Int) =
-    // using config like this is not quite right but the only way to solve backwards comp without hard coding settings
-    this(
-      initialInputBufferSize,
-      maxInputBufferSize,
-      dispatcher,
-      supervisionDecider,
-      subscriptionTimeoutSettings,
-      debugLogging,
-      outputBurstLimit,
-      fuzzingMode,
-      autoFusing,
-      maxFixedBufferSize,
-      syncProcessingLimit,
-      IOSettings(tcpWriteBufferSize = 16 * 1024),
-      StreamRefSettings(ConfigFactory.defaultReference().getConfig("akka.stream.materializer.stream-ref")),
-      ConfigFactory.defaultReference().getString(ActorAttributes.IODispatcher.dispatcher))
-
-  // backwards compatibility when added IOSettings, shouldn't be needed since private, but added to satisfy mima
-  @deprecated("Use ActorMaterializerSettings.apply or ActorMaterializerSettings.create instead", "2.5.10")
-  def this(
-      initialInputBufferSize: Int,
-      maxInputBufferSize: Int,
-      dispatcher: String,
-      supervisionDecider: Supervision.Decider,
-      subscriptionTimeoutSettings: StreamSubscriptionTimeoutSettings,
-      debugLogging: Boolean,
-      outputBurstLimit: Int,
-      fuzzingMode: Boolean,
-      autoFusing: Boolean,
-      maxFixedBufferSize: Int) =
-    // using config like this is not quite right but the only way to solve backwards comp without hard coding settings
-    this(
-      initialInputBufferSize,
-      maxInputBufferSize,
-      dispatcher,
-      supervisionDecider,
-      subscriptionTimeoutSettings,
-      debugLogging,
-      outputBurstLimit,
-      fuzzingMode,
-      autoFusing,
-      maxFixedBufferSize,
-      1000,
-      IOSettings(tcpWriteBufferSize = 16 * 1024),
-      StreamRefSettings(ConfigFactory.defaultReference().getConfig("akka.stream.materializer.stream-ref")),
-      ConfigFactory.defaultReference().getString(ActorAttributes.IODispatcher.dispatcher))
-
   private def copy(
       initialInputBufferSize: Int = this.initialInputBufferSize,
       maxInputBufferSize: Int = this.maxInputBufferSize,
@@ -589,6 +501,24 @@ final class ActorMaterializerSettings @InternalApi private (
       streamRefSettings,
       blockingIoDispatcher)
   }
+
+  // these are the core stream/materializer settings, ad hoc handling of defaults for the stage specific ones
+  // for stream refs and io live with the respective stages
+  private val asAttributes =
+    Attributes(
+      Attributes.InputBuffer(initialInputBufferSize, maxInputBufferSize) ::
+      Attributes.CancellationStrategy.Default :: // FIXME: make configurable, see https://github.com/akka/akka/issues/28000
+      Attributes.NestedMaterializationCancellationPolicy.Default ::
+      ActorAttributes.Dispatcher(dispatcher) ::
+      ActorAttributes.SupervisionStrategy(supervisionDecider) ::
+      ActorAttributes.DebugLogging(debugLogging) ::
+      ActorAttributes
+        .StreamSubscriptionTimeout(subscriptionTimeoutSettings.timeout, subscriptionTimeoutSettings.mode) ::
+      ActorAttributes.OutputBurstLimit(outputBurstLimit) ::
+      ActorAttributes.FuzzingMode(fuzzingMode) ::
+      ActorAttributes.MaxFixedBufferSize(maxFixedBufferSize) ::
+      ActorAttributes.SyncProcessingLimit(syncProcessingLimit) ::
+      Nil)
 
   /**
    * Each asynchronous piece of a materialized stream topology is executed by one Actor
@@ -742,24 +672,7 @@ final class ActorMaterializerSettings @InternalApi private (
    * INTERNAL API
    */
   @InternalApi
-  private[akka] def toAttributes: Attributes =
-    Attributes(
-      // these are the core stream/materializer settings, ad hoc handling of defaults for the stage specific ones
-      // for stream refs and io live with the respective stages
-      Attributes.InputBuffer(initialInputBufferSize, maxInputBufferSize) ::
-      Attributes.CancellationStrategy.Default :: // FIXME: make configurable, see https://github.com/akka/akka/issues/28000
-      Attributes.NestedMaterializationCancellationPolicy.Default ::
-      ActorAttributes.Dispatcher(dispatcher) ::
-      ActorAttributes.SupervisionStrategy(supervisionDecider) ::
-      ActorAttributes.DebugLogging(debugLogging) ::
-      ActorAttributes
-        .StreamSubscriptionTimeout(subscriptionTimeoutSettings.timeout, subscriptionTimeoutSettings.mode) ::
-      ActorAttributes.OutputBurstLimit(outputBurstLimit) ::
-      ActorAttributes.FuzzingMode(fuzzingMode) ::
-      ActorAttributes.MaxFixedBufferSize(maxFixedBufferSize) ::
-      ActorAttributes.SyncProcessingLimit(syncProcessingLimit) ::
-
-      Nil)
+  private[akka] def toAttributes: Attributes = asAttributes
 
   override def toString: String =
     s"ActorMaterializerSettings($initialInputBufferSize,$maxInputBufferSize," +

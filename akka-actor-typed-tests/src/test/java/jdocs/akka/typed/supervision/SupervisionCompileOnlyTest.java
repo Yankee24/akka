@@ -1,12 +1,11 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.akka.typed.supervision;
 
 import akka.actor.typed.*;
 import akka.actor.typed.javadsl.Behaviors;
-
 import java.time.Duration;
 
 public class SupervisionCompileOnlyTest {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit
@@ -10,14 +10,15 @@ import com.typesafe.config.ConfigFactory
 import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.persistence._
 import akka.testkit.TestKitBase
 
-trait CommonUtils extends AnyWordSpecLike with TestKitBase {
+trait CommonUtils extends AnyWordSpecLike with TestKitBase with LogCapturing {
 
   protected def randomPid() = UUID.randomUUID().toString
 
-  import akka.util.ccompat.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   def initSystemWithEnabledPlugin(name: String, serializeMessages: Boolean, serializeSnapshots: Boolean) =
     ActorSystem(

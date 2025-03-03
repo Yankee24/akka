@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.remote.serialization
@@ -13,6 +13,7 @@ import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
 import com.typesafe.config.ConfigFactory
+
 import akka.{ Done, NotUsed }
 import akka.actor._
 import akka.pattern.AskTimeoutException

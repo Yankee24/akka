@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.pattern
@@ -9,19 +9,21 @@ import java.util.concurrent.{ Callable, CompletionException, CompletionStage, Co
 import java.util.concurrent.atomic.{ AtomicBoolean, AtomicInteger, AtomicLong }
 import java.util.function.BiFunction
 import java.util.function.Consumer
+
 import scala.annotation.nowarn
-import scala.compat.java8.FutureConverters
+import scala.jdk.FutureConverters._
 import scala.concurrent.{ Await, ExecutionContext, Future, Promise }
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
 import scala.util.{ Failure, Success, Try }
 import scala.util.control.NoStackTrace
 import scala.util.control.NonFatal
+
 import akka.AkkaException
-import akka.actor.{ ExtendedActorSystem, Scheduler }
-import akka.dispatch.ExecutionContexts.parasitic
+import akka.actor.ClassicActorSystemProvider
+import akka.actor.Scheduler
 import akka.pattern.internal.{ CircuitBreakerNoopTelemetry, CircuitBreakerTelemetry }
-import akka.util.JavaDurationConverters._
 import akka.util.Unsafe
 
 /**
@@ -46,36 +48,16 @@ object CircuitBreaker {
       maxFailures: Int,
       callTimeout: FiniteDuration,
       resetTimeout: FiniteDuration): CircuitBreaker =
-    new CircuitBreaker(scheduler, maxFailures, callTimeout, resetTimeout)(parasitic)
+    new CircuitBreaker(scheduler, maxFailures, callTimeout, resetTimeout)(ExecutionContext.parasitic)
 
   /**
    * Create or find a CircuitBreaker in registry.
    *
    * @param id Circuit Breaker identifier
-   * @param system [[ExtendedActorSystem]] that is storing this [[CircuitBreaker]]
+   * @param system [[ActorSystem]] that is storing this [[CircuitBreaker]]
    */
-  def apply(id: String)(implicit system: ExtendedActorSystem): CircuitBreaker =
+  def apply(id: String)(implicit system: ClassicActorSystemProvider): CircuitBreaker =
     CircuitBreakersRegistry(system).get(id)
-
-  /**
-   * Java API: Create a new CircuitBreaker.
-   *
-   * Callbacks run in caller's thread when using withSyncCircuitBreaker, and in same ExecutionContext as the passed
-   * in Future when using withCircuitBreaker. To use another ExecutionContext for the callbacks you can specify the
-   * executor in the constructor.
-   *
-   * @param scheduler Reference to Akka scheduler
-   * @param maxFailures Maximum number of failures before opening the circuit
-   * @param callTimeout [[scala.concurrent.duration.FiniteDuration]] of time after which to consider a call a failure
-   * @param resetTimeout [[scala.concurrent.duration.FiniteDuration]] of time after which to attempt to close the circuit
-   */
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def create(
-      scheduler: Scheduler,
-      maxFailures: Int,
-      callTimeout: FiniteDuration,
-      resetTimeout: FiniteDuration): CircuitBreaker =
-    apply(scheduler, maxFailures, callTimeout, resetTimeout)
 
   /**
    * Java API: Create a new CircuitBreaker.
@@ -94,15 +76,15 @@ object CircuitBreaker {
       maxFailures: Int,
       callTimeout: java.time.Duration,
       resetTimeout: java.time.Duration): CircuitBreaker =
-    apply(scheduler, maxFailures, callTimeout.asScala, resetTimeout.asScala)
+    apply(scheduler, maxFailures, callTimeout.toScala, resetTimeout.toScala)
 
   /**
-   * Java API: Lookup a CircuitBreaker in registry.
+   * Java API: Create or find a CircuitBreaker in registry.
    *
    * @param id Circuit Breaker identifier
-   * @param system [[ExtendedActorSystem]] that is storing this [[CircuitBreaker]]
+   * @param system [[ActorSystem]] that is storing this [[CircuitBreaker]]
    */
-  def lookup(id: String, system: ExtendedActorSystem): CircuitBreaker =
+  def lookup(id: String, system: ClassicActorSystemProvider): CircuitBreaker =
     apply(id)(system)
 
   protected def convertJavaFailureFnToScala[T](
@@ -173,23 +155,6 @@ class CircuitBreaker(
       CircuitBreakerNoopTelemetry)(executor)
   }
 
-  @deprecated("Use the overloaded one which accepts java.time.Duration instead.", since = "2.5.12")
-  def this(
-      executor: ExecutionContext,
-      scheduler: Scheduler,
-      maxFailures: Int,
-      callTimeout: FiniteDuration,
-      resetTimeout: FiniteDuration) = {
-    this(
-      scheduler,
-      maxFailures,
-      callTimeout,
-      resetTimeout,
-      maxResetTimeout = 36500.days,
-      exponentialBackoffFactor = 1.0,
-      randomFactor = 0.0)(executor)
-  }
-
   def this(
       executor: ExecutionContext,
       scheduler: Scheduler,
@@ -199,8 +164,8 @@ class CircuitBreaker(
     this(
       scheduler,
       maxFailures,
-      callTimeout.asScala,
-      resetTimeout.asScala,
+      callTimeout.toScala,
+      resetTimeout.toScala,
       maxResetTimeout = 36500.days,
       exponentialBackoffFactor = 1.0,
       randomFactor = 0.0)(executor)
@@ -259,7 +224,7 @@ class CircuitBreaker(
    * @param maxResetTimeout the upper bound of resetTimeout
    */
   def withExponentialBackoff(maxResetTimeout: java.time.Duration): CircuitBreaker = {
-    withExponentialBackoff(maxResetTimeout.asScala)
+    withExponentialBackoff(maxResetTimeout.toScala)
   }
 
   /**
@@ -285,12 +250,14 @@ class CircuitBreaker(
    * Holds reference to current state of CircuitBreaker - *access only via helper methods*
    */
   @volatile
+  @nowarn("msg=never updated")
   private[this] var _currentStateDoNotCallMeDirectly: State = Closed
 
   /**
    * Holds reference to current resetTimeout of CircuitBreaker - *access only via helper methods*
    */
   @volatile
+  @nowarn("msg=never updated")
   private[this] var _currentResetTimeoutDoNotCallMeDirectly: FiniteDuration = resetTimeout
 
   @nowarn private def _preventPrivateUnusedErasure = {
@@ -392,9 +359,9 @@ class CircuitBreaker(
    *   `scala.concurrent.TimeoutException` if the call timed out
    */
   def callWithCircuitBreakerCS[T](body: Callable[CompletionStage[T]]): CompletionStage[T] =
-    FutureConverters.toJava[T](callWithCircuitBreaker(new Callable[Future[T]] {
-      override def call(): Future[T] = FutureConverters.toScala(body.call())
-    }))
+    callWithCircuitBreaker(new Callable[Future[T]] {
+      override def call(): Future[T] = body.call().asScala
+    }).asJava
 
   /**
    * Java API (8) for [[#withCircuitBreaker]].
@@ -407,9 +374,9 @@ class CircuitBreaker(
   def callWithCircuitBreakerCS[T](
       body: Callable[CompletionStage[T]],
       defineFailureFn: BiFunction[Optional[T], Optional[Throwable], java.lang.Boolean]): CompletionStage[T] =
-    FutureConverters.toJava[T](callWithCircuitBreaker(new Callable[Future[T]] {
-      override def call(): Future[T] = FutureConverters.toScala(body.call())
-    }, defineFailureFn))
+    callWithCircuitBreaker(new Callable[Future[T]] {
+      override def call(): Future[T] = body.call().asScala
+    }, defineFailureFn).asJava
 
   /**
    * Wraps invocations of synchronous calls that need to be protected.
@@ -875,13 +842,13 @@ class CircuitBreaker(
             notifyCallSuccessListeners(start)
             callSucceeds()
           }
-        }(parasitic)
+        }(ExecutionContext.parasitic)
 
         val timeout = scheduler.scheduleOnce(callTimeout) {
           if (p.tryFailure(timeoutEx)) {
             notifyCallTimeoutListeners(start)
           }
-        }(parasitic)
+        }(ExecutionContext.parasitic)
 
         materialize(body).onComplete {
           case Success(result) =>
@@ -892,7 +859,7 @@ class CircuitBreaker(
               if (!isIgnoredException(ex)) notifyCallFailureListeners(start)
             }
             timeout.cancel()
-        }(parasitic)
+        }(ExecutionContext.parasitic)
         p.future
       }
     }

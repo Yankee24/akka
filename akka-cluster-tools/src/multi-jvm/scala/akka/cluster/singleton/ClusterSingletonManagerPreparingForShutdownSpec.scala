@@ -1,8 +1,12 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton
+
+import scala.concurrent.duration._
+
+import com.typesafe.config.ConfigFactory
 
 import akka.actor.Actor
 import akka.actor.ActorLogging
@@ -15,9 +19,6 @@ import akka.cluster.MultiNodeClusterSpec
 import akka.remote.testkit.MultiNodeConfig
 import akka.remote.testkit.STMultiNodeSpec
 import akka.testkit._
-import com.typesafe.config.ConfigFactory
-
-import scala.concurrent.duration._
 
 object ClusterSingletonManagerPreparingForShutdownSpec extends MultiNodeConfig {
   val first = role("first")
@@ -27,7 +28,6 @@ object ClusterSingletonManagerPreparingForShutdownSpec extends MultiNodeConfig {
   commonConfig(ConfigFactory.parseString("""
     akka.loglevel = INFO 
     akka.actor.provider = "cluster"
-    akka.remote.log-remote-lifecycle-events = off
     akka.cluster.downing-provider-class = akka.cluster.testkit.AutoDowning
     akka.cluster.testkit.auto-down-unreachable-after = off
     akka.cluster.leader-actions-interval = 100ms

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.stream.operators.sourceorflow;
@@ -9,7 +9,6 @@ import akka.japi.Pair;
 import akka.japi.function.Function;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;

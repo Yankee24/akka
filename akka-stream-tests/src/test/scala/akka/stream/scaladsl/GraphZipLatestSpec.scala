@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -285,7 +285,7 @@ class GraphZipLatestSpec extends StreamSpec with ScalaCheckPropertyChecks with S
 
   private def testGraph[A, B]: (TestSubscriber.Probe[(A, B)], TestPublisher.Probe[A], TestPublisher.Probe[B]) =
     RunnableGraph
-      .fromGraph(GraphDSL.createGraph(TestSink.probe[(A, B)], TestSource.probe[A], TestSource.probe[B])(Tuple3.apply) {
+      .fromGraph(GraphDSL.createGraph(TestSink[(A, B)](), TestSource[A](), TestSource[B]())(Tuple3.apply) {
         implicit b => (ts, as, bs) =>
           import GraphDSL.Implicits._
           val zipLatest = b.add(new ZipLatest[A, B]())

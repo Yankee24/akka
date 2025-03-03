@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka
@@ -45,7 +45,7 @@ object MultiNode extends AutoPlugin {
   override lazy val projectSettings: Seq[Def.Setting[_]] = multiJvmSettings
 
   private val defaultMultiJvmOptions: Seq[String] = {
-    import scala.collection.JavaConverters._
+    import scala.jdk.CollectionConverters._
     // multinode.D= and multinode.X= makes it possible to pass arbitrary
     // -D or -X arguments to the forked jvm, e.g.
     // -Dmultinode.Djava.net.preferIPv4Stack=true -Dmultinode.Xmx512m -Dmultinode.XX:MaxPermSize=256M
@@ -75,6 +75,7 @@ object MultiNode extends AutoPlugin {
       multiJvmCreateLogger / logLevel := Level.Debug, //  to see ssh establishment
       MultiJvm / assembly / assemblyMergeStrategy := {
         case n if n.endsWith("logback-test.xml")                => MergeStrategy.first
+        case n if n.endsWith("io.netty.versions.properties")    => MergeStrategy.first
         case n if n.toLowerCase.matches("meta-inf.*\\.default") => MergeStrategy.first
         case n                                                  => (MultiJvm / assembly / assemblyMergeStrategy).value.apply(n)
       },

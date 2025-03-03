@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -295,6 +295,52 @@ class HubSpec extends StreamSpec {
       f2.futureValue should ===(1 to 10)
     }
 
+    "broadcast elements to downstream after at least one subscriber" in {
+      val broadcast = Source(1 to 10).runWith(BroadcastHub.sink[Int](1, 256))
+      val resultOne = broadcast.runWith(Sink.seq) // nothing happening yet
+
+      Await.result(resultOne, 1.second) should be(1 to 10) // fails
+    }
+
+    "broadcast all elements to all consumers" in {
+      val sourceQueue = Source.queue[Int](10) // used to block the source until we say so
+      val (queue, broadcast) = sourceQueue.toMat(BroadcastHub.sink(2, 256))(Keep.both).run()
+      val resultOne = broadcast.runWith(Sink.seq) // nothing happening yet
+      for (i <- 1 to 5) {
+        queue.offer(i)
+      }
+      val resultTwo = broadcast.runWith(Sink.seq)
+      for (i <- 6 to 10) {
+        queue.offer(i)
+      }
+      queue.complete() // only now is the source emptied
+
+      Await.result(resultOne, 1.second) should be(1 to 10)
+      Await.result(resultTwo, 1.second) should be(1 to 10)
+    }
+
+    "broadcast all elements to all consumers with hot upstream" in {
+      val broadcast = Source(1 to 10).runWith(BroadcastHub.sink[Int](2, 256))
+      val resultOne = broadcast.runWith(Sink.seq) // nothing happening yet
+      val resultTwo = broadcast.runWith(Sink.seq)
+
+      Await.result(resultOne, 1.second) should be(1 to 10)
+      Await.result(resultTwo, 1.second) should be(1 to 10)
+    }
+
+    "broadcast all elements to all consumers with hot upstream even some subscriber unsubscribe" in {
+      val broadcast = Source(1 to 10).runWith(BroadcastHub.sink[Int](2, 256))
+      val sub = broadcast.runWith(TestSink.apply())
+      sub.request(1)
+      Thread.sleep(1000)
+      sub.cancel()
+      val resultOne = broadcast.runWith(Sink.seq) // nothing happening yet
+      val resultTwo = broadcast.runWith(Sink.seq) // nothing happening yet
+
+      Await.result(resultOne, 1.second) should be(1 to 10)
+      Await.result(resultTwo, 1.second) should be(1 to 10)
+    }
+
     "send the same prefix to consumers attaching around the same time if one cancels earlier" in {
       val (firstElem, source) = Source.maybe[Int].concat(Source(2 to 20)).toMat(BroadcastHub.sink(8))(Keep.both).run()
 
@@ -439,8 +485,8 @@ class HubSpec extends StreamSpec {
 
     "remember completion for materialisations after completion" in {
 
-      val (sourceProbe, source) = TestSource.probe[Unit].toMat(BroadcastHub.sink)(Keep.both).run()
-      val sinkProbe = source.runWith(TestSink.probe[Unit])
+      val (sourceProbe, source) = TestSource[Unit]().toMat(BroadcastHub.sink)(Keep.both).run()
+      val sinkProbe = source.runWith(TestSink[Unit]())
 
       sourceProbe.sendComplete()
 
@@ -449,7 +495,7 @@ class HubSpec extends StreamSpec {
 
       // Materialize a second time. There was a race here, where we managed to enqueue our Source registration just
       // immediately before the Hub shut down.
-      val sink2Probe = source.runWith(TestSink.probe[Unit])
+      val sink2Probe = source.runWith(TestSink[Unit]())
 
       sink2Probe.request(1)
       sink2Probe.expectComplete()
@@ -565,12 +611,11 @@ class HubSpec extends StreamSpec {
     }
 
     "route evenly" in {
-      val (testSource, hub) = TestSource
-        .probe[Int]
+      val (testSource, hub) = TestSource[Int]()
         .toMat(PartitionHub.sink((size, elem) => elem % size, startAfterNrOfConsumers = 2, bufferSize = 8))(Keep.both)
         .run()
-      val probe0 = hub.runWith(TestSink.probe[Int])
-      val probe1 = hub.runWith(TestSink.probe[Int])
+      val probe0 = hub.runWith(TestSink[Int]())
+      val probe1 = hub.runWith(TestSink[Int]())
       probe0.request(3)
       probe1.request(10)
       testSource.sendNext(0)
@@ -601,12 +646,11 @@ class HubSpec extends StreamSpec {
     }
 
     "route unevenly" in {
-      val (testSource, hub) = TestSource
-        .probe[Int]
+      val (testSource, hub) = TestSource[Int]()
         .toMat(PartitionHub.sink((_, elem) => (elem % 3) % 2, startAfterNrOfConsumers = 2, bufferSize = 8))(Keep.both)
         .run()
-      val probe0 = hub.runWith(TestSink.probe[Int])
-      val probe1 = hub.runWith(TestSink.probe[Int])
+      val probe0 = hub.runWith(TestSink[Int]())
+      val probe1 = hub.runWith(TestSink[Int]())
 
       // (_ % 3) % 2
       // 0 => 0
@@ -634,12 +678,11 @@ class HubSpec extends StreamSpec {
     }
 
     "backpressure" in {
-      val (testSource, hub) = TestSource
-        .probe[Int]
+      val (testSource, hub) = TestSource[Int]()
         .toMat(PartitionHub.sink((_, _) => 0, startAfterNrOfConsumers = 2, bufferSize = 4))(Keep.both)
         .run()
-      val probe0 = hub.runWith(TestSink.probe[Int])
-      val probe1 = hub.runWith(TestSink.probe[Int])
+      val probe0 = hub.runWith(TestSink[Int]())
+      val probe1 = hub.runWith(TestSink[Int]())
       probe0.request(10)
       probe1.request(10)
       testSource.sendNext(0)
@@ -729,8 +772,8 @@ class HubSpec extends StreamSpec {
     "remember completion for materialisations after completion" in {
 
       val (sourceProbe, source) =
-        TestSource.probe[Unit].toMat(PartitionHub.sink((_, _) => 0, startAfterNrOfConsumers = 0))(Keep.both).run()
-      val sinkProbe = source.runWith(TestSink.probe[Unit])
+        TestSource[Unit]().toMat(PartitionHub.sink((_, _) => 0, startAfterNrOfConsumers = 0))(Keep.both).run()
+      val sinkProbe = source.runWith(TestSink[Unit]())
 
       sourceProbe.sendComplete()
 
@@ -739,7 +782,7 @@ class HubSpec extends StreamSpec {
 
       // Materialize a second time. There was a race here, where we managed to enqueue our Source registration just
       // immediately before the Hub shut down.
-      val sink2Probe = source.runWith(TestSink.probe[Unit])
+      val sink2Probe = source.runWith(TestSink[Unit]())
 
       sink2Probe.request(1)
       sink2Probe.expectComplete()

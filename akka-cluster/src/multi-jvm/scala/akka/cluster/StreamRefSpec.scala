@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.jdk.DurationConverters._
 import scala.util.Failure
 import scala.util.Success
 
@@ -13,8 +14,8 @@ import com.typesafe.config.ConfigFactory
 
 import akka.Done
 import akka.actor.{ Actor, ActorIdentity, ActorLogging, ActorRef, Identify, Props }
+import akka.remote.testkit.Direction
 import akka.remote.testkit.MultiNodeConfig
-import akka.remote.transport.ThrottlerTransportAdapter.Direction
 import akka.serialization.jackson.CborSerializable
 import akka.stream.Materializer
 import akka.stream.RemoteStreamRefActorTerminatedException
@@ -27,7 +28,6 @@ import akka.stream.scaladsl.StreamRefs
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit._
-import akka.util.JavaDurationConverters._
 
 object StreamRefSpec extends MultiNodeConfig {
   val first = role("first")
@@ -256,7 +256,7 @@ abstract class StreamRefSpec extends MultiNodeClusterSpec(StreamRefSpec) with Im
         // the subscription timeout for a failure
         val timeout = system.settings.config
             .getDuration("akka.stream.materializer.stream-ref.subscription-timeout")
-            .asScala + 2.seconds
+            .toScala + 2.seconds
         streamLifecycle3.expectMsg(timeout, "failed-system-42-tmp")
       }
 

@@ -1,12 +1,16 @@
 /*
- * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
 
 import java.io.File
+
+import scala.annotation.nowarn
 import scala.concurrent.duration._
+
 import org.apache.commons.io.FileUtils
+
 import akka.actor.{ Actor, ActorIdentity, ActorLogging, ActorRef, ActorSystem, Identify, PoisonPill, Props }
 import akka.cluster.MultiNodeClusterSpec
 import akka.cluster.sharding.ShardCoordinator.ShardAllocationStrategy
@@ -15,11 +19,7 @@ import akka.persistence.journal.leveldb.{ SharedLeveldbJournal, SharedLeveldbSto
 import akka.remote.testconductor.RoleName
 import akka.serialization.jackson.CborSerializable
 import akka.testkit.{ TestActors, TestProbe }
-import akka.util.ccompat._
 
-import scala.annotation.nowarn
-
-@ccompatUsedUntil213
 object MultiNodeClusterShardingSpec {
 
   object EntityActor {

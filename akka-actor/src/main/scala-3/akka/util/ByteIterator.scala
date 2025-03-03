@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.util
@@ -13,6 +13,8 @@ import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 
 import akka.util.Collections.EmptyImmutableSeq
+
+import scala.annotation.nowarn
 
 object ByteIterator {
   object ByteArrayIterator {
@@ -99,9 +101,11 @@ object ByteIterator {
       this
     }
 
+    @nowarn("msg=deprecated")
     override def copyToArray[B >: Byte](xs: Array[B], start: Int): Int =
       this.copyToArray(xs, start, xs.length)
 
+    @nowarn("msg=deprecated")
     override def copyToArray[B >: Byte](xs: Array[B]): Int =
       this.copyToArray(xs, 0, xs.length)
 
@@ -473,7 +477,7 @@ abstract class ByteIterator extends BufferedIterator[Byte] {
 
   override def indexWhere(p: Byte => Boolean, from: Int = 0): Int = {
     var index = 0
-    while (index < from) {
+    while (index < from && hasNext) {
       next()
       index += 1
     }

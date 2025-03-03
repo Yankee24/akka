@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
+
+import scala.concurrent.duration._
 
 import com.typesafe.config.ConfigFactory
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -47,7 +49,6 @@ object RememberEntitiesAndStartEntitySpec {
       akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
       akka.actor.provider = cluster
       akka.remote.artery.canonical.port = 0
-      akka.remote.classic.netty.tcp.port = 0
       akka.cluster.sharding.verbose-debug-logging = on
       akka.cluster.sharding.fail-on-invalid-entity-state-transition = on
       # no leaks between test runs thank you
@@ -94,13 +95,13 @@ class RememberEntitiesAndStartEntitySpec
       // race condition between this message and region getting the termination message, we may need to retry
       val secondShardIncarnation = awaitAssert {
         sharding ! EntityEnvelope(11, "give-me-shard")
-        expectMsgType[ActorRef]
+        expectMsgType[ActorRef](1.second) // short timeout, retry via awaitAssert
       }
 
       awaitAssert {
         secondShardIncarnation ! GetShardStats
         // the remembered 1 and 11 which we just triggered start of
-        expectMsg(ShardStats("1", 2))
+        expectMsg(1.second, ShardStats("1", 2)) // short timeout, retry via awaitAssert
       }
     }
   }

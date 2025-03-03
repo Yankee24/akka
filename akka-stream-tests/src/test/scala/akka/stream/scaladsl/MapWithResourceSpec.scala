@@ -1,8 +1,25 @@
 /*
- * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
+
+import java.io._
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.util.concurrent.atomic.AtomicInteger
+
+import scala.annotation.nowarn
+import scala.annotation.tailrec
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.Await
+import scala.concurrent.Promise
+import scala.concurrent.duration._
+import scala.util.Success
+import scala.util.control.NoStackTrace
+
+import com.google.common.jimfs.Configuration
+import com.google.common.jimfs.Jimfs
 
 import akka.Done
 import akka.stream.AbruptTerminationException
@@ -21,21 +38,6 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.testkit.scaladsl.TestSource
 import akka.testkit.EventFilter
 import akka.util.ByteString
-import com.google.common.jimfs.Configuration
-import com.google.common.jimfs.Jimfs
-
-import java.io._
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.util.concurrent.atomic.AtomicInteger
-import scala.annotation.nowarn
-import scala.annotation.tailrec
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.Await
-import scala.concurrent.Promise
-import scala.concurrent.duration._
-import scala.util.Success
-import scala.util.control.NoStackTrace
 
 class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
 
@@ -207,7 +209,7 @@ class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
           reader.close()
           None
         })
-        .runWith(TestSink.probe)
+        .runWith(TestSink())
 
       SystemMaterializer(system).materializer
         .asInstanceOf[PhasedFusingActorMaterializer]
@@ -236,16 +238,19 @@ class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
     }
 
     "fail when close throws exception" in {
-      val out = TestSubscriber.probe[String]()
-      Source
-        .single(1)
+      val (pub, sub) = TestSource[Int]()
         .mapWithResource(() => Iterator("a"))((it, _) => if (it.hasNext) Some(it.next()) else None, _ => throw TE(""))
         .collect { case Some(line) => line }
-        .runWith(Sink.fromSubscriber(out))
+        .toMat(TestSink())(Keep.both)
+        .run()
 
-      out.request(61)
-      out.expectNext("a")
-      out.expectError(TE(""))
+      pub.ensureSubscription()
+      sub.ensureSubscription()
+      sub.request(1)
+      pub.sendNext(1)
+      sub.expectNext("a")
+      pub.sendComplete()
+      sub.expectError(TE(""))
     }
 
     "not close the resource twice when read fails" in {
@@ -258,7 +263,7 @@ class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
             closedCounter.incrementAndGet()
             None
           })
-        .runWith(TestSink.probe[Int])
+        .runWith(TestSink[Int]())
 
       probe.request(1)
       probe.expectError(TE("failing read"))
@@ -274,7 +279,7 @@ class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
           if (closedCounter.get == 1) throw TE("boom")
           None
         })
-        .runWith(TestSink.probe[Int])
+        .runWith(TestSink[Int]())
 
       EventFilter[TE](occurrences = 1).intercept {
         probe.request(1)
@@ -285,15 +290,14 @@ class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
 
     "will close the resource when upstream complete" in {
       val closedCounter = new AtomicInteger(0)
-      val (pub, sub) = TestSource
-        .probe[Int]
+      val (pub, sub) = TestSource[Int]()
         .mapWithResource(() => newBufferedReader())((reader, count) => readLines(reader, count), reader => {
           reader.close()
           closedCounter.incrementAndGet()
           Some(List("End"))
         })
         .mapConcat(identity)
-        .toMat(TestSink.probe)(Keep.both)
+        .toMat(TestSink())(Keep.both)
         .run()
       sub.expectSubscription().request(2)
       pub.sendNext(1)
@@ -306,15 +310,14 @@ class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
 
     "will close the resource when upstream fail" in {
       val closedCounter = new AtomicInteger(0)
-      val (pub, sub) = TestSource
-        .probe[Int]
+      val (pub, sub) = TestSource[Int]()
         .mapWithResource(() => newBufferedReader())((reader, count) => readLines(reader, count), reader => {
           reader.close()
           closedCounter.incrementAndGet()
           Some(List("End"))
         })
         .mapConcat(identity)
-        .toMat(TestSink.probe)(Keep.both)
+        .toMat(TestSink())(Keep.both)
         .run()
       sub.expectSubscription().request(2)
       pub.sendNext(1)
@@ -327,15 +330,14 @@ class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
 
     "will close the resource when downstream cancel" in {
       val closedCounter = new AtomicInteger(0)
-      val (pub, sub) = TestSource
-        .probe[Int]
+      val (pub, sub) = TestSource[Int]()
         .mapWithResource(() => newBufferedReader())((reader, count) => readLines(reader, count), reader => {
           reader.close()
           closedCounter.incrementAndGet()
           Some(List("End"))
         })
         .mapConcat(identity)
-        .toMat(TestSink.probe)(Keep.both)
+        .toMat(TestSink())(Keep.both)
         .run()
       val subscription = sub.expectSubscription()
       subscription.request(2)
@@ -348,15 +350,14 @@ class MapWithResourceSpec extends StreamSpec(UnboundedMailboxConfig) {
 
     "will close the resource when downstream fail" in {
       val closedCounter = new AtomicInteger(0)
-      val (pub, sub) = TestSource
-        .probe[Int]
+      val (pub, sub) = TestSource[Int]()
         .mapWithResource(() => newBufferedReader())((reader, count) => readLines(reader, count), reader => {
           reader.close()
           closedCounter.incrementAndGet()
           Some(List("End"))
         })
         .mapConcat(identity)
-        .toMat(TestSink.probe)(Keep.both)
+        .toMat(TestSink())(Keep.both)
         .run()
       sub.request(2)
       pub.sendNext(2)

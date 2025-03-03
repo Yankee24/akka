@@ -95,7 +95,7 @@ Scala
 Java
 :  @@snip [BasicPersistentBehaviorTest.java](/akka-persistence-typed/src/test/java/jdocs/akka/persistence/typed/BasicPersistentBehaviorTest.java) { #retentionCriteria #snapshottingPredicate }
 
-Snapshot deletion is triggered after saving a new snapshot.
+Snapshot deletion is triggered after successfully saving a new snapshot.
 
 The above example will save snapshots automatically every `numberOfEvents = 100`. Snapshots that have sequence
 number less than the sequence number of the saved snapshot minus `keepNSnapshots * numberOfEvents` (`100 * 2`) are automatically
@@ -120,6 +120,23 @@ Java
 Deleting events in Event Sourcing based applications is typically either not used at all, or used in conjunction with snapshotting.
 By deleting events you will lose the history of how the system changed before it reached current state, which is
 one of the main reasons for using Event Sourcing in the first place.
+
+Immediate event deletion should not be used together with Projections and for @ref:[Replicated Event Sourcing](replicated-eventsourcing.md)
+event deletion via snapshot predicate or retention criteria is not allowed. Deleting all events immediately when an
+entity has reached its terminal deleted state would have the consequence that Projections might not have consumed all
+previous events yet and will not be notified of the deleted event. Instead, it's recommended to emit a final deleted
+event and store the fact that the entity is deleted separately via a Projection. Then a background task can clean up
+the events and snapshots for the deleted entities. The entity itself knows about the terminal state from the deleted
+event and should not emit further events after that and typically stop itself if it receives more commands.
+
+If snapshots are triggered using the predicate-based api (@scala[`snapshotWhen`]@java[`shouldSnapshot`]), events are not deleted 
+by default. Event deletion can be enabled using the following api:
+
+Scala
+:  @@snip [BasicPersistentBehaviorCompileOnly.scala](/akka-persistence-typed/src/test/scala/docs/akka/persistence/typed/BasicPersistentBehaviorCompileOnly.scala) { #snapshottingPredicateDeleteEvents }
+
+Java
+:  @@snip [BasicPersistentBehaviorTest.java](/akka-persistence-typed/src/test/java/jdocs/akka/persistence/typed/BasicPersistentBehaviorTest.java) { #snapshottingPredicateDeleteEvents }
 
 If snapshot-based retention is enabled, after a snapshot has been successfully stored, a delete of the events
 (journaled by a single event sourced actor) up until the sequence number of the data held by that snapshot can be issued.

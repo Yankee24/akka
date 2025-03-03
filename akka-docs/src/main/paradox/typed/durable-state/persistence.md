@@ -5,6 +5,14 @@ project.description: Durable State with Akka Persistence enables actors to persi
 
 ## Module info
 
+The Akka dependencies are available from Akka's library repository. To access them there, you need to configure the URL for this repository.
+
+@@repository [sbt,Maven,Gradle] {
+id="akka-repository"
+name="Akka library repository"
+url="https://repo.akka.io/maven"
+}
+
 To use Akka Persistence, add the module to your project:
 
 @@dependency[sbt,Maven,Gradle] {
@@ -95,6 +103,10 @@ The two most commonly used effects are:
 
 * `persist` will persist the latest value of the state. No history of state changes will be stored
 * `none` no state to be persisted, for example a read-only command
+
+The state is typically defined as an immutable class and a new instance of the state is passed to the `persist` effect.
+You may choose to use a mutable class for the state, and then the command handler may update the state instance, but
+it must still pass the updated state to the `persist` effect.
 
 More effects are explained in @ref:[Effects and Side Effects](#effects-and-side-effects).
 

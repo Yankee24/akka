@@ -1,10 +1,14 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
-import akka.actor.typed.scaladsl.LoggerOps
+import com.typesafe.config.ConfigFactory
+import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.time.Span
+
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.actor.typed.ActorRef
@@ -20,16 +24,12 @@ import akka.persistence.journal.PersistencePluginProxy
 import akka.persistence.testkit.query.scaladsl.PersistenceTestKitReadJournal
 import akka.persistence.typed.ReplicaId
 import akka.persistence.typed.ReplicationId
-import akka.persistence.typed.scaladsl.ReplicatedEventSourcing
 import akka.persistence.typed.scaladsl.Effect
 import akka.persistence.typed.scaladsl.EventSourcedBehavior
+import akka.persistence.typed.scaladsl.ReplicatedEventSourcing
 import akka.remote.testkit.MultiNodeConfig
 import akka.remote.testkit.MultiNodeSpec
 import akka.serialization.jackson.CborSerializable
-import com.typesafe.config.ConfigFactory
-import org.scalatest.concurrent.Eventually
-import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.time.Span
 
 object ReplicatedShardingSpec extends MultiNodeConfig {
   val first = role("first")
@@ -82,11 +82,11 @@ object ReplicatedShardingSpec extends MultiNodeConfig {
                   replyTo ! state
                   Effect.none
                 case StoreMe(evt, ack) =>
-                  ctx.log.infoN("StoreMe {} {}", evt, replicationContext.replicationId)
+                  ctx.log.info("StoreMe {} {}", evt, replicationContext.replicationId)
                   Effect.persist(evt).thenRun(_ => ack ! Done)
               },
             (state, event) => {
-              ctx.log.infoN(
+              ctx.log.info(
                 "EventHandler [{}] origin [{}] at [{}]",
                 event,
                 replicationContext.origin,

@@ -1,8 +1,14 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.passivation
+
+import scala.concurrent.duration._
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import org.scalatest.concurrent.Eventually
 
 import akka.actor.Actor
 import akka.actor.ActorRef
@@ -11,14 +17,10 @@ import akka.cluster.Cluster
 import akka.cluster.sharding.ClusterSharding
 import akka.cluster.sharding.ClusterShardingSettings
 import akka.cluster.sharding.ShardRegion
-import akka.testkit.WithLogCapturing
 import akka.testkit.AkkaSpec
 import akka.testkit.TestProbe
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-import org.scalatest.concurrent.Eventually
-
-import scala.concurrent.duration._
+import akka.testkit.WithLogCapturing
+import akka.util.Clock
 
 object EntityPassivationSpec {
 
@@ -26,10 +28,10 @@ object EntityPassivationSpec {
     akka.loglevel = DEBUG
     akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]
     akka.actor.provider = "cluster"
-    akka.remote.classic.netty.tcp.port = 0
     akka.remote.artery.canonical.port = 0
     akka.cluster.sharding.verbose-debug-logging = on
     akka.cluster.sharding.fail-on-invalid-entity-state-transition = on
+    akka.scheduled-clock-interval = 100 ms
     """)
 
   val disabledConfig: Config = ConfigFactory.parseString("""
@@ -42,6 +44,7 @@ object EntityPassivationSpec {
 
   object Entity {
     case object Stop
+    case object IgnoreStop
     case object ManuallyPassivate
     case class Envelope(shard: Int, id: Int, message: Any)
     case class Received(id: String, message: Any, nanoTime: Long)
@@ -50,14 +53,18 @@ object EntityPassivationSpec {
   }
 
   class Entity(probes: Map[String, ActorRef]) extends Actor {
+    private val clock = Clock(context.system)
     def id = context.self.path.name
 
-    def received(message: Any) = probes(id) ! Entity.Received(id, message, System.nanoTime())
+    def received(message: Any) = probes(id) ! Entity.Received(id, message, clock.currentTime())
 
     def receive = {
       case Entity.Stop =>
         received(Entity.Stop)
         context.stop(self)
+      case Entity.IgnoreStop =>
+        received(Entity.IgnoreStop)
+        unhandled(Entity.IgnoreStop)
       case Entity.ManuallyPassivate =>
         received(Entity.ManuallyPassivate)
         context.parent ! ShardRegion.Passivate(Entity.Stop)
@@ -87,6 +94,8 @@ abstract class AbstractEntityPassivationSpec(config: Config, expectedEntities: I
     settings.passivationStrategySettings.idleEntitySettings.fold(Duration.Zero)(_.timeout)
   val configuredActiveEntityLimit: Int = settings.passivationStrategySettings.activeEntityLimit.getOrElse(0)
 
+  lazy val clock: Clock = Clock(system)
+
   val probes: Map[Int, TestProbe] = (1 to expectedEntities).map(id => id -> TestProbe()).toMap
   val probeRefs: Map[String, ActorRef] = probes.map { case (id, probe) => id.toString -> probe.ref }
   val stateProbe: TestProbe = TestProbe()
@@ -112,7 +121,7 @@ abstract class AbstractEntityPassivationSpec(config: Config, expectedEntities: I
       }
     }
 
-  def start(): ActorRef = {
+  def start(stopMessage: Any = Entity.Stop): ActorRef = {
     // single node cluster
     Cluster(system).join(Cluster(system).selfAddress)
     ClusterSharding(system).start(
@@ -122,7 +131,7 @@ abstract class AbstractEntityPassivationSpec(config: Config, expectedEntities: I
       extractEntityId,
       extractShardId,
       ClusterSharding(system).defaultShardAllocationStrategy(settings),
-      Entity.Stop)
+      stopMessage)
   }
 }
 

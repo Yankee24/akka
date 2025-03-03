@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.dispatch
@@ -232,7 +232,7 @@ private[akka] abstract class Mailbox(val messageQueue: MessageQueue)
       }
     } finally {
       setAsIdle() //Volatile write, needed here
-      dispatcher.registerForExecution(this, false, false)
+      dispatcher.registerForExecution(this, hasMessageHint = false, hasSystemMessageHint = false)
     }
   }
 

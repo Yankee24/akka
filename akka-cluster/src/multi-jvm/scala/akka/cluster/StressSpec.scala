@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -35,11 +35,11 @@ import akka.remote.DefaultFailureDetectorRegistry
 import akka.remote.PhiAccrualFailureDetector
 import akka.remote.RARP
 import akka.remote.artery.ArterySettings.AeronUpd
+import akka.remote.testkit.Direction
 import akka.remote.testkit.MultiNodeConfig
 import akka.remote.testkit.MultiNodeSpec
-import akka.remote.transport.ThrottlerTransportAdapter
-import akka.testkit.TestEvent._
 import akka.testkit._
+import akka.testkit.TestEvent._
 import akka.util.Helpers.ConfigOps
 import akka.util.Helpers.Requiring
 
@@ -110,7 +110,6 @@ private[cluster] object StressMultiJvmSpec extends MultiNodeConfig {
     }
     akka.loggers = ["akka.testkit.TestEventListener"]
     akka.loglevel = INFO
-    akka.remote.log-remote-lifecycle-events = off
     akka.actor.default-dispatcher.fork-join-executor {
       parallelism-min = 8
       parallelism-max = 8
@@ -471,8 +470,6 @@ abstract class StressSpec extends MultiNodeClusterSpec(StressMultiJvmSpec) with 
     }
   })
 
-  def isArteryEnabled: Boolean = RARP(system).provider.remoteSettings.Artery.Enabled
-
   def isAeronUdpTransport: Boolean = RARP(system).provider.remoteSettings.Artery.Transport == AeronUpd
 
   def jvmInfo(): String = {
@@ -518,7 +515,7 @@ abstract class StressSpec extends MultiNodeClusterSpec(StressMultiJvmSpec) with 
       .append(" MB")
     sb.append("\n")
 
-    import akka.util.ccompat.JavaConverters._
+    import scala.jdk.CollectionConverters._
     val args = runtime.getInputArguments.asScala.filterNot(_.contains("classpath")).mkString("\n  ")
     sb.append("Args:\n  ").append(args)
     sb.append("\n")
@@ -570,7 +567,7 @@ abstract class StressSpec extends MultiNodeClusterSpec(StressMultiJvmSpec) with 
       identifyClusterResultAggregator() match {
         case Some(r) =>
           watch(r)
-          expectMsgPF() { case Terminated(a) if a.path == r.path => true }
+          expectMsgPF() { case Terminated(ac) if ac.path == r.path => true }
         case None => // ok, already terminated
       }
     }
@@ -669,7 +666,7 @@ abstract class StressSpec extends MultiNodeClusterSpec(StressMultiJvmSpec) with 
     runOn(roles.head) {
       val expectedPath = RootActorPath(removeAddress) / "user" / "watchee"
       expectMsgPF() {
-        case Terminated(a) if a.path == expectedPath => true
+        case Terminated(ac) if ac.path == expectedPath => true
       }
     }
     enterBarrier("watch-verified-" + step)
@@ -713,7 +710,7 @@ abstract class StressSpec extends MultiNodeClusterSpec(StressMultiJvmSpec) with 
 
       runOn(roles.head) {
         for (x <- currentRoles; y <- removeRoles) {
-          testConductor.blackhole(x, y, ThrottlerTransportAdapter.Direction.Both).await
+          testConductor.blackhole(x, y, Direction.Both).await
         }
       }
       enterBarrier("partition-several-blackhole")
@@ -845,7 +842,7 @@ abstract class StressSpec extends MultiNodeClusterSpec(StressMultiJvmSpec) with 
 
     // Aeron UDP with embedded driver seems too heavy to get to pass
     // note: there must be one test step before pending, otherwise afterTermination will not run
-    if (isArteryEnabled && isAeronUdpTransport) pending
+    if (isAeronUdpTransport) pending
 
     "join seed nodes" taggedAs LongRunningTest in within(30 seconds) {
 

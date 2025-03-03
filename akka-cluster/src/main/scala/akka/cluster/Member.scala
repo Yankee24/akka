@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
 
-import scala.runtime.AbstractFunction2
-
 import scala.annotation.nowarn
+import scala.runtime.AbstractFunction2
+import scala.jdk.CollectionConverters._
 
 import akka.actor.Address
 import akka.annotation.InternalApi
@@ -21,6 +21,7 @@ import akka.util.Version
  * and roles.
  */
 @SerialVersionUID(1L)
+@nowarn("msg=Use Akka Distributed Cluster")
 class Member private[cluster] (
     val uniqueAddress: UniqueAddress,
     private[cluster] val upNumber: Int, // INTERNAL API
@@ -29,6 +30,7 @@ class Member private[cluster] (
     val appVersion: Version)
     extends Serializable {
 
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   lazy val dataCenter: DataCenter = roles
     .find(_.startsWith(ClusterSettings.DcRolePrefix))
     .getOrElse(throw new IllegalStateException("DataCenter undefined, should not be possible"))
@@ -42,7 +44,7 @@ class Member private[cluster] (
     case _         => false
   }
   override def toString: String = {
-    s"Member($address, $status${if (dataCenter == ClusterSettings.DefaultDataCenter) "" else s", $dataCenter"}${if (appVersion == Version.Zero) ""
+    s"Member($address, $status${if (appVersion == Version.Zero) ""
     else s", $appVersion"})"
   }
 
@@ -51,9 +53,7 @@ class Member private[cluster] (
   /**
    * Java API
    */
-  @nowarn("msg=deprecated")
-  def getRoles: java.util.Set[String] =
-    scala.collection.JavaConverters.setAsJavaSetConverter(roles).asJava
+  def getRoles: java.util.Set[String] = roles.asJava
 
   /**
    * Is this member older, has been part of cluster longer, than another
@@ -166,8 +166,11 @@ object Member {
     a.isOlderThan(b)
   }
 
-  @deprecated("Was accidentally made a public API, internal", since = "2.5.4")
-  def pickHighestPriority(a: Set[Member], b: Set[Member]): Set[Member] =
+  /**
+   * INTERNAL API.
+   */
+  @InternalApi
+  private[akka] def pickHighestPriority(a: Set[Member], b: Set[Member]): Set[Member] =
     pickHighestPriority(a, b, Map.empty)
 
   /**
@@ -364,7 +367,6 @@ final class UniqueAddress(val address: Address, val longUid: Long)
    * Stops `copy(Address, Long)` copy from being generated, use `apply` instead.
    */
   @deprecated("Use Long UID constructor instead", since = "2.4.11")
-  @nowarn("msg=deprecated")
   def copy(address: Address = address, uid: Int = uid) = new UniqueAddress(address, uid.toLong)
 
 }

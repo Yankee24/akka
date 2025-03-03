@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding
@@ -10,13 +10,11 @@ import akka.cluster.MemberStatus
 import akka.cluster.sharding.ShardCoordinator.ShardAllocationStrategy
 import akka.cluster.sharding.ShardRegion.{ ClusterShardingStats, GetClusterShardingStats }
 import akka.testkit._
-import akka.util.ccompat._
 
-@ccompatUsedUntil213
 abstract class ClusterShardingMinMembersSpecConfig(mode: String)
     extends MultiNodeClusterShardingConfig(
       mode,
-      additionalConfig = s"""
+      additionalConfig = """
         akka.cluster.sharding.rebalance-interval = 120s #disable rebalance
         akka.cluster.min-nr-of-members = 3
         """) {

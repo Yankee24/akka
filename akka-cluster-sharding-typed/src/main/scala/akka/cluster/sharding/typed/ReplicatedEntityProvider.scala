@@ -1,23 +1,23 @@
 /*
- * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.typed
 
-import akka.cluster.sharding.typed.scaladsl.Entity
-import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
-import akka.cluster.sharding.typed.javadsl.{ Entity => JEntity, EntityTypeKey => JEntityTypeKey }
-import akka.persistence.typed.ReplicaId
+import java.util.{ Set => JSet }
 
 import scala.collection.immutable
 import scala.reflect.ClassTag
-import akka.util.ccompat.JavaConverters._
-import java.util.{ Set => JSet }
 
 import akka.actor.typed.Behavior
 import akka.cluster.sharding.typed.internal.EntityTypeKeyImpl
+import akka.cluster.sharding.typed.javadsl.{ Entity => JEntity, EntityTypeKey => JEntityTypeKey }
+import akka.cluster.sharding.typed.scaladsl.Entity
+import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
+import akka.persistence.typed.ReplicaId
 import akka.persistence.typed.ReplicationId
 import akka.persistence.typed.ReplicationId.Separator
+import scala.jdk.CollectionConverters._
 
 object ReplicatedEntityProvider {
 
@@ -66,6 +66,7 @@ object ReplicatedEntityProvider {
    * Create a [[ReplicatedEntityProvider]] that uses the defaults for [[Entity]] when running in
    * ClusterSharding. A replica will be run per data center.
    */
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def perDataCenter[M: ClassTag, E](typeName: String, allReplicaIds: Set[ReplicaId])(
       create: ReplicationId => Behavior[M]): ReplicatedEntityProvider[M] = {
     apply(typeName, allReplicaIds) { (typeKey, replicaId) =>
@@ -97,6 +98,7 @@ object ReplicatedEntityProvider {
    * Create a [[ReplicatedEntityProvider]] that uses the defaults for [[Entity]] when running in
    * ClusterSharding. A replica will be run per data center.
    */
+  @deprecated("Use Akka Distributed Cluster instead", "2.10.0")
   def createPerDataCenter[M](
       messageClass: Class[M],
       typeName: String,

@@ -1,17 +1,17 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl
 
+import scala.concurrent.duration.{ FiniteDuration, _ }
+
 import akka.annotation.InternalApi
-import akka.stream.ThrottleMode.Enforcing
 import akka.stream._
+import akka.stream.ThrottleMode.Enforcing
 import akka.stream.impl.fusing.GraphStages.SimpleLinearGraphStage
 import akka.stream.stage._
 import akka.util.NanoTimeTokenBucket
-
-import scala.concurrent.duration.{ FiniteDuration, _ }
 
 /**
  * INTERNAL API

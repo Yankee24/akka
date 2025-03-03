@@ -1,16 +1,17 @@
 /*
- * Copyright (C) 2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2022-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.testkit.scaladsl
+
+import com.typesafe.config.ConfigFactory
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.testkit.typed.scaladsl.LogCapturing
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.persistence.testkit.PersistenceTestKitPlugin
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKitSpec.TestCounter
 import akka.persistence.typed.PersistenceId
-import com.typesafe.config.ConfigFactory
-import org.scalatest.wordspec.AnyWordSpecLike
 
 class EventSourcedBehaviorNoSnapshotTestKitSpec
     extends ScalaTestWithActorTestKit(ConfigFactory.parseString("""

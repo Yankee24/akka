@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package jdocs.akka.cluster.typed;
@@ -43,8 +43,7 @@ public class BasicClusterExampleTest { // extends JUnitSuite {
 
   private Config noPort =
       ConfigFactory.parseString(
-          "      akka.remote.classic.netty.tcp.port = 0 \n"
-              + "      akka.remote.artery.canonical.port = 0 \n");
+              "      akka.remote.artery.canonical.port = 0 \n");
 
   // @Test
   public void clusterApiExample() {

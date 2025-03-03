@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.metrics
 
 import java.lang.System.{ currentTimeMillis => newTimestamp }
 
+import scala.annotation.nowarn
 import scala.util.Failure
 
-import scala.annotation.nowarn
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -30,7 +30,7 @@ class MetricNumericConverterSpec extends AnyWordSpec with Matchers with MetricNu
     }
 
     "define a new metric" in {
-      val Some(metric) = Metric.create(HeapMemoryUsed, 256L, decayFactor = Some(0.18))
+      val metric = Metric.create(HeapMemoryUsed, 256L, decayFactor = Some(0.18)).get
       metric.name should ===(HeapMemoryUsed)
       metric.value should ===(256L)
       metric.isSmooth should ===(true)
@@ -56,7 +56,6 @@ class MetricNumericConverterSpec extends AnyWordSpec with Matchers with MetricNu
   }
 }
 
-@nowarn
 class NodeMetricsSpec extends AnyWordSpec with Matchers {
 
   val node1 = Address("akka", "sys", "a", 2554)
@@ -238,7 +237,6 @@ class MetricsGossipSpec
   }
 }
 
-@nowarn
 class MetricValuesSpec extends AkkaSpec(MetricsConfig.defaultEnabled) with MetricsCollectorFactory {
   import akka.cluster.metrics.StandardMetrics._
 

@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.sharding.protobuf
 
 import scala.concurrent.duration._
+
 import akka.actor.Address
 import akka.actor.ExtendedActorSystem
 import akka.actor.Props

@@ -1,14 +1,15 @@
 /*
- * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2025 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.journal
 
+import scala.annotation.nowarn
+
 import com.typesafe.config.ConfigFactory
+
 import akka.actor.ExtendedActorSystem
 import akka.testkit.AkkaSpec
-
-import scala.annotation.nowarn
 
 @nowarn("msg=Unused import")
 class InmemEventAdaptersSpec extends AkkaSpec {
